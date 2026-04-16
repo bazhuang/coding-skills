@@ -17,3 +17,4 @@ icome-biz-manage-service/src/main/.DS_Store
 /kimi.sh
 # icome-auth-cli runtime data (not source code)
 tools/icome-auth-cli/node_modules/
+/.idea/
