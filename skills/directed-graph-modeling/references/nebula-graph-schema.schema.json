@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "directed-graph-modeling/nebula-graph-schema.schema.json",
+  "title": "NebulaGraph Schema Output",
+  "description": "Structured graph schema generated from algorithm ontology, containing TAG and EDGE definitions for NebulaGraph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "nebula_graph_schema"
+  ],
+  "properties": {
+    "nebula_graph_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tags",
+        "edges"
+      ],
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tagDefinition"
+          },
+          "minItems": 1
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/edgeDefinition"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "timeDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_time_field",
+        "end_time_field",
+        "time_interval",
+        "quantity_fields"
+      ],
+      "properties": {
+        "start_time_field": {
+          "type": ["string", "null"],
+          "description": "开始时间字段名，如 start_date, begin_time"
+        },
+        "end_time_field": {
+          "type": ["string", "null"],
+          "description": "结束时间字段名，如 end_date, finish_time"
+        },
+        "time_interval": {
+          "type": "string",
+          "description": "时间拆分粒度，支持 pandas 频率代码",
+          "enum": [
+            "D", "W", "M", "Q", "Y", "A",
+            "ME", "QE", "YE", "WE",
+            "MS", "QS", "YS", "WS"
+          ]
+        },
+        "quantity_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "量字段列表，如 quantity, amount, volume"
+        }
+      }
+    },
+    "tagDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tag_name",
+        "tag_type",
+        "vid_field",
+        "source_table",
+        "description",
+        "fields",
+        "field_types"
+      ],
+      "properties": {
+        "tag_name": {
+          "type": "string",
+          "description": "TAG 名称，必须与 algorithm_object.table_schema.table_name 完全一致"
+        },
+        "tag_type": {
+          "type": "string",
+          "enum": [
+            "supply_node",
+            "demand_node",
+            "passthrough_node",
+            "processor_node",
+            "storage_node"
+          ],
+          "description": "TAG 类型，对应 algorithm_object.object_type"
+        },
+        "vid_field": {
+          "type": "string",
+          "description": "顶点 ID 字段，通常来自 table_schema.primary_key[0]"
+        },
+        "source_table": {
+          "type": "string",
+          "description": "源 MySQL 表名，与 tag_name 一致"
+        },
+        "description": {
+          "type": "string",
+          "description": "TAG 描述，来自 table_schema.table_desc"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "所有属性字段列表（包含 version_id）"
+        },
+        "field_types": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["int64", "int", "string", "double", "datetime", "date", "bool"]
+          },
+          "description": "字段类型映射，key 为字段名，value 为 NebulaGraph 类型"
+        },
+        "time_dimension": {
+          "$ref": "#/$defs/timeDimension",
+          "description": "时间维度配置（可选，仅当表包含时间范围字段时存在）"
+        }
+      }
+    },
+    "edgeDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_name",
+        "edge_type",
+        "src_vid_field",
+        "dst_vid_field",
+        "source_table",
+        "src_tag",
+        "dst_tag",
+        "description",
+        "fields",
+        "field_types"
+      ],
+      "properties": {
+        "edge_name": {
+          "type": "string",
+          "description": "EDGE 名称，必须与 algorithm_object.table_schema.table_name 完全一致"
+        },
+        "edge_type": {
+          "type": "string",
+          "enum": [
+            "transport",
+            "link"
+          ],
+          "description": "EDGE 类型，对应 algorithm_object.object_type"
+        },
+        "src_vid_field": {
+          "type": "string",
+          "description": "源节点 VID 字段，通过 edge_endpoints + foreign_keys 解析"
+        },
+        "dst_vid_field": {
+          "type": "string",
+          "description": "目标节点 VID 字段，通过 edge_endpoints + foreign_keys 解析"
+        },
+        "rank_field": {
+          "type": ["string", "null"],
+          "description": "边的排序字段（可选），用于区分同一对节点间的多条边"
+        },
+        "source_table": {
+          "type": "string",
+          "description": "源 MySQL 表名，与 edge_name 一致"
+        },
+        "src_tag": {
+          "type": "string",
+          "description": "源节点 TAG 名称，必须存在于 tags 列表中"
+        },
+        "dst_tag": {
+          "type": "string",
+          "description": "目标节点 TAG 名称，必须存在于 tags 列表中"
+        },
+        "description": {
+          "type": "string",
+          "description": "EDGE 描述，来自 table_schema.table_desc"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "所有属性字段列表（包含 version_id）"
+        },
+        "field_types": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["int64", "int", "string", "double", "datetime", "date", "bool"]
+          },
+          "description": "字段类型映射，key 为字段名，value 为 NebulaGraph 类型"
+        },
+        "time_dimension": {
+          "$ref": "#/$defs/timeDimension",
+          "description": "时间维度配置（可选，transport 类型通常需要，link 类型通常不需要）"
+        }
+      }
+    }
+  }
+}
