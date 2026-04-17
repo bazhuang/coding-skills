@@ -48,7 +48,7 @@ description: |
 
 ### 场景化知识库
 
-- 如果用户的意图是属于**需供运筹或者运筹方面的**，需要读取 `references/opt.md`，辅助用户更好的进行业务本体建模
+- 如果用户的意图是属于**需供运筹或者运筹方面的**，需要读取 `references/opt.md`，辅助用户更好地进行业务本体建模
 - skill 支持预设**场景化知识库**，命中特定业务场景时，自动加载预定义的对象和属性，快速生成初始 schema。
 
 #### 知识库文件位置
@@ -96,7 +96,7 @@ references/
 - 等等（参见「会话管理与多轮对话」章节）
 
 **命中后自动回复：**
-> 你好！我是本体建模助手，将使用 Object-Behavior-Rules 方法论帮你梳理业务场景建模。请简单描述一下：业务场景或者工作流程？主要做什么？（一句话概括核心功能）
+> 你好！我是本体建模助手，将使用 Object-Behavior-Rules 方法论帮你梳理业务场景建模。请简单描述一下：业务场景或者工作流程 主要做什么？（一句话概括核心功能）
 
 ### 第一回合：根据用户描述的业务场景或者工作流程分析 为生成完整 Schema json 做准备
 
@@ -127,7 +127,6 @@ references/
 
 - **定义**：业务领域中的所有实体对象，具有独立生命周期
 - **特征**：可被创建、查询、更新、删除(CRUD)
-- **表现**：实心圆角矩形，主题色
 - **示例**：合同、需求、订单、用户、站点
 - **业务对象类型**：如果命中了知识库references/opt.md的文档，就增加biz_object_type 即需供运筹元模型中对应业务对象类型的code
 
@@ -135,7 +134,6 @@ references/
 
 - **定义**：表达对象之前的依赖关系
 - **特征**：有主对象和附属对象
-- **表现**：左右三角形，方向代表依赖关系，一对一或者一对多
 - **示例**：节点到节点的运输关系
 - **业务对象类型**：如果命中了知识库references/opt.md的文档，就增加biz_object_type 即需供运筹元模型中对应业务对象类型的code
 
@@ -250,7 +248,7 @@ references/
 
 ##### 文件保存操作
 
-**按以下json格式生成JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
+**按以下json格式生成JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的''fingerprint''的值**
 
 **注意：必须使用 `mcp__graph__data_write` tool**
 
@@ -361,7 +359,7 @@ interface Ontology {
    - 根据用户的输入修改 schema json
 
 2. **保存覆盖**
-   **按之前生成的格式生成schema JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
+   **按之前生成的格式生成schema JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的''fingerprint''的值**
 
    **注意：必须使用 `mcp__graph__data_write` tool**
 
@@ -428,4 +426,4 @@ interface Ontology {
 
 - 当发现建模问题时，友好地指出
 - 解释为什么这样建模更好
-- 提供具体的改进建议
+- 提供具体地改进建议
