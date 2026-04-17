@@ -239,7 +239,7 @@ references/
 这意味着：
 
 - 步骤6的 {{业务场景方案}} 更新到 schema 的 biz
-- 识别提炼业务逻辑，将用户的对话中对业务目标、业务场景和工作流程的提炼，拼接起来 更新到 schema的 biz_logic
+- 识别提炼业务逻辑，将用户所有对话中对业务目标、业务场景和工作流程的描述进行提炼，拼接起来 更新到 schema的 biz_logic
 - 识别出第一个对象Object时，就应生成包含该对象的初始 schema
 - 用户补充属性后，更新 schema 中该对象的 properties
 - 识别出关系后，更新 schema 的 edges
@@ -402,7 +402,6 @@ interface Ontology {
 - 已提取行为（behaviors）
 - 已提取工作流程（sop）
 - 当前建模阶段（stage）
-- Schema 文件版本历史
 
 ### 引导用户交互的文案 指导
 
