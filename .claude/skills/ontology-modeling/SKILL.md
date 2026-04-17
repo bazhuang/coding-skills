@@ -250,9 +250,9 @@ references/
 
 ##### 文件保存操作
 
-**按以下格式生成schema JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
+**按以下json格式生成JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
 
-json格式如下：
+**注意：必须使用 `mcp__graph__data_write` tool**
 
 ```json
 {
@@ -362,6 +362,8 @@ interface Ontology {
 
 2. **保存覆盖**
    **按之前生成的格式生成schema JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
+
+   **注意：必须使用 `mcp__graph__data_write` tool**
 
 3. **回复给用户看的内容**
    - 参考【步骤6：回复给用户看的内容】的格式
