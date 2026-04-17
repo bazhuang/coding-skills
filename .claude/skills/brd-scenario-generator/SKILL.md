@@ -1,6 +1,6 @@
 ---
 name: brd-scenario-generator
-description: 基于通用BRD模板，结合行业知识库文档或行业名称，自动生成标准BRD格式的业务场景方案文档。纯业务视角，不含技术内容。Use when 用户想要生成BRD格式的业务场景方案，或用户提到 /brd-scenario-generator。
+description: 基于通用BRD模板，结合行业知识库文档或行业名称，自动生成标准BRD格式的业务场景方案文档。纯业务视角，不含技术内容。Use when 用户提到 /brd-scenario-generator。
 ---
 
 # BRD 业务场景方案生成器
@@ -9,8 +9,6 @@ description: 基于通用BRD模板，结合行业知识库文档或行业名称�
 
 ## 触发条件
 
-- 用户要求生成某个行业的BRD业务场景方案
-- 用户提供了行业知识库文档并希望生成BRD方案
 - 用户使用 /brd-scenario-generator 命令
 
 ## 核心原则

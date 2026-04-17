@@ -12,7 +12,7 @@ def data_write(
         file_path: Annotated[
             str,
             Field(
-                description="文件保存的绝对路径（例如：/data/graph_output.json）。必须包含文件名和扩展名。",
+                description="文件保存的绝对路径。必须包含文件名和扩展名。",
             )
         ],
         content: Annotated[
