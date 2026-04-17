@@ -201,7 +201,7 @@ references/
 
 #### 步骤6：生成业务场景方案（类似BRD）
 
-关键要点：**根据以上提取出的所有信息，使用SKILL brd-scenario-generator 总结出业务场景方案**
+关键要点：**根据以上提取出的所有信息，使用SKILL brd-scenario-generator 总结出的业务场景方案 作为后续回复用户的内容之一**
 
 #### 步骤7：回复给用户看的内容
 
@@ -211,11 +211,11 @@ references/
 或者请告诉我：
 
 - 补充优化工作流程
-- 修改某个对象或属性
+- 修改某个对象或属性或约束
 - 调整关系或规则
 - 或直接用语言描述完善细节
 
-回复给用户的内容**内容包括：步骤6的 业务场景方案 和 引导用户修改的文案**严格按照如下格式回复：
+回复给用户的内容**内容包括：步骤6生成出的 业务场景方案 和 步骤7生成的引导用户修改的文案**严格按照如下格式回复：
 
 ```markdown
 {{业务场景方案}}
@@ -240,7 +240,7 @@ references/
 
 ##### 文件保存操作
 
-**按以下json格式生成JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的''fingerprint''的值**
+**按以下json格式生成JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'的值是根目录下`.app_config.json`中key=fingerprint的value值**
 
 **注意：必须使用 `mcp__graph__data_write` tool**
 
