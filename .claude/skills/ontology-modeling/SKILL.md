@@ -239,7 +239,7 @@ references/
 这意味着：
 
 - 步骤6的 {{业务场景方案}} 更新到 schema 的 biz
-- 识别提炼业务逻辑，将用户的对话中对业务目标、业务场景和工作流程的提炼，拼接起来 更新到 schema的 biz_logic
+- 识别提炼业务逻辑，将用户所有对话中对业务目标、业务场景和工作流程的描述进行提炼，拼接起来 更新到 schema的 biz_logic
 - 识别出第一个对象Object时，就应生成包含该对象的初始 schema
 - 用户补充属性后，更新 schema 中该对象的 properties
 - 识别出关系后，更新 schema 的 edges
@@ -250,9 +250,9 @@ references/
 
 ##### 文件保存操作
 
-**按以下格式生成schema JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
+**按以下json格式生成JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
 
-json格式如下：
+**注意：必须使用 `mcp__graph__data_write` tool**
 
 ```json
 {
@@ -363,6 +363,8 @@ interface Ontology {
 2. **保存覆盖**
    **按之前生成的格式生成schema JSON，并使用`mcp__graph__data_write` tool 将JSON内容写入到项目根目录下的`ontology-{fingerprint}.json`文件中，其中`{fingerprint}`'是根目录下`.app_config.json`中的'fingerprint'的值**
 
+   **注意：必须使用 `mcp__graph__data_write` tool**
+
 3. **回复给用户看的内容**
    - 参考【步骤6：回复给用户看的内容】的格式
    - 保证每次回复内容的格式一致
@@ -402,7 +404,6 @@ interface Ontology {
 - 已提取行为（behaviors）
 - 已提取工作流程（sop）
 - 当前建模阶段（stage）
-- Schema 文件版本历史
 
 ### 引导用户交互的文案 指导
 

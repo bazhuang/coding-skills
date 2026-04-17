@@ -59,7 +59,19 @@ description: |
 
 ## 阶段一：本体图谱Schema解析
 
-1. 读取用户提供的ontology文件（JSON/YAML格式）
+### 1.1 Ontology文件定位
+
+按以下优先级查找ontology文件：
+
+1. **优先读取项目根目录下的动态ontology文件**：
+   - 读取项目根目录下的 `.app_config.json` 文件，获取其中的 `fingerprint` 字段值
+   - 根据fingerprint值，读取项目根目录下的 `ontology-{fingerprint}.json` 文件
+2. **兜底方案**：
+   - 如果找不到 `.app_config.json` 或对应的ontology文件，则读取 `.claude/skills/app_generate/ontology.txt` 作为默认文件
+
+### 1.2 解析内容
+
+1. 读取ontology文件（JSON格式）
 2. 解析核心对象(Objects)，提取：
    - 对象编码(code)和名称(name)
    - 对象类型(type)
