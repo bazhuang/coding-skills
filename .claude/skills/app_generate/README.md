@@ -1,6 +1,12 @@
-# App-Generate Skill
+# App-Generate Skill (通用版)
 
-基于本体图谱进行数据建模、架构设计、详细设计的开发流程工具。
+基于本体图谱进行数据建模、架构设计、详细设计的通用开发流程工具。
+
+## 核心特性
+
+- **通用性**：适用于任意业务领域的本体图谱
+- **动态化**：表名、包路径、关联表均从ontology动态生成
+- **可配置**：支持用户自定义项目参数
 
 ## 如何触发
 
@@ -19,17 +25,14 @@
 ### 示例对话
 
 ```
-用户: 基于 ontology.txt 做数据库建模
+用户: 基于 ontology.json 做数据库建模
+      → 自动触发 app_generate skill
+
+用户: 根据图谱做架构设计
       → 自动触发 app_generate skill
 
 用户: 进行本体建模
       → 自动触发 app_generate skill
-
-用户: 做架构设计
-      → 自动触发 app_generate skill
-
-用户: 需要详细的接口设计
-      → 自动触发 app_generate skill (阶段五)
 ```
 
 ## 工作流程
@@ -51,8 +54,19 @@
 ## 适用场景
 
 - 根据 ontology 图谱 schema 进行 DDL 生成
-- 天然气供需匹配运筹项目开发
+- 任意业务领域的数据建模
 - 数据库建模、架构设计、详细设计全流程
+
+## 用户配置项
+
+用户在开始使用前可以提供以下配置（可选）：
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `base_package` | 基础包路径前缀 | `com.example` |
+| `db_name` | 数据库名称 | `app_db` |
+| `table_prefix` | 表名前缀 | 无 |
+| `author` | 文档作者 | `AI` |
 
 ## 文件结构
 
@@ -61,7 +75,33 @@ app_generate/
 ├── SKILL.md                    # Skill 主文件
 └── references/
     ├── arch-design-template.md    # 架构设计模板
-    ├── ddl-specs.md                # DDL 规范
+    ├── ddl-specs.md              # DDL 规范
     ├── detail-design-template.md  # 详细设计模板
-    └── tech-specs.md              # 技术规范
+    └── tech-specs.md            # 技术规范
 ```
+
+## 主要改进（通用版）
+
+1. **移除硬编码**：不再绑定特定项目或业务领域
+2. **动态生成**：
+   - 表名从对象code动态生成（下划线命名）
+   - 包路径从用户配置动态生成
+   - 关联表从edges关系动态生成
+3. **通用议题**：头脑风暴阶段使用通用讨论议题
+4. **模板通用化**：架构和详细设计模板使用占位符
+
+## Ontology格式要求
+
+Ontology文件应为JSON格式，包含以下核心结构：
+
+```json
+{
+  "objects": [...],
+  "edges": [...],
+  "rules": [...],
+  "behaviors": [...],
+  "sop": [...]
+}
+```
+
+详细格式说明请参考 SKILL.md 文件。

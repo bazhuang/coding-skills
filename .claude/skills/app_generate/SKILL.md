@@ -1,148 +1,259 @@
 ---
 name: app_generate
 description: |
-  基于本体图谱进行数据建模、架构设计、详细设计的开发流程工具。
+  基于本体图谱进行数据建模、架构设计、详细设计的通用开发流程工具。
   当用户需要根据ontology图谱schema进行DDL生成、数据库建模、架构设计、详细设计等开发工作时触发。
-  适用于天然气供需匹配运筹项目的开发场景。
+  适用于任意业务领域的模型设计和代码生成场景。
+  支持动态识别业务场景并加载领域增强知识。
 ---
 
-# App-Generate Skill
+# App-Generate Skill (通用版)
 
 基于本体图谱(ontology)的schema信息解析，完成数据建模、架构设计、详细设计的完整开发流程。
 
-## 适用场景
+## 核心特性
 
-- 用户提供了ontology图谱schema，需要进行数据库建模
-- 需要基于本体图谱生成MySQL DDL表结构
-- 需要基于DDL与架构师进行头脑风暴讨论
-- 需要进行架构设计（概要设计）
-- 需要进行详细设计
-- 天然气供需匹配运筹项目的开发
-
----
-
-## 核心工作流程
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  阶段一：本体图谱Schema解析                                        │
-│  解析objects、edges、rules、behaviors、sop                        │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  阶段二：数据建模 - MySQL DDL生成                                   │
-│  基于objects和edges生成表结构                                      │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  阶段三：头脑风暴 - 架构师技术逻辑补充 ★                             │
-│  基于初步DDL进行交互式讨论，补充完善                                 │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  阶段四：架构设计（概要设计）                                       │
-│  输出架构设计md文档                                                │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  阶段五：详细设计                                                  │
-│  输出详细设计md文档                                                │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  阶段六：代码生成                                                  │
-│  基于详细设计生成Java代码                                          │
-└─────────────────────────────────────────────────────────────────┘
-```
+- **通用性**：适用于任意业务领域的本体图谱
+- **动态化**：表名、包路径、关联表均从ontology动态生成
+- **可配置**：支持用户自定义项目参数
+- **场景感知**：自动识别业务领域并加载领域增强知识
 
 ---
 
 ## 阶段一：本体图谱Schema解析
 
-### 1.1 Ontology文件定位
+### 1.1 必需输入
 
-按以下优先级查找ontology文件：
+用户必须提供以下信息之一：
 
-1. **优先读取项目根目录下的动态ontology文件**：
-   - 读取项目根目录下的 `.app_config.json` 文件，获取其中的 `fingerprint` 字段值
-   - 根据fingerprint值，读取项目根目录下的 `ontology-{fingerprint}.json` 文件
-2. **兜底方案**：
-   - 如果找不到 `.app_config.json` 或对应的ontology文件，则读取 `.claude/skills/app_generate/ontology.txt` 作为默认文件
+| 类型 | 说明 | 优先级 |
+|------|------|--------|
+| **Ontology JSON文件** | 包含objects、edges的完整图谱定义 | P0（必需） |
+| **项目包路径前缀** | 如 `com.example.project` | P1（推荐） |
+| **数据库名称** | 如 `myapp_db` | P2（可选） |
+| **模块前缀映射** | 对象code到表名前缀的映射 | P3（可选） |
 
-### 1.2 解析内容
+### 1.2 Ontology格式要求
 
-1. 读取ontology文件（JSON格式）
-2. 解析核心对象(Objects)，提取：
-   - 对象编码(code)和名称(name)
-   - 对象类型(type)
-   - 属性(properties)：包含字段code、name、type、comment
-3. 解析关系(Edges)，提取：
-   - 关系编码和名称
-   - 源对象和目标对象
-   - 约束条件
-4. 解析业务规则(Rules)
-5. 解析行为(Behaviors)
-6. 解析业务流程(SOP)
+Ontology文件应为JSON格式，包含以下核心结构：
+
+```json
+{
+  "objects": [
+    {
+      "code": "object_code",
+      "name": "对象名称",
+      "comment": "对象描述",
+      "type": "对象类型",
+      "properties": [
+        {
+          "code": "field_code",
+          "name": "字段名称",
+          "comment": "字段描述",
+          "type": "String|Integer|Double|Boolean|Date|DateTime|JSON"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "code": "edge_code",
+      "name": "关系名称",
+      "source_code": "源对象code",
+      "target_code": "目标对象code",
+      "constraint": "约束描述"
+    }
+  ],
+  "rules": [...],
+  "behaviors": [...],
+  "sop": [...]
+}
+```
+
+### 1.3 解析内容
+
+1. **解析Objects**：提取对象编码、名称、类型、属性
+2. **解析Edges**：提取关系编码、源对象、目标对象、约束
+3. **解析Rules**：提取业务规则定义
+4. **解析Behaviors**：提取行为定义（CRUD）
+5. **解析SOP**：提取业务流程定义
 
 ---
 
-## 阶段二：数据建模
+## 场景识别与动态知识加载
+
+基于解析的Objects、Edges信息，自动识别业务领域并加载对应知识增强包。
+
+### 场景识别规则
+
+| 场景关键词 | 识别依据 | 加载知识包 |
+|-----------|---------|-----------|
+| **天然气供需匹配** | objects含`resource_pool`,`demand_pool`,`transport_capacity_pool`,`optimization_model` 或 edges含`matching_result` | `domain/natural_gas/*` |
+| **订单/交易系统** | objects含`order`,`product`,`customer` 且无专项领域对象 | 通用流程 |
+| **通用业务系统** | 其他标准对象组合 | 通用流程 |
+
+### 动态加载机制
+
+当识别到特定领域时，加载以下增强知识：
+
+```markdown
+## 领域增强包加载
+
+场景: {识别结果}
+知识包: {知识包路径}
+
+包含内容:
+1. 业务特定规范 (CLAUDE.md)
+2. 专项头脑风暴议题
+3. 领域特定DDL规则
+4. 业务接口约定
+```
+
+### 天然气供需匹配场景知识包
+
+当识别为此场景时，自动加载以下内容：
+
+#### 专项头脑风暴议题（A-G）
+
+- **议题A**：月度计划编制规则（运筹模型输入）
+- **议题B**：资源池与需求池匹配算法
+- **议题C**：传输运力约束建模
+- **议题D**：多目标优化策略（成本/效率/稳定性）
+- **议题E**：结果可视化与报表设计
+- **议题F**：历史数据积累与分析
+- **议题G**：异常处理与人工干预机制
+
+#### 业务特定规范
+
+- 包路径前缀：`com.enn.supply.opt`
+- 业务唯一标识：`cvcu_id`（而非通用`biz_id`）
+- 时间粒度：月度（plan_date格式：yyyy-MM）
+- 核心关系：计划→模型→结果 调用链
+
+---
+
+## 阶段二：数据建模 - MySQL DDL生成
 
 <HARD-GATE>
 完成DDL生成后，必须等待用户确认DDL文档，才能进入下一阶段（头脑风暴）。
 </HARD-GATE>
 
-基于解析的本体图谱信息，生成MySQL DDL表结构。
+### 2.1 动态表名生成规则
 
-**关键参考文档**: `references/ddl-specs.md`
+**规则**：将对象code转为下划线命名，并添加模块前缀
 
-### 2.1 表命名策略
+| 对象code | 表名（无前缀） | 表名（有前缀：mod_） |
+|----------|---------------|---------------------|
+| monthlyOperationPlan | monthly_operation_plan | mod_monthly_operation_plan |
+| resourcePool | resource_pool | mod_resource_pool |
+| userInfo | user_info | mod_user_info |
 
-| 对象 | 表名 |
-|------|------|
-| monthly_operation_plan | `mop_monthly_plan` |
-| resource_pool | `rp_resource_pool` |
-| demand_pool | `dp_demand_pool` |
-| transport_capacity_pool | `tcp_transport_capacity` |
-| optimization_model | `om_optimization_model` |
-| matching_result | `mr_matching_result` |
+**表名前缀映射**（可选配置）：
 
-### 2.2 字段映射规则
+```yaml
+# 用户可通过配置覆盖默认前缀
+prefix_mapping:
+  core_object: core_
+  transaction: txn_
+  reference: ref_
+```
+
+### 2.2 字段类型映射规则
 
 | Ontology类型 | MySQL类型 | 说明 |
 |-------------|----------|------|
-| String | VARCHAR(255) 或 TEXT | 根据长度选择 |
+| String | VARCHAR(255) | 默认255，特殊长度可调整 |
 | Integer | INT(11) | 整数 |
-| Double | DECIMAL(20,6) | 金额、量值 |
+| Long | BIGINT(20) | 长整数 |
+| Double | DECIMAL(20,6) | 金额、量值（高精度） |
 | Boolean | TINYINT(1) | 0/1 |
 | Date | VARCHAR(10) | yyyy-MM-dd格式 |
 | DateTime | DATETIME | 时间戳 |
+| JSON | TEXT / JSON | JSON数据 |
 
-### 2.3 必需字段
+### 2.3 必需字段规范
 
-- `id` BIGINT(20) - 自增主键
-- `cvcu_id` VARCHAR(64) - 客创唯一标识(唯一约束)
-- `create_by`, `create_time`, `update_by`, `update_time` - 审计字段
-- `start_date`, `end_date` - 时间范围字段(按需)
+每个表必须包含以下审计字段：
 
-### 2.4 Edges关系表设计
+```sql
+-- 主键（必需）
+`id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
 
-根据ontology图谱的edges关系，设计对应的关联表（排除model_to_result）：
+-- 业务唯一标识（必需）
+`biz_id` VARCHAR(64) NOT NULL COMMENT '业务唯一标识',
 
-| Edge Code | 源对象 | 目标对象 | 约束 | 关系表 | 基数 |
-|-----------|--------|---------|------|--------|------|
-| plan_to_model | monthly_operation_plan | optimization_model | 1:1 | om_plan_model_rel | 1:1 |
-| resource_to_model | resource_pool | optimization_model | N:1 | om_model_resource_rel | N:1 |
-| demand_to_model | demand_pool | optimization_model | N:1 | om_model_demand_rel | N:1 |
-| transport_to_model | transport_capacity_pool | optimization_model | N:1 | om_model_transport_rel | N:1 |
-| resource_to_transport | resource_pool | transport_capacity_pool | N:N(站点匹配) | rp_transport_station_rel | N:N |
-| transport_to_demand | transport_capacity_pool | demand_pool | N:N(站点匹配) | tcp_demand_station_rel | N:N |
+-- 审计字段（必需）
+`create_by` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '创建人',
+`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+`update_by` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '修改人',
+`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
 
-> **注意**: `model_to_result` (需供和模型的关系表) 不设计关联表，通过model_id和result_id直接关联。
+-- 时间范围字段（按需添加）
+`start_date` VARCHAR(10) DEFAULT NULL COMMENT '开始日期',
+`end_date` VARCHAR(10) DEFAULT NULL COMMENT '结束日期',
 
-### 2.5 输出初步DDL
+-- 状态字段（按需添加）
+`status` VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态'
+```
 
-生成初步的DDL脚本文件，命名格式：`{module}_ddl_{date}.sql`
+### 2.4 动态关联表生成
+
+根据edges关系动态生成关联表：
+
+**生成规则**：
+1. 遍历所有edges
+2. 对于N:1关系，生成 `{target_table}_{source_table}_rel` 关联表
+3. 对于1:1关系，生成 `{source_table}_{target_table}_rel` 关联表
+4. 对于N:N关系，生成带复合唯一索引的关联表
+5. 排除自关联和特殊关系
+
+**关联表模板**：
+
+```sql
+-- 关联表: {relation_table_name}
+-- 说明: {source_object} 与 {target_object} 的关联表
+-- 关系类型: {relationship_type} ({cardinality})
+
+CREATE TABLE `{relation_table_name}` (
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `biz_id` VARCHAR(64) NOT NULL COMMENT '业务唯一标识',
+    
+    -- 关联字段
+    `{source_fk}` BIGINT(20) NOT NULL COMMENT '{source_object}外键',
+    `{target_fk}` BIGINT(20) NOT NULL COMMENT '{target_object}外键',
+    
+    -- 关联属性（如edges中有额外属性）
+    {edge_properties}
+    
+    -- 审计字段
+    `create_by` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '创建人',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '修改人',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_biz_id` (`biz_id`),
+    {unique_constraints}
+    INDEX `idx_{source_fk}` (`{source_fk}`),
+    INDEX `idx_{target_fk}` (`{target_fk}`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='{relation_comment}';
+```
+
+### 2.5 索引设计规范
+
+**索引优先级**：
+
+| 优先级 | 索引类型 | 说明 |
+|--------|---------|------|
+| P0 | 主键索引 | id自增主键 |
+| P1 | 唯一索引 | biz_id业务唯一标识 |
+| P2 | 外键索引 | 关联表外键字段 |
+| P3 | 业务索引 | 频繁查询字段 |
+| P4 | 复合索引 | 组合查询字段 |
+
+### 2.6 输出初步DDL
+
+生成DDL脚本文件，命名格式：`{module}_ddl_{date}.sql`
 
 **完成后必须**：
 1. 向用户展示DDL文件路径和表数量概览
@@ -151,15 +262,13 @@ description: |
 
 ---
 
-## 阶段三：头脑风暴 - 架构师技术逻辑补充 ★
+## 阶段三：头脑风暴 - 技术逻辑补充 ★
 
 <HARD-GATE>
-在完成头脑风暴讨论并获得用户（架构师）批准之前，不得进入下一阶段。
+在完成头脑风暴讨论并获得用户批准之前，不得进入下一阶段。
 </HARD-GATE>
 
 ### 3.1 核心原则
-
-借鉴brainstorming skill的交互式流程：
 
 1. **One question at a time** - 一次只问一个问题，不堆积
 2. **Multiple choice preferred** - 优先提供选择题
@@ -167,11 +276,11 @@ description: |
 4. **Be flexible** - 随时准备回退澄清
 5. **YAGNI ruthlessly** - 去除不必要的功能
 
-### 3.2 头脑风暴讨论议题
+### 3.2 通用讨论议题
 
-基于初步DDL，与架构师逐一讨论以下主题：
+基于初步DDL，与架构师逐一讨论以下通用主题：
 
-#### 议题1：数据模型优化讨论
+#### 议题1：数据模型优化
 
 **讨论内容**：
 - JSON字段存储是否合理？
@@ -185,7 +294,7 @@ B. 增加结构化明细表，便于前端展示和查询
 C. 混合方案：JSON存储+明细表索引
 ```
 
-#### 议题2：索引设计讨论
+#### 议题2：索引设计
 
 **讨论内容**：
 - 现有索引是否满足查询需求？
@@ -195,25 +304,25 @@ C. 混合方案：JSON存储+明细表索引
 **讨论选项**：
 ```
 A. 现有索引足够
-B. 增加复合索引：xxx, yyy
-C. 考虑按年月分表（未来）
+B. 增加复合索引
+C. 考虑按时间/业务维度分表
 ```
 
-#### 议题3：关联表设计讨论
+#### 议题3：关联表设计
 
 **讨论内容**：
 - 关联表设计是否合理？
 - 是否需要额外的关联属性？
-- 站点匹配约束的实现方式？
+- 关联约束的实现方式？
 
 **讨论选项**：
 ```
 A. 现有设计合理
-B. 关联表增加xxx字段
-C. 增加站点校验逻辑表
+B. 关联表增加额外字段
+C. 增加约束校验逻辑
 ```
 
-#### 议题4：约束实现策略讨论
+#### 议题4：约束实现策略
 
 **讨论内容**：
 - 业务约束在数据层还是业务层实现？
@@ -226,7 +335,7 @@ B. 数据库层校验（Trigger/Check约束）
 C. 专门的约束配置表
 ```
 
-#### 议题5：性能与扩展性讨论
+#### 议题5：性能与扩展性
 
 **讨论内容**：
 - 大数据量场景预估？
@@ -240,175 +349,17 @@ B. 预留分表字段（partition_key）
 C. 增加读写分离设计
 ```
 
-### 3.3 交互式讨论流程
+#### 议题6：审计字段配置
 
-```
-1. 展示初步DDL概述
-   - 表数量、核心表结构
-   - 关系表设计
-
-2. 逐一发起讨论（一次一个议题）
-   - 提供讨论内容和选项
-   - 等待架构师回复
-   - 记录决策
-
-3. 汇总讨论结论
-   - 补充的字段
-   - 补充的表
-   - 索引优化
-   - 约束设计
-
-4. 输出补充后的DDL
-   - 更新DDL文件
-   - 获得架构师最终确认
-```
-
-### 3.2.2 供需匹配专项议题
-
-**适用场景**：天然气供需匹配运筹系统
-
-#### 专项议题A：版本隔离策略
-
-**业务场景**：本体数据（原始数据/基础数据）与仿真数据（用于运筹计算）如何隔离？
+**讨论内容**：
+- 审计字段是否完整？
+- 是否需要记录版本/状态变更历史？
 
 **讨论选项**：
 ```
-A. 共用表，通过 version_id 字段隔离（推荐）
-   - 优点：数据一致性高，查询方便
-   - 缺点：数据量大时需注意索引设计
-
-B. 完全独立的表结构
-   - 本体表：存放原始基础数据
-   - 仿真表：存放运筹计算用的数据副本
-   - 优点：职责清晰，隔离性好
-   - 缺点：数据同步复杂
-
-C. 本体表 + 仿真表 + 视图/物化视图
-   - 优点：灵活切换
-   - 缺点：维护成本高
-```
-
-#### 专项议题B：数据同步机制
-
-**业务场景**：从本体数据同步到仿真数据的触发方式和同步范围
-
-**讨论选项**：
-```
-A. 手动触发，用户选择同步哪些数据
-   - 优点：灵活可控
-   - 缺点：操作繁琐
-
-B. 定时同步（每日/每周）
-   - 优点：自动化程度高
-   - 缺点：实时性差
-
-C. 本体数据变更时自动同步（CDC）
-   - 优点：实时性高
-   - 缺点：实现复杂，可能产生大量小事务
-
-D. 混合方案（推荐）
-   - 默认定时同步 + 支持手动立即同步
-```
-
-#### 专项议题C：关联关系处理
-
-**业务场景**：需求-门站、资源-下载站的对照关系如何处理？
-
-**讨论选项**：
-```
-A. 实时查询本体关联表
-   - 优点：数据始终最新
-   - 缺点：跨表查询性能差
-
-B. 同步时预复制到仿真表（推荐）
-   - 优点：查询性能好
-   - 缺点：数据可能滞后
-
-C. 建立关联视图
-   - 优点：数据一致性高
-   - 缺点：查询性能一般
-```
-
-#### 专项议题D：历史版本追溯
-
-**业务场景**：仿真版本是否需要长期保留，如何追溯历史版本？
-
-**讨论选项**：
-```
-A. 只保留最近N个版本
-   - 优点：数据量可控
-   - 缺点：历史追溯受限
-
-B. 所有版本永久保留
-   - 优点：追溯完整
-   - 缺点：数据量持续增长
-
-C. 根据状态保留（推荐）
-   - 草稿版本：保留最近3个
-   - 已完成版本：永久保留
-   - 已归档版本：可归档或删除
-```
-
-#### 专项议题E：计算结果存储策略
-
-**业务场景**：匹配结果表按天输出，数据量大的场景
-
-**讨论选项**：
-```
-A. 按月分区（PARTITION BY MONTH）
-   - 优点：历史查询方便
-   - 缺点：单月数据量大时性能下降
-
-B. 按版本号分区
-   - 优点：版本查询快
-   - 缺点：跨版本查询麻烦
-
-C. 冷热数据分离（推荐）
-   - 热数据（最近3个月）：保留在主库
-   - 冷数据（历史）：归档到历史库
-
-D. 分表策略
-   - 按月分表：match_result_202401, match_result_202402
-   - 优点：单表数据量可控
-   - 缺点：跨表查询复杂
-```
-
-#### 专项议题F：多版本并发控制
-
-**业务场景**：同一时间段是否支持多个仿真版本并行？
-
-**讨论选项**：
-```
-A. 不支持，同一时间段只允许一个仿真版本
-   - 优点：简单直观
-   - 缺点：灵活性差
-
-B. 支持，但需要版本锁定机制（推荐）
-   - 当前版本：正在计算或已完成的最新版本
-   - 锁定期间不允许再创建新版本
-
-C. 支持，版本间完全隔离
-   - 优点：灵活性高
-   - 缺点：数据一致性难以保证
-```
-
-#### 专项议题G：未匹配记录处理
-
-**业务场景**：未匹配的客户/资源/运力如何记录和处理？
-
-**讨论选项**：
-```
-A. 只记录未匹配的主记录
-   - 优点：简单
-   - 缺点：信息有限
-
-B. 记录未匹配原因和缺口量（推荐）
-   - 表结构包含：未匹配原因(gap_reason)、缺口量(gap_amount)
-   - 优点：便于分析问题
-
-C. 完整的未匹配明细表
-   - 优点：追溯完整
-   - 缺点：数据量大
+A. 基础审计字段足够
+B. 增加状态变更历史表
+C. 增加操作日志表
 ```
 
 ### 3.3 交互式讨论流程
@@ -472,7 +423,6 @@ C. 完整的未匹配明细表
 
 基于技术规范和头脑风暴结论，输出架构设计文档。
 
-**关键参考文档**: `references/tech-specs.md`
 **输出文档模板**: `references/arch-design-template.md`
 
 ### 4.1 设计内容
@@ -503,7 +453,7 @@ C. 完整的未匹配明细表
 
 6. **风险评估**
 
-### 4.2 架构规范
+### 4.2 通用架构规范
 
 - 调用链: `starter → controller → biz → service → dal`
 - Controller返回: `ServiceResult<VO>`
@@ -514,7 +464,21 @@ C. 完整的未匹配明细表
 - Controller方法必须添加`@Authorize`注解
 - 使用Spring Boot 3.x兼容的jakarta包
 
-### 4.3 输出文档
+### 4.3 包路径生成规则
+
+**默认包路径**：`{user_package_prefix}.{module}.{layer}`
+
+| 层级 | 包路径 |
+|------|--------|
+| Controller | `{base}.controller.*` |
+| Biz | `{base}.biz.*` |
+| Service | `{base}.service.*` |
+| DAL | `{base}.dal.mapper` |
+| PO | `{base}.dal.po` |
+| DTO | `{base}.service.dto` |
+| VO | `{base}.client.vo` |
+
+### 4.4 输出文档
 
 命名格式：`{module}_architecture_design_{date}.md`
 
@@ -577,19 +541,19 @@ C. 完整的未匹配明细表
 
 ### 6.1 生成文件
 
-1. **PO类** (supply-opt-dal)
-2. **DTO类** (supply-opt-service)
-3. **VO类** (supply-opt-client)
-4. **Mapper接口** (supply-opt-dal)
-5. **Mapper XML** (supply-opt-dal/resources/mapper/)
-6. **Service类** (supply-opt-service)
-7. **BizService类** (supply-opt-service)
-8. **Controller类** (supply-opt-web)
+1. **PO类** - 数据持久化对象
+2. **DTO类** - 数据传输对象
+3. **VO类** - 视图对象
+4. **Mapper接口** - MyBatis数据访问
+5. **Mapper XML** - MyBatis SQL映射
+6. **Service类** - 业务逻辑
+7. **BizService类** - 业务编排
+8. **Controller类** - REST接口
 
 ### 6.2 代码规范
 
-- 包路径遵循`com.enn.supply.opt.*`约定
-- 使用`@Data`、`@Service`、`@Mapper`等注解
+- 包路径遵循 `{user_package}.{module}.{layer}` 约定
+- 使用`@Data`、`@Service`、`@Mapper`等注解（Lombok）
 - Spring Boot 3.x使用jakarta包
 - Mapper XML使用MyBatis规范
 - 添加必要的注释
@@ -608,15 +572,32 @@ C. 完整的未匹配明细表
 
 ## 关键约束
 
-1. 严格遵循Spring Boot 3.x规范
-2. 所有数据库操作使用MyBatis Plus
-3. 必须包含审计字段
-4. cvcu_id作为业务唯一标识
-5. Controller层必须添加@Authorize注解
-6. 返回类型统一使用ServiceResult包装
-7. **每个阶段完成后必须等待用户确认才能进入下一阶段**：
-   - 阶段二（DDL生成）→ 等待确认 → 阶段三（头脑风暴）
-   - 阶段三（头脑风暴）→ 等待确认 → 阶段四（架构设计）
-   - 阶段四（架构设计）→ 等待确认 → 阶段五（详细设计）
-   - 阶段五（详细设计）→ 等待确认 → 阶段六（代码生成）
+1. 每个阶段完成后必须等待用户确认才能进入下一阶段
+2. 表名从对象code动态生成（下划线命名）
+3. 包路径从用户配置动态生成
+4. 关联表从edges关系动态生成
+5. 必须包含审计字段
+6. Controller层必须添加@Authorize注解
+7. 返回类型统一使用ServiceResult包装
 
+---
+
+## 用户配置项
+
+用户在开始使用前可以提供以下配置（可选）：
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `base_package` | 基础包路径前缀 | `com.example` |
+| `db_name` | 数据库名称 | `app_db` |
+| `table_prefix` | 表名前缀 | 无 |
+| `author` | 文档作者 | `AI` |
+
+### 场景自动识别
+
+系统会根据Ontology内容自动识别业务场景，并加载对应知识增强包：
+
+| 场景 | 识别关键词 | 自动配置 |
+|------|-----------|---------|
+| 天然气供需匹配 | `resource_pool`, `demand_pool`, `transport_capacity_pool`, `optimization_model` | 加载领域知识包 |
+| 其他场景 | - | 使用通用规范 |
