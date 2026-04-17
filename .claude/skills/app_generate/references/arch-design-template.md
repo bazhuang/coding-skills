@@ -1,11 +1,11 @@
-# 架构设计文档模板
+# 架构设计文档模板（通用版）
 
 ## 项目概述
 
-- **项目名称**: 供需运筹仿真系统 - {模块名称}
+- **项目名称**: {project_name} - {module_name}
 - **文档版本**: V1.0
 - **编写日期**: {date}
-- **作者**: AI架构师助手
+- **作者**: {author}
 - **状态**: 草稿/评审中/已确认
 
 ---
@@ -14,7 +14,7 @@
 
 ### 1.1 业务场景
 
-{业务场景描述}
+{从ontology.biz或用户输入提取}
 
 ### 1.2 核心目标
 
@@ -24,9 +24,9 @@
 
 ### 1.3 业务流程
 
-1. 步骤1
-2. 步骤2
-3. ...
+基于ontology.sop自动生成：
+
+{自动生成的流程步骤}
 
 ---
 
@@ -34,19 +34,15 @@
 
 ### 2.1 功能列表
 
+基于ontology.behaviors自动生成：
+
 | 序号 | 功能名称 | 功能描述 | 优先级 |
 |------|---------|---------|--------|
-| 1 | | | P0/P1/P2 |
+| {n} | {behavior_description} | {behavior_type} | P0/P1/P2 |
 
 ### 2.2 详细功能说明
 
-#### 2.2.1 功能1
-
-**功能描述**: 
-**业务规则**: 
-**输入**: 
-**输出**: 
-**异常处理**: 
+{基于ontology.behaviors详细展开}
 
 ---
 
@@ -60,7 +56,7 @@
 
 ### 3.2 安全需求
 
-- 认证方式: RDFA统一认证
+- 认证方式: 统一认证
 - 权限控制: 接口级权限
 
 ### 3.3 数据需求
@@ -77,25 +73,25 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Controller层                          │
-│              com.enn.supply.opt.controller                 │
+│              {base_package}.controller                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                        Biz层                                │
-│              com.enn.supply.opt.biz                         │
+│              {base_package}.biz                             │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Service层                              │
-│              com.enn.supply.opt.service                    │
+│              {base_package}.service                         │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                        DAL层                                │
-│         com.enn.supply.opt.repository.mapper               │
+│              {base_package}.dal.mapper                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -103,10 +99,10 @@
 
 | 模块 | 职责 | 包路径 |
 |------|------|--------|
-| Controller | 接口定义、参数校验、认证鉴权 | `com.enn.supply.opt.controller.*` |
-| Biz | 业务编排、事务管理 | `com.enn.supply.opt.biz.*` |
-| Service | 业务逻辑实现 | `com.enn.supply.opt.service.*` |
-| DAL | 数据访问 | `com.enn.supply.opt.repository.mapper` |
+| Controller | 接口定义、参数校验、认证鉴权 | `{base_package}.controller.*` |
+| Biz | 业务编排、事务管理 | `{base_package}.biz.*` |
+| Service | 业务逻辑实现 | `{base_package}.service.*` |
+| DAL | 数据访问 | `{base_package}.dal.mapper` |
 
 ### 4.3 核心类设计
 
@@ -114,7 +110,7 @@
 
 ```java
 @RestController
-@RequestMapping("/xxx")
+@RequestMapping("/{module}")
 public class XxxController {
     
     @Resource
@@ -172,10 +168,10 @@ public class XxxService {
 #### 4.4.1 ER图
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Table_A    │────▶│   Table_B    │◀────│   Table_C    │
-│              │     │              │     │              │
-└──────────────┘     └──────────────┘     └──────────────┘
+{自动生成的ER图}
+
+表清单：
+{表名} - {表描述}
 ```
 
 #### 4.4.2 表结构
@@ -188,19 +184,21 @@ public class XxxService {
 
 ### 5.1 接口列表
 
+基于ontology.behaviors自动生成CRUD接口：
+
 | 接口路径 | 请求方式 | 功能描述 |
 |---------|---------|---------|
-| /xxx/save | POST | 保存 |
-| /xxx/update | POST | 更新 |
-| /xxx/delete | POST | 删除 |
-| /xxx/getById | POST | 按ID查询 |
-| /xxx/list | POST | 列表查询 |
+| /{module}/save | POST | 创建 |
+| /{module}/update | POST | 更新 |
+| /{module}/delete | POST | 删除 |
+| /{module}/getById | POST | 按ID查询 |
+| /{module}/list | POST | 列表查询 |
 
 ### 5.2 接口详情
 
 #### 5.2.1 保存接口
 
-**请求路径**: `/api/xxx/save`
+**请求路径**: `POST /api/{module}/save`
 **请求方式**: POST
 **请求参数**:
 ```json
@@ -225,7 +223,8 @@ public class XxxService {
 
 | 风险项 | 风险等级 | 应对措施 |
 |--------|---------|---------|
-| | 高/中/低 | |
+| 数据量增长 | 中 | 预留分表字段 |
+| 并发压力 | 中 | 读写分离设计 |
 
 ---
 

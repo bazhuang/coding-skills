@@ -1,11 +1,11 @@
-# 详细设计文档模板
+# 详细设计文档模板（通用版）
 
 ## 项目概述
 
-- **项目名称**: 供需运筹仿真系统 - {模块名称}
+- **项目名称**: {project_name} - {module_name}
 - **文档版本**: V1.0
 - **编写日期**: {date}
-- **作者**: AI架构师助手
+- **作者**: {author}
 - **状态**: 草稿/评审中/已确认
 
 ---
@@ -14,35 +14,43 @@
 
 ### 1.1 数据库表清单
 
+基于ontology.objects自动生成：
+
 | 序号 | 表名 | 表中文名 | 说明 |
 |------|------|---------|------|
-| 1 | mop_monthly_plan | 月度经营计划 | 核心对象 |
-| 2 | rp_resource_pool | 资源池 | 核心对象 |
-| ... | | | |
+| {n} | {table_name} | {object_name} | {object_type} |
 
 ### 1.2 表结构设计
 
-#### 1.2.1 {表名}
+{基于ontology.objects动态生成每个表的详细结构}
 
-**表说明**: {表中文名}
+#### 1.2.1 {table_name}
+
+**表说明**: {table_comment}
 
 | 序号 | 字段名 | 字段中文名 | 数据类型 | 是否主键 | 是否为空 | 默认值 | 说明 |
 |------|--------|-----------|---------|---------|---------|-------|------|
 | 1 | id | 主键ID | BIGINT(20) | PK | N | | 自增主键 |
-| 2 | cvcu_id | 客创唯一标识 | VARCHAR(64) | | N | | 唯一约束 |
-| ... | | | | | | | |
+| 2 | biz_id | 业务唯一标识 | VARCHAR(64) | | N | | 唯一约束 |
 
 **索引设计**:
 
 | 索引名称 | 索引类型 | 索引字段 | 说明 |
 |---------|---------|---------|------|
-| idx_xxx | NORMAL | field1,field2 | 复合索引 |
-| uk_cvcu_id | UNIQUE | cvcu_id | 唯一索引 |
+| uk_biz_id | UNIQUE | biz_id | 唯一索引 |
 
 **建表SQL**:
 ```sql
 CREATE TABLE `{table_name}` (
-    ...
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `biz_id` VARCHAR(64) NOT NULL COMMENT '业务唯一标识',
+    {business_fields}
+    `create_by` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '创建人',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '修改人',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_biz_id` (`biz_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='{table_comment}';
 ```
 
@@ -52,24 +60,26 @@ CREATE TABLE `{table_name}` (
 
 ### 2.1 类清单
 
+基于ontology.objects和layers动态生成：
+
 | 序号 | 类名 | 类型 | 包路径 | 说明 |
 |------|------|------|--------|------|
-| 1 | XxxController | Controller | com.enn.supply.opt.controller | 接口层 |
-| 2 | XxxBizService | Biz | com.enn.supply.opt.biz | 业务编排层 |
-| 3 | XxxService | Service | com.enn.supply.opt.service | 业务逻辑层 |
-| 4 | XxxMapper | Mapper | com.enn.supply.opt.repository.mapper | 数据访问层 |
-| 5 | XxxPO | PO | com.enn.supply.opt.repository.po | 数据实体 |
-| 6 | XxxDTO | DTO | com.enn.supply.opt.service.dto | 数据传输对象 |
-| 7 | XxxVO | VO | com.enn.supply.opt.client.vo | 视图对象 |
+| {n} | XxxController | Controller | {base_package}.controller | 接口层 |
+| {n} | XxxBizService | Biz | {base_package}.biz | 业务编排层 |
+| {n} | XxxService | Service | {base_package}.service | 业务逻辑层 |
+| {n} | XxxMapper | Mapper | {base_package}.dal.mapper | 数据访问层 |
+| {n} | XxxPO | PO | {base_package}.dal.po | 数据实体 |
+| {n} | XxxDTO | DTO | {base_package}.service.dto | 数据传输对象 |
+| {n} | XxxVO | VO | {base_package}.client.vo | 视图对象 |
 
 ### 2.2 详细类设计
 
 #### 2.2.1 PO类
 
-**文件位置**: `supply-opt-dal/src/main/java/com/enn/supply/opt/repository/po/XxxPO.java`
+**文件位置**: `{module}-dal/src/main/java/{base_package}/dal/po/XxxPO.java`
 
 ```java
-package com.enn.supply.opt.repository.po;
+package {base_package}.dal.po;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -78,13 +88,13 @@ import lombok.Data;
 import java.util.Date;
 
 @Data
-@TableName("xxx_table")
+@TableName("{table_name}")
 public class XxxPO {
     
     @TableId(type = IdType.AUTO)
     private Long id;
     
-    private String cvcuId;
+    private String bizId;
     
     // 业务字段...
     
@@ -100,10 +110,10 @@ public class XxxPO {
 
 #### 2.2.2 DTO类
 
-**文件位置**: `supply-opt-service/src/main/java/com/enn/supply/opt/service/dto/XxxDTO.java`
+**文件位置**: `{module}-service/src/main/java/{base_package}/service/dto/XxxDTO.java`
 
 ```java
-package com.enn.supply.opt.service.dto;
+package {base_package}.service.dto;
 
 import lombok.Data;
 
@@ -112,7 +122,7 @@ public class XxxDTO {
     
     private Long id;
     
-    private String cvcuId;
+    private String bizId;
     
     // 业务字段...
 }
@@ -120,10 +130,10 @@ public class XxxDTO {
 
 #### 2.2.3 VO类
 
-**文件位置**: `supply-opt-client/src/main/java/com/enn/supply/opt/client/vo/XxxVO.java`
+**文件位置**: `{module}-client/src/main/java/{base_package}/client/vo/XxxVO.java`
 
 ```java
-package com.enn.supply.opt.client.vo;
+package {base_package}.client.vo;
 
 import lombok.Data;
 import java.io.Serializable;
@@ -133,7 +143,7 @@ public class XxxVO implements Serializable {
     
     private static final long serialVersionUID = 1L;
     
-    private String cvcuId;
+    private String bizId;
     
     // 业务字段...
 }
@@ -141,13 +151,13 @@ public class XxxVO implements Serializable {
 
 #### 2.2.4 Mapper接口
 
-**文件位置**: `supply-opt-dal/src/main/java/com/enn/supply/opt/repository/mapper/XxxMapper.java`
+**文件位置**: `{module}-dal/src/main/java/{base_package}/dal/mapper/XxxMapper.java`
 
 ```java
-package com.enn.supply.opt.repository.mapper;
+package {base_package}.dal.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.enn.supply.opt.repository.po.XxxPO;
+import {base_package}.dal.po.XxxPO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.util.List;
@@ -161,16 +171,16 @@ public interface XxxMapper extends BaseMapper<XxxPO> {
 
 #### 2.2.5 Mapper XML
 
-**文件位置**: `supply-opt-dal/src/main/resources/mapper/XxxMapper.xml`
+**文件位置**: `{module}-dal/src/main/resources/mapper/XxxMapper.xml`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.enn.supply.opt.repository.mapper.XxxMapper">
+<mapper namespace="{base_package}.dal.mapper.XxxMapper">
 
-    <resultMap id="BaseResultMap" type="com.enn.supply.opt.repository.po.XxxPO">
+    <resultMap id="BaseResultMap" type="{base_package}.dal.po.XxxPO">
         <!-- 映射配置 -->
     </resultMap>
 
@@ -185,15 +195,15 @@ public interface XxxMapper extends BaseMapper<XxxPO> {
 
 #### 2.2.6 Service类
 
-**文件位置**: `supply-opt-service/src/main/java/com/enn/supply/opt/service/XxxService.java`
+**文件位置**: `{module}-service/src/main/java/{base_package}/service/XxxService.java`
 
 ```java
-package com.enn.supply.opt.service;
+package {base_package}.service;
 
-import com.enn.supply.opt.client.vo.XxxVO;
-import com.enn.supply.opt.repository.mapper.XxxMapper;
-import com.enn.supply.opt.repository.po.XxxPO;
-import com.enn.supply.opt.service.dto.XxxDTO;
+import {base_package}.client.vo.XxxVO;
+import {base_package}.dal.mapper.XxxMapper;
+import {base_package}.dal.po.XxxPO;
+import {base_package}.service.dto.XxxDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -239,14 +249,14 @@ public class XxxService {
 
 #### 2.2.7 BizService类
 
-**文件位置**: `supply-opt-service/src/main/java/com/enn/supply/opt/biz/XxxBizService.java`
+**文件位置**: `{module}-service/src/main/java/{base_package}/biz/XxxBizService.java`
 
 ```java
-package com.enn.supply.opt.biz;
+package {base_package}.biz;
 
-import com.enn.supply.opt.client.vo.XxxVO;
-import com.enn.supply.opt.service.XxxService;
-import com.enn.supply.opt.service.result.ServiceResult;
+import {base_package}.client.vo.XxxVO;
+import {base_package}.service.XxxService;
+import {base_package}.service.result.ServiceResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
@@ -272,14 +282,14 @@ public class XxxBizService {
 
 #### 2.2.8 Controller类
 
-**文件位置**: `supply-opt-web/src/main/java/com/enn/supply/opt/controller/XxxController.java`
+**文件位置**: `{module}-web/src/main/java/{base_package}/controller/XxxController.java`
 
 ```java
-package com.enn.supply.opt.controller;
+package {base_package}.controller;
 
-import com.enn.supply.opt.biz.XxxBizService;
-import com.enn.supply.opt.client.vo.XxxVO;
-import com.enn.supply.opt.service.result.ServiceResult;
+import {base_package}.biz.XxxBizService;
+import {base_package}.client.vo.XxxVO;
+import {base_package}.service.result.ServiceResult;
 import top.rdfa.framework.auth.client.UnifyAuthContextHolder;
 import top.rdfa.framework.auth.client.annotation.Authorize;
 import lombok.extern.slf4j.Slf4j;
@@ -288,7 +298,7 @@ import jakarta.annotation.Resource;
 
 @Slf4j
 @RestController
-@RequestMapping("/xxx")
+@RequestMapping("/{module}")
 public class XxxController {
     
     @Resource
@@ -319,14 +329,16 @@ public class XxxController {
 
 ## 3. 接口设计
 
+基于ontology.behaviors自动生成接口文档。
+
 ### 3.1 保存接口
 
-**请求路径**: `POST /api/xxx/save`
+**请求路径**: `POST /api/{module}/save`
 
 **请求参数**:
 ```json
 {
-    "cvcuId": "xxx",
+    "bizId": "xxx",
     "field1": "value1"
 }
 ```
@@ -343,7 +355,7 @@ public class XxxController {
 
 ### 3.2 查询接口
 
-**请求路径**: `POST /api/xxx/getById`
+**请求路径**: `POST /api/{module}/getById`
 
 **请求参数**:
 ```
@@ -358,7 +370,7 @@ id: Long
     "message": "success",
     "data": {
         "id": 1,
-        "cvcuId": "xxx"
+        "bizId": "xxx"
     }
 }
 ```
@@ -406,7 +418,7 @@ id: Long
 
 | 术语 | 说明 |
 |------|------|
-| cvcu_id | 客创唯一标识 |
+| biz_id | 业务唯一标识 |
 | PO | Persistent Object 持久化对象 |
 | DTO | Data Transfer Object 数据传输对象 |
 | VO | View Object 视图对象 |
@@ -415,3 +427,4 @@ id: Long
 
 - 《技术规范文档》
 - 《架构设计文档》
+- Ontology定义文件
