@@ -1,7 +1,0 @@
-interface:
-  display_name: "OR Time Discretization"
-  short_description: "Generate data pipeline: MySQL → NebulaGraph → time-split"
-  default_prompt: "Use $or-time-discretization to generate data pipeline code that queries simulation tables by version_id, imports into NebulaGraph, and splits by time dimension."
-
-policy:
-  allow_implicit_invocation: true
