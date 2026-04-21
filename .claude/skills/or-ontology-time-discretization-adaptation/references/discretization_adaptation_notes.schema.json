@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "or-ontology-time-discretization-adaptation/discretization_adaptation_notes.schema.json",
+  "title": "Discretization Adaptation Notes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "time_axis",
+    "object_mappings",
+    "objective_impacts",
+    "constraint_impacts",
+    "global_notes",
+    "unresolved_gaps"
+  ],
+  "properties": {
+    "time_axis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_time_granularity",
+        "target_time_granularity",
+        "time_field",
+        "version_field",
+        "source_identity_field"
+      ],
+      "properties": {
+        "source_time_granularity": { "type": "string" },
+        "target_time_granularity": { "type": "string" },
+        "time_field": { "type": "string" },
+        "version_field": { "type": "string" },
+        "source_identity_field": { "type": "string" },
+        "evidence_tables": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "object_mappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "object_name",
+          "object_type",
+          "source_grain",
+          "target_grain",
+          "source_binding",
+          "target_binding",
+          "field_rewrites",
+          "mapping_confidence",
+          "adaptation_actions",
+          "unresolved_gaps"
+        ],
+        "properties": {
+          "object_name": { "type": "string" },
+          "object_type": { "type": "string" },
+          "source_grain": { "type": "string" },
+          "target_grain": { "type": "string" },
+          "source_binding": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [ "binding_status" ],
+            "properties": {
+              "binding_status": { "type": "string" },
+              "table_name": { "type": "string" },
+              "supporting_tables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "target_binding": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [ "binding_status" ],
+            "properties": {
+              "binding_status": { "type": "string" },
+              "table_name": { "type": "string" },
+              "supporting_tables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "field_rewrites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [ "semantic_role", "source_field", "target_field" ],
+              "properties": {
+                "semantic_role": { "type": "string" },
+                "source_field": { "type": "string" },
+                "target_field": { "type": "string" },
+                "rewrite_basis": { "type": "string" }
+              }
+            }
+          },
+          "mapping_confidence": {
+            "type": "string",
+            "enum": [ "high", "medium", "low" ]
+          },
+          "adaptation_actions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "unresolved_gaps": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "objective_impacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "objective_name", "rewrite_summary" ],
+        "properties": {
+          "objective_name": { "type": "string" },
+          "rewrite_summary": { "type": "string" },
+          "updated_tables": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "updated_fields": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "constraint_impacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "constraint_name", "rewrite_summary" ],
+        "properties": {
+          "constraint_name": { "type": "string" },
+          "rewrite_summary": { "type": "string" },
+          "updated_tables": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "updated_fields": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "global_notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unresolved_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "question", "impact" ],
+        "properties": {
+          "question": { "type": "string" },
+          "impact": { "type": "string" },
+          "related_objects": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "business-to-or-ontology/or-signal-inventory.schema.json",
+  "title": "OR Signal Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "relevant_fragments",
+    "candidate_entities",
+    "candidate_goals",
+    "candidate_constraints",
+    "schema_evidence",
+    "open_questions"
+  ],
+  "properties": {
+    "relevant_fragments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relevantFragment"
+      }
+    },
+    "candidate_entities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidateEntity"
+      }
+    },
+    "candidate_goals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidateGoal"
+      }
+    },
+    "candidate_constraints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidateConstraint"
+      }
+    },
+    "schema_evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/schemaEvidence"
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/openQuestion"
+      }
+    }
+  },
+  "$defs": {
+    "relevantFragment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fragment_id",
+        "source",
+        "text"
+      ],
+      "properties": {
+        "fragment_id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "candidateEntity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_name",
+        "candidate_role",
+        "kind",
+        "classification_confidence",
+        "evidence_ids",
+        "is_inferred"
+      ],
+      "properties": {
+        "entity_name": {
+          "type": "string"
+        },
+        "candidate_role": {
+          "type": "string",
+          "enum": [
+            "business_object",
+            "connection_object",
+            "unknown_object"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "resource_candidate",
+            "supply_candidate",
+            "demand_candidate",
+            "passthrough_candidate",
+            "processor_candidate",
+            "storage_candidate",
+            "transport_candidate",
+            "link_candidate",
+            "unknown_candidate"
+          ]
+        },
+        "object_category_hint": {
+          "type": "string",
+          "enum": [
+            "resource",
+            "node",
+            "edge",
+            "unknown"
+          ]
+        },
+        "object_type_hint": {
+          "type": "string",
+          "enum": [
+            "resource",
+            "supply_node",
+            "demand_node",
+            "passthrough_node",
+            "processor_node",
+            "storage_node",
+            "transport",
+            "link",
+            "unknown"
+          ]
+        },
+        "business_role": {
+          "type": "string"
+        },
+        "retention_reason": {
+          "type": "string"
+        },
+        "classification_confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supporting_tables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supporting_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "is_inferred": {
+          "type": "boolean"
+        },
+        "inference_basis": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "candidate_role": {
+                "const": "connection_object"
+              }
+            },
+            "required": [
+              "candidate_role"
+            ]
+          },
+          "then": {
+            "properties": {
+              "object_category_hint": {
+                "enum": [
+                  "edge",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "candidateGoal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_text",
+        "evidence_ids",
+        "is_inferred"
+      ],
+      "properties": {
+        "goal_text": {
+          "type": "string"
+        },
+        "business_meaning": {
+          "type": "string"
+        },
+        "related_tables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "related_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "is_inferred": {
+          "type": "boolean"
+        },
+        "inference_basis": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "candidateConstraint": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "constraint_text",
+        "confidence",
+        "evidence_ids",
+        "is_inferred"
+      ],
+      "properties": {
+        "constraint_text": {
+          "type": "string"
+        },
+        "category_hint": {
+          "type": "string",
+          "enum": [
+            "supply_limit",
+            "demand_service",
+            "transport_limit",
+            "processing_limit",
+            "inventory_limit",
+            "time_rule",
+            "conversion_rule",
+            "routing_rule",
+            "matching_rule",
+            "priority_rule",
+            "other"
+          ]
+        },
+        "business_meaning": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "related_tables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "related_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "is_inferred": {
+          "type": "boolean"
+        },
+        "inference_basis": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "schemaEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "table_name",
+        "supports"
+      ],
+      "properties": {
+        "table_name": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "openQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "impact": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

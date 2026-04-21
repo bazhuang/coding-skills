@@ -1,0 +1,7 @@
+interface:
+  display_name: "OR Ontology Time Discretization Adaptation"
+  short_description: "Adapt or_ont to period-level schema"
+  default_prompt: "Use $or-ontology-time-discretization-adaptation to adapt an existing or_ont so that its objects, time grain, goals, and constraints align with the discretized period-level data schema."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,53 @@
+skill: or-ontology-time-discretization-adaptation
+
+input_contract:
+  or_ont:
+    semantic_role: 原始运筹算法本体
+    expected_content:
+      - 问题框架
+      - 算法对象
+      - 目标系统
+      - 约束系统
+      - 映射依据
+      - 待确认问题
+  discretized_schema:
+    semantic_role: 时间离散后的数据表 schema
+    expected_content:
+      - 离散化表结构
+      - 字段定义
+      - 主键与索引
+      - 表注释
+      - 时间字段与来源标识字段
+
+substeps:
+  - id: analyze_discretization
+    purpose: 提取离散化时间轴、对象映射和字段替换关系，形成中间适配分析结果
+    include_inputs:
+      - or_ont
+      - discretized_schema
+    include_references:
+      - references/time-discretization-adaptation-rules.md
+      - references/input_algorithm_ontology.schema.json
+      - references/discretization_adaptation_notes.schema.json
+    task_appendix: |
+      本阶段只做离散化适配分析，不直接输出最终 or_ont_time_discretized。
+    output_artifacts:
+      - name: discretization_adaptation_notes
+        type: json
+        schema_path: references/discretization_adaptation_notes.schema.json
+
+  - id: adapt_ontology
+    purpose: 基于离散化分析结果生成最终适配后的运筹算法本体 or_ont_time_discretized
+    include_inputs:
+      - or_ont
+    include_artifacts:
+      - analyze_discretization.discretization_adaptation_notes
+    include_references:
+      - references/time-discretization-adaptation-rules.md
+      - references/algorithm_ontology_time_discretized.schema.json
+    task_appendix: |
+      本阶段基于原 `or_ont` 和上游 `discretization_adaptation_notes` 生成最终适配后的 `or_ont_time_discretized`。
+    output_artifacts:
+      - name: or_ont_time_discretized
+        type: json
+        schema_path: references/algorithm_ontology_time_discretized.schema.json

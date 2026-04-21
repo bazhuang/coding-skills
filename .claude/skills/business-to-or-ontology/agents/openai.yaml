@@ -1,0 +1,7 @@
+interface:
+  display_name: "Business to OR Ontology"
+  short_description: "Standardize business inputs into OR semantics"
+  default_prompt: "Use $business-to-or-ontology to standardize biz_ont and schema into an accurate or_ont with shallow, natural-language objectives and constraints."
+
+policy:
+  allow_implicit_invocation: true
