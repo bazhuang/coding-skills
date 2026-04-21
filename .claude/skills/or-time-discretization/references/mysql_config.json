@@ -1,0 +1,18 @@
+{
+  "host": "10.203.125.221",
+  "port": 3306,
+  "database": "supply_opt",
+  "username": "eone_rw",
+  "password": "AK#fgljStmJRYD4FU",
+  "charset": "utf8mb4",
+  "pool_size": 5,
+  "pool_recycle": 3600,
+  "pool_pre_ping": true,
+  "connect_timeout": 10,
+  "extra_params": {
+    "useUnicode": "true",
+    "characterEncoding": "utf-8",
+    "serverTimezone": "Asia/Shanghai",
+    "useSSL": "false"
+  }
+}
