@@ -120,14 +120,14 @@ references/
 - **定义**：业务领域中的所有实体对象，具有独立生命周期
 - **特征**：可被创建、查询、更新、删除(CRUD)
 - **示例**：合同、需求、订单、用户、站点
-- **业务对象类型**：如果命中了知识库references/opt.md的文档，就增加biz_object_type 即需供运筹元模型中对应业务对象类型的code
+- **属性特殊说明**：业务对象类型 如果命中了知识库references/opt.md的文档，就增加biz_object_type 即需供运筹元模型中Node对应业务对象类型的code
 
 ##### 关系(Value Object)
 
 - **定义**：表达对象之前的依赖关系
 - **特征**：有主对象和附属对象
 - **示例**：节点到节点的运输关系
-- **业务对象类型**：如果命中了知识库references/opt.md的文档，就增加biz_object_type 即需供运筹元模型中对应业务对象类型的code
+- **属性特殊说明**：业务对象类型 如果命中了知识库references/opt.md的文档，就增加biz_object_type 即需供运筹元模型中Edge对应业务对象类型的code
 
 #### 步骤3：行为(Behavior)
 
@@ -243,6 +243,7 @@ json中每个字段的解释如下
 interface Ontology {
   biz_logic: string; // 业务逻辑，将用户的对话中对业务场景和工作流程的提炼，拼接起来
   biz: string; // {{业务场景方案}}
+  domain: string; // 业务场景归属的领域
   objects: OyObject[];  // 实体对象列表
   edges: OyEdge[]; // 本体中的关系列表
   rules: Rule[]; //分析提取出来的业务规则约束
@@ -293,16 +294,6 @@ interface Behavior {
 interface SOP {
     step: string; // 业务流程步骤序号
     description:string; // 业务流程的内容
-}
-
-interface Ontology {
-  biz_logic: string; // 业务逻辑，将用户的多轮对话中对业务目标、业务场景和工作流程的提炼，拼接起来，后续会作为智能能力打造的需求描述
-  biz: string; // {{业务场景方案}}
-  objects: OyObject[];  // 实体对象列表
-  edges: OyEdge[]; // 本体中的关系列表
-  rules: Rule[]; //分析提取出来的业务规则约束
-  behaviors: Behavior[] // 分析提取出哪些行为
-  sop: SOP[]; // 分析业务场景，总结出SOP流程
 }
 ```
 
