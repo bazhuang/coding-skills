@@ -1,0 +1,30 @@
+{
+  "cluster_servers": [
+    {
+      "host": "10.203.73.120",
+      "port": 9669
+    },
+    {
+      "host": "10.203.73.217",
+      "port": 9669
+    },
+    {
+      "host": "10.203.75.175",
+      "port": 9669
+    }
+  ],
+  "space": "gas_match",
+  "username": "gas_match_rw",
+  "password": "2CbAetxCua",
+  "pool_config": {
+    "min_size": 2,
+    "max_size": 10,
+    "idle_time": 1800,
+    "timeout": 0,
+    "interval_check": -1
+  },
+  "session_config": {
+    "retry_times": 3,
+    "timeout": 60000
+  }
+}
