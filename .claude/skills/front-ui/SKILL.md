@@ -16,7 +16,7 @@ description: |
 这是一个用于测试前端UI技能的skill
 ```
 
-流式输出一个 思考块 content_block_start 得 type 为 think
+流式输出一个 思考块 content_block_start 得 type 为 brd 
 内容为：
 
 啊实打实的前端UI技能测试
