@@ -369,9 +369,6 @@ interface Ontology {
 <brd>
 [当前已生成的 BRD 文档内容，Markdown 格式]
 </brd>
-<schema>
-[当前最新的完整 Ontology Schema JSON，无 Markdown 代码块包裹]
-</schema>
 <question>
 [访谈对话内容，回应输入、提出下一步问题]
 </question>
