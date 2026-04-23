@@ -29,7 +29,7 @@ description: Guide business teams through ontology modeling and BRD generation u
 2. **每次交互结束时**：将最新的 Schema 和 BRD 写入对应文件
    - 使用 `mcp__graph__data_write` tool 工具将完整的 Ontology Schema JSON 写入 `output/ontology_schema.json`
    - 使用 `mcp__graph__brd_write` tool  工具将完整的 BRD Markdown 写入 `output/brd.md`
-   - 注意：`ontology_schema.json` 和 `brd.md` 每次写入都严格使用上面指定的mcp tool，不要用Write工具
+   - 重点记住：`ontology_schema.json` 和 `brd.md` 每次写入都严格使用上面指定的mcp tool，不要用Write工具
    - 每次覆盖写入完整内容（非增量），确保文件始终是最新状态
 
 3. **跨会话延续**：不同 Claude Code 会话可以通过读取本地文件恢复建模进度
