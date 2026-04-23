@@ -1,0 +1,385 @@
+{
+  "metaPaperId": "13991",
+  "biz_logic": "城燃公司（城市燃气分销企业）每月需要将上游天然气资源通过管网输送至各门站，满足终端客户的用气需求。核心挑战在于：资源来源多样、管输路径复杂、客户需求差异大，需要在利润/成本/保供等多目标之间寻找最优匹配方案。核心业务流程：1.经营计划制定-按月按公司制定经营计划，经营目标为单选（利润最大化/成本最优/保供优先），无状态控制；2.天然气需求管理-所有客户需求聚合为整体需求池，匿名化处理，客户名称统一为城燃名称；3.资源采购-从资源商处采购天然气形成资源池，资源类型包括LNG和PNG，资源状态有潜在和已购；4.管输运力准备-准备管输运力至管输池，管网类型包括省际网、城际网、城燃网，运力状态有潜在和已购；5.供需匹配-初始匹配数据从外部系统对接导入（版本号=1），支持用户基于最新版本复制创建新版本（版本号自增），在新版本上进行人工修正，最终确认一个作为执行方案。匹配链路：资源→资源下载站→管输→城燃门站→需求。合同管理不在本次范围内。不涉及方案导出，页面交互友好查看即可。经营计划不做状态控制。行为概要：经营计划支持创建/修改/查询/删除；天然气需求支持录入/修改/查询/汇总/删除；供应资源支持录入/修改/状态变更/查询/汇总/删除；管输运力支持录入/修改/状态变更/查询/删除；匹配方案支持导入/基于最新版本创建新版本/修正/确认/查询/对比/删除；匹配结果支持新增/修改/查询/删除。规则体系包括：对象不变式（量价正数约束、枚举值约束）、前置条件（导入需计划存在、创建新版本需已有版本、确认需无其他已确认方案）、后置条件（版本号规则、自动重算）、关系约束（引用完整性、管网拓扑可达）、业务规则（保供优先、照付不议、管输上下限、多气源多路径、目标函数驱动）。",
+  "domain": "城燃需供运筹",
+  "objects": [
+    {
+      "code": "biz_plan",
+      "name": "经营计划",
+      "comment": "城燃公司按月制定的经营计划，明确经营目标（单选：利润最大化/成本最优/保供优先）、经营口径及交付时间窗口，以年月+公司为主键，无状态控制",
+      "type": "核心对象",
+      "properties": [
+        { "code": "plan_month", "name": "计划年月", "comment": "经营计划所属的年月", "type": "String" },
+        { "code": "company_code", "name": "公司编码", "comment": "城燃公司唯一标识", "type": "String" },
+        { "code": "biz_objective", "name": "经营目标", "comment": "经营目标函数，单选：利润最大化、成本最优、保供优先", "type": "String" },
+        { "code": "biz_caliber", "name": "经营口径", "comment": "经营的统计口径定义", "type": "String" },
+        { "code": "delivery_window", "name": "交付时间窗口", "comment": "计划对应的交付时间范围", "type": "String" },
+        { "code": "updated_by", "name": "更新人", "comment": "最后修改人", "type": "String" },
+        { "code": "updated_time", "name": "更新时间", "comment": "最后修改时间", "type": "String" }
+      ]
+    },
+    {
+      "code": "gas_demand",
+      "name": "天然气需求",
+      "comment": "聚合后的天然气月度用气需求，匿名化处理，客户名称统一为城燃名称，包含计划量、最小满足量、销售单价等，关联到一个或多个门站",
+      "type": "核心对象",
+      "properties": [
+        { "code": "demand_id", "name": "需求编号", "comment": "天然气需求的唯一标识", "type": "String" },
+        { "code": "plan_month", "name": "计划年月", "comment": "所属经营计划的年月", "type": "String" },
+        { "code": "company_name", "name": "客户名称", "comment": "默认为城燃名称，匿名化处理", "type": "String" },
+        { "code": "planned_qty", "name": "计划用气量", "comment": "计划用气量，必须大于0", "type": "Double" },
+        { "code": "min_satisfy_qty", "name": "最小满足量", "comment": "要求的最小供应量", "type": "Double" },
+        { "code": "sales_price", "name": "销售单价", "comment": "天然气的销售单价", "type": "Double" },
+        { "code": "mandatory_supply", "name": "是否必须供气", "comment": "标识该需求是否为保供需求，不可被忽略", "type": "String" },
+        { "code": "allow_below_plan", "name": "是否允许低于计划量供应", "comment": "是否允许实际供应低于计划用气量", "type": "String" },
+        { "code": "delivery_window", "name": "交付时间窗口", "comment": "需求的交付时间范围", "type": "String" },
+        { "code": "updated_by", "name": "更新人", "comment": "最后修改人", "type": "String" },
+        { "code": "updated_time", "name": "更新时间", "comment": "最后修改时间", "type": "String" }
+      ]
+    },
+    {
+      "code": "supply_resource",
+      "name": "供应资源",
+      "comment": "从资源商处采购的天然气资源，资源类型包括LNG和PNG，资源状态有潜在和已购，包含资源量、最小提气量、资源单价、照付不议系数等",
+      "type": "核心对象",
+      "properties": [
+        { "code": "resource_id", "name": "资源编号", "comment": "供应资源的唯一标识", "type": "String" },
+        { "code": "plan_month", "name": "计划年月", "comment": "所属经营计划的年月", "type": "String" },
+        { "code": "supplier_code", "name": "资源商编码", "comment": "关联资源商的编码", "type": "String" },
+        { "code": "resource_qty", "name": "资源量", "comment": "可供应的天然气总量，必须大于0", "type": "Double" },
+        { "code": "min_extract_qty", "name": "最小提气量", "comment": "资源的最小提取量约束", "type": "Double" },
+        { "code": "unit_price", "name": "资源单价", "comment": "天然气的采购单价", "type": "Double" },
+        { "code": "allow_over_extract", "name": "是否可超提", "comment": "是否允许超过资源量提取", "type": "String" },
+        { "code": "ship_or_pay_coeff", "name": "照付不议系数", "comment": "照付不议机制下的系数，0~1之间", "type": "Double" },
+        { "code": "resource_status", "name": "资源状态", "comment": "潜在/已购", "type": "String" },
+        { "code": "resource_type", "name": "资源类型", "comment": "LNG/PNG", "type": "String" },
+        { "code": "delivery_window", "name": "交付时间窗口", "comment": "资源的交付时间范围", "type": "String" },
+        { "code": "updated_by", "name": "更新人", "comment": "最后修改人", "type": "String" },
+        { "code": "updated_time", "name": "更新时间", "comment": "最后修改时间", "type": "String" }
+      ]
+    },
+    {
+      "code": "pipeline_capacity",
+      "name": "管输运力",
+      "comment": "连接资源下载站到城燃门站的管输路径及运力参数，管网类型包括省际网、城际网、城燃网，运力状态有潜在和已购，包含设计输气能力、保底量、管输单价等",
+      "type": "核心对象",
+      "properties": [
+        { "code": "pipeline_id", "name": "管输编号", "comment": "管输运力的唯一标识", "type": "String" },
+        { "code": "plan_month", "name": "计划年月", "comment": "所属经营计划的年月", "type": "String" },
+        { "code": "download_station_code", "name": "资源下载站编码", "comment": "管输起点，天然气接入管网的站点", "type": "String" },
+        { "code": "gate_station_code", "name": "城燃门站编码", "comment": "管输终点，天然气从管网到客户的站点", "type": "String" },
+        { "code": "design_capacity", "name": "设计输气能力", "comment": "管输的最大输气能力，必须大于0", "type": "Double" },
+        { "code": "guaranteed_min", "name": "保底量", "comment": "管输的最低输气量约束", "type": "Double" },
+        { "code": "unit_price", "name": "管输单价", "comment": "管道输送天然气的单价", "type": "Double" },
+        { "code": "pipeline_type", "name": "管网类型", "comment": "省际网/城际网/城燃网", "type": "String" },
+        { "code": "capacity_status", "name": "运力状态", "comment": "潜在/已购", "type": "String" },
+        { "code": "delivery_window", "name": "交付时间窗口", "comment": "管输运力的交付时间范围", "type": "String" },
+        { "code": "updated_by", "name": "更新人", "comment": "最后修改人", "type": "String" },
+        { "code": "updated_time", "name": "更新时间", "comment": "最后修改时间", "type": "String" }
+      ]
+    },
+    {
+      "code": "match_scheme",
+      "name": "匹配方案",
+      "comment": "匹配结果的版本化容器，初始数据从外部系统对接导入（版本号=1），支持基于最新版本复制创建新版本（版本号自增），在新版本上进行人工修正，最终确认一个作为执行方案。状态：初始导入/修正中/已确认/执行中",
+      "type": "核心对象",
+      "properties": [
+        { "code": "scheme_id", "name": "方案编号", "comment": "匹配方案的唯一标识", "type": "String" },
+        { "code": "plan_month", "name": "计划年月", "comment": "所属经营计划的年月", "type": "String" },
+        { "code": "version_no", "name": "版本号", "comment": "方案版本号，自增数字（1,2,3...）", "type": "Integer" },
+        { "code": "scheme_name", "name": "方案名称", "comment": "方案的显示名称", "type": "String" },
+        { "code": "scheme_status", "name": "方案状态", "comment": "初始导入/修正中/已确认/执行中", "type": "String" },
+        { "code": "total_delivery_qty", "name": "总交付量", "comment": "方案内所有匹配结果的交付量汇总", "type": "Double" },
+        { "code": "total_profit", "name": "总利润", "comment": "方案内所有匹配结果的利润汇总", "type": "Double" },
+        { "code": "source_type", "name": "数据来源", "comment": "外部导入/人工修正", "type": "String" },
+        { "code": "confirmed_time", "name": "确认时间", "comment": "方案被确认为执行方案的时间", "type": "String" },
+        { "code": "updated_by", "name": "更新人", "comment": "最后修改人", "type": "String" },
+        { "code": "updated_time", "name": "更新时间", "comment": "最后修改时间", "type": "String" }
+      ]
+    },
+    {
+      "code": "match_result",
+      "name": "供需匹配结果",
+      "comment": "一条完整的供需链路：资源→资源下载站→管输→城燃门站→需求，属于某个匹配方案，包含交付量、价格、利润等信息",
+      "type": "核心对象",
+      "properties": [
+        { "code": "match_id", "name": "匹配编号", "comment": "匹配结果的唯一标识", "type": "String" },
+        { "code": "scheme_id", "name": "方案编号", "comment": "所属匹配方案的编号", "type": "String" },
+        { "code": "resource_id", "name": "供应资源编号", "comment": "关联的供应资源编号", "type": "String" },
+        { "code": "pipeline_id", "name": "管输编号", "comment": "关联的管输运力编号", "type": "String" },
+        { "code": "demand_id", "name": "需求编号", "comment": "关联的天然气需求编号", "type": "String" },
+        { "code": "delivery_qty", "name": "交付量", "comment": "本次匹配的实际交付天然气量，必须大于0", "type": "Double" },
+        { "code": "customer_price", "name": "用户报价", "comment": "天然气的销售单价", "type": "Double" },
+        { "code": "resource_price", "name": "资源采购价", "comment": "天然气的采购单价", "type": "Double" },
+        { "code": "transport_price", "name": "运力采购价", "comment": "管输运输单价", "type": "Double" },
+        { "code": "margin", "name": "进销差价", "comment": "用户报价减去资源采购价", "type": "Double" },
+        { "code": "profit", "name": "利润", "comment": "进销差价减去运力采购价", "type": "Double" },
+        { "code": "transport_fee", "name": "管输费", "comment": "交付量乘以运力采购价", "type": "Double" },
+        { "code": "updated_by", "name": "更新人", "comment": "最后修改人", "type": "String" },
+        { "code": "updated_time", "name": "更新时间", "comment": "最后修改时间", "type": "String" }
+      ]
+    },
+    {
+      "code": "supplier",
+      "name": "资源商",
+      "comment": "天然气上游供应商档案，主数据",
+      "type": "引用对象",
+      "properties": [
+        { "code": "supplier_code", "name": "资源商编码", "comment": "资源商唯一标识", "type": "String" },
+        { "code": "supplier_name", "name": "资源商名称", "comment": "资源商全称", "type": "String" }
+      ]
+    },
+    {
+      "code": "download_station",
+      "name": "资源下载站",
+      "comment": "天然气从上游接入管网的下载站点，属于需供网络中的中转节点（passthrough_node），主数据",
+      "type": "引用对象",
+      "properties": [
+        { "code": "station_code", "name": "站点编码", "comment": "下载站唯一标识", "type": "String" },
+        { "code": "station_name", "name": "站点名称", "comment": "下载站名称", "type": "String" }
+      ]
+    },
+    {
+      "code": "gate_station",
+      "name": "城燃门站",
+      "comment": "天然气从管网到客户的门站点，属于需供网络中的中转节点（passthrough_node），主数据",
+      "type": "引用对象",
+      "properties": [
+        { "code": "station_code", "name": "站点编码", "comment": "门站唯一标识", "type": "String" },
+        { "code": "station_name", "name": "站点名称", "comment": "门站名称", "type": "String" }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "code": "plan_contains_demand",
+      "name": "计划包含需求",
+      "comment": "经营计划包含多条天然气需求",
+      "source_code": "biz_plan",
+      "target_code": "gas_demand",
+      "constraint": "1:N"
+    },
+    {
+      "code": "plan_contains_resource",
+      "name": "计划包含资源",
+      "comment": "经营计划包含多条供应资源",
+      "source_code": "biz_plan",
+      "target_code": "supply_resource",
+      "constraint": "1:N"
+    },
+    {
+      "code": "plan_contains_pipeline",
+      "name": "计划包含管输",
+      "comment": "经营计划包含多条管输运力",
+      "source_code": "biz_plan",
+      "target_code": "pipeline_capacity",
+      "constraint": "1:N"
+    },
+    {
+      "code": "plan_has_schemes",
+      "name": "计划包含方案",
+      "comment": "经营计划下可创建多个匹配方案版本",
+      "source_code": "biz_plan",
+      "target_code": "match_scheme",
+      "constraint": "1:N"
+    },
+    {
+      "code": "scheme_contains_results",
+      "name": "方案包含匹配结果",
+      "comment": "匹配方案包含多条供需匹配结果",
+      "source_code": "match_scheme",
+      "target_code": "match_result",
+      "constraint": "1:N"
+    },
+    {
+      "code": "supplier_provides_resource",
+      "name": "资源商提供资源",
+      "comment": "资源商供应天然气资源",
+      "source_code": "supplier",
+      "target_code": "supply_resource",
+      "constraint": "1:N"
+    },
+    {
+      "code": "resource_download_site",
+      "name": "资源关联下载站",
+      "comment": "供应资源通过对照表关联到一个或多个资源下载站",
+      "source_code": "supply_resource",
+      "target_code": "download_station",
+      "constraint": "1:N"
+    },
+    {
+      "code": "demand_gate_station",
+      "name": "需求关联门站",
+      "comment": "天然气需求关联到一个或多个城燃门站",
+      "source_code": "gas_demand",
+      "target_code": "gate_station",
+      "constraint": "1:N"
+    },
+    {
+      "code": "pipeline_route",
+      "name": "管输路径",
+      "comment": "管输运力定义了从资源下载站到城燃门站的运输路径",
+      "source_code": "download_station",
+      "target_code": "gate_station",
+      "constraint": "1:N"
+    },
+    {
+      "code": "match_links_resource",
+      "name": "匹配关联资源",
+      "comment": "匹配结果关联一条供应资源",
+      "source_code": "match_result",
+      "target_code": "supply_resource",
+      "constraint": "N:1"
+    },
+    {
+      "code": "match_links_pipeline",
+      "name": "匹配关联管输",
+      "comment": "匹配结果关联一条管输运力",
+      "source_code": "match_result",
+      "target_code": "pipeline_capacity",
+      "constraint": "N:1"
+    },
+    {
+      "code": "match_links_demand",
+      "name": "匹配关联需求",
+      "comment": "匹配结果关联一条天然气需求",
+      "source_code": "match_result",
+      "target_code": "gas_demand",
+      "constraint": "N:1"
+    }
+  ],
+  "rules": [
+    {
+      "code": "inv_demand_planned_qty_positive",
+      "description": "[对象不变式] 天然气需求的计划用气量（planned_qty）必须大于0"
+    },
+    {
+      "code": "inv_demand_company_name_default",
+      "description": "[对象不变式] 天然气需求的客户名称（company_name）默认为城燃名称"
+    },
+    {
+      "code": "inv_resource_qty_positive",
+      "description": "[对象不变式] 供应资源的资源量（resource_qty）必须大于0"
+    },
+    {
+      "code": "inv_resource_type_enum",
+      "description": "[对象不变式] 供应资源的资源类型（resource_type）必须为LNG或PNG"
+    },
+    {
+      "code": "inv_resource_status_enum",
+      "description": "[对象不变式] 供应资源的资源状态（resource_status）必须为潜在或已购"
+    },
+    {
+      "code": "inv_pipeline_design_capacity_positive",
+      "description": "[对象不变式] 管输运力的设计输气能力（design_capacity）必须大于0"
+    },
+    {
+      "code": "inv_pipeline_type_enum",
+      "description": "[对象不变式] 管输运力的管网类型（pipeline_type）必须为省际网、城际网或城燃网"
+    },
+    {
+      "code": "inv_capacity_status_enum",
+      "description": "[对象不变式] 管输运力的运力状态（capacity_status）必须为潜在或已购"
+    },
+    {
+      "code": "inv_match_delivery_qty_positive",
+      "description": "[对象不变式] 供需匹配结果的交付量（delivery_qty）必须大于0"
+    },
+    {
+      "code": "pre_import_scheme_plan_exists",
+      "description": "[前置条件] 导入初始方案前，经营计划必须已存在"
+    },
+    {
+      "code": "pre_create_new_version_exists_base",
+      "description": "[前置条件] 创建新版本方案前，当前计划下至少存在一个版本"
+    },
+    {
+      "code": "pre_confirm_scheme_no_other_confirmed",
+      "description": "[前置条件] 确认方案前，同一经营计划下无其他已确认方案"
+    },
+    {
+      "code": "post_import_scheme_version_one",
+      "description": "[后置条件] 导入初始方案后，版本号=1，方案状态=初始导入"
+    },
+    {
+      "code": "post_create_version_increment_and_copy",
+      "description": "[后置条件] 创建新版本方案后，版本号=最新版本号+1，匹配结果从最新版本复制"
+    },
+    {
+      "code": "post_modify_result_auto_recalc",
+      "description": "[后置条件] 修正匹配结果后，自动重算进销差价、利润、管输费，并更新方案汇总"
+    },
+    {
+      "code": "post_confirm_scheme_status_confirmed",
+      "description": "[后置条件] 确认方案后，方案状态=已确认"
+    },
+    {
+      "code": "post_delete_result_update_summary",
+      "description": "[后置条件] 删除匹配结果后，自动更新方案总交付量和总利润"
+    },
+    {
+      "code": "rel_match_scheme_fk",
+      "description": "[关系约束] 匹配结果的方案编号（scheme_id）必须存在于匹配方案"
+    },
+    {
+      "code": "rel_match_resource_fk",
+      "description": "[关系约束] 匹配结果的供应资源编号（resource_id）必须存在于供应资源"
+    },
+    {
+      "code": "rel_match_pipeline_fk",
+      "description": "[关系约束] 匹配结果的管输编号（pipeline_id）必须存在于管输运力"
+    },
+    {
+      "code": "rel_match_demand_fk",
+      "description": "[关系约束] 匹配结果的需求编号（demand_id）必须存在于天然气需求"
+    },
+    {
+      "code": "rel_pipeline_route_reachable",
+      "description": "[关系约束] 管输运力的下载站到门站路径必须在管网拓扑中可达"
+    },
+    {
+      "code": "biz_mandatory_supply_priority",
+      "description": "[业务规则] 保供优先：必须供气的需求（mandatory_supply=是）不可被忽略，匹配方案必须满足"
+    },
+    {
+      "code": "biz_ship_or_pay_constraint",
+      "description": "[业务规则] 照付不议：资源实际提取量不得低于最小提气量（min_extract_qty），否则按最小提气量计费"
+    },
+    {
+      "code": "biz_pipeline_capacity_upper_bound",
+      "description": "[业务规则] 管输能力上限：管输实际输气量不得超过设计输气能力（design_capacity）"
+    },
+    {
+      "code": "biz_pipeline_guaranteed_min_bound",
+      "description": "[业务规则] 管输保底下限：管输实际输气量不得低于保底量（guaranteed_min）"
+    },
+    {
+      "code": "biz_multi_source_multi_path",
+      "description": "[业务规则] 多气源多路径：同一需求可由多个资源商通过不同管输路径满足"
+    },
+    {
+      "code": "biz_objective_driven_optimization",
+      "description": "[业务规则] 目标函数驱动：匹配方案由经营计划的经营目标（biz_objective，单选）驱动优化"
+    },
+    {
+      "code": "calc_margin",
+      "description": "[计算规则] 进销差价 = 用户报价（customer_price）- 资源采购价（resource_price）"
+    },
+    {
+      "code": "calc_profit",
+      "description": "[计算规则] 利润 = 进销差价（margin）- 运力采购价（transport_price）"
+    },
+    {
+      "code": "calc_transport_fee",
+      "description": "[计算规则] 管输费 = 交付量（delivery_qty）× 运力采购价（transport_price）"
+    },
+    {
+      "code": "calc_scheme_total_delivery",
+      "description": "[计算规则] 方案总交付量 = SUM(匹配结果.交付量)"
+    },
+    {
+      "code": "calc_scheme_total_profit",
+      "description": "[计算规则] 方案总利润 = SUM(匹配结果.利润)"
+    }
+  ]
+}
