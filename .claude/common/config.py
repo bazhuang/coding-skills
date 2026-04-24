@@ -84,7 +84,7 @@ def get_app_config() -> Dict[str, str]:
         app_config = json.load(f)
 
     return {
-        STEP_ID: app_config[STEP_ID]
+        STEP_ID: app_config[STEP_ID],
         CVCU_ID: app_config[CVCU_ID]
     }
 
