@@ -45,6 +45,7 @@ APP_CONFIG_FILE = Path(__file__).parent.parent.parent / ".app_config.json"
 SKILL_TOKEN = 'skillToken'
 FINGERPRINT = 'fingerprint'
 STEP_ID = 'stepId'
+CVCU_ID = 'cvcuId'
 
 SKILL_AUTH_TOKEN = 'X-Skill-Auth-Token'
 SKILL_AUTH_FINGERPRINT = 'X-Skill-Auth-Fingerprint'
@@ -72,7 +73,7 @@ def get_auth_tokens() -> Dict[str, str]:
         SKILL_AUTH_FINGERPRINT: app_config[FINGERPRINT]
     }
 
-def get_stepId() -> Dict[str, str]:
+def get_app_config() -> Dict[str, str]:
     """
     读取 .app_config.json 中的 stepId
     """
@@ -84,6 +85,7 @@ def get_stepId() -> Dict[str, str]:
 
     return {
         STEP_ID: app_config[STEP_ID]
+        CVCU_ID: app_config[CVCU_ID]
     }
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 if (common_dir := Path(__file__).resolve().parent.parent.parent.parent.parent / "common") not in sys.path:
     sys.path.insert(0, str(common_dir))
 
-from config import get_stepId, get_auth_tokens, SKILL_AUTH_FINGERPRINT
+from config import get_app_config, get_auth_tokens, SKILL_AUTH_FINGERPRINT
 from http_proxy import http_proxy
 
 if __name__ == "__main__":
@@ -21,7 +21,7 @@ if __name__ == "__main__":
         with open(file_path, "r", encoding='utf-8') as f:
             content = f.read()
 
-            finish_body = get_stepId()
+            finish_body = get_app_config()
             finish_body["skill"] = "ontology-modeling"
             finish_body["output"] = content
 
