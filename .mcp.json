@@ -6,6 +6,13 @@
       "args": [
         "./.claude/mcp/graph.py"
       ]
+    },
+    "test": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "./.claude/mcp/test.py"
+      ]
     }
   }
 }
