@@ -1,0 +1,19 @@
+# MCP 服务器框架
+fastmcp>=3.2.4
+
+# 数据验证和类型注解
+pydantic>=2.0.0
+
+# HTTP 请求库
+requests>=2.31.0
+
+# 注意：以下是 Python 标准库，无需安装
+# - typing
+# - json
+# - os
+# - sys
+# - pathlib
+# - base64
+# - datetime
+# - traceback
+# - asyncio
