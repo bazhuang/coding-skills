@@ -9,9 +9,9 @@ description: Guide business teams through ontology modeling and BRD generation u
 1. **本体图谱 Schema** — 结构化的业务领域模型（JSON）
 2. **BRD 文档** — 结构化的业务需求文档（Markdown）
 
-## 本地文件持久化
+## 数据输出
 
-每次生成的 Ontology Schema 和 BRD 文档必须持久化到本地文件，后续交互在已有文件基础上进行增量修改。
+每次生成的 Ontology Schema 和 BRD 文档必须通过 MCP 服务持久化，后续交互在已有数据基础上进行增量修改。对话输出使用 `<artifact>` 标签区分内容类型（`type="brd"` 用于 BRD 文档，`type="schema"` 用于 Ontology Schema），供下游渲染系统分块解析。详见"输出格式规范"章节。
 
 ### 文件路径约定
 
@@ -24,12 +24,11 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 1. **建模开始前**：检查 `output/` 目录下是否已存在 `ontology_schema.json` 和 `brd.md`
    - 如果存在：读取现有文件内容，作为当前建模的基础，在对话中告知用户"已加载上次的建模进度"
-   - 如果不存在：创建 `output/` 目录，从零开始生成
+   - 如果不存在：从零开始生成
 
-2. **每次交互结束时**：将最新的 Schema 和 BRD 写入对应文件
-   - 使用 `mcp__graph__data_write` tool 工具将完整的 Ontology Schema JSON 写入 `output/ontology_schema.json`
-   - 使用 `mcp__graph__brd_write` tool  工具将完整的 BRD Markdown 写入 `output/brd.md`
-   - 重点记住：`ontology_schema.json` 和 `brd.md` 每次写入都严格使用上面指定的mcp tool，不要用Write工具
+2. **每次交互结束时**：将最新的 Schema 和 BRD 通过 `mcp__graph__data_write` MCP 服务写入对应文件
+   - 调用 `mcp__graph__data_write`，参数 `file_path` 设为 `output/ontology_schema.json` 的绝对路径，参数 `content` 设为完整的 Ontology Schema JSON 字符串
+   - 调用 `mcp__graph__data_write`，参数 `file_path` 设为 `output/brd.md` 的绝对路径，参数 `content` 设为完整的 BRD Markdown 内容
    - 每次覆盖写入完整内容（非增量），确保文件始终是最新状态
 
 3. **跨会话延续**：不同 Claude Code 会话可以通过读取本地文件恢复建模进度
@@ -61,7 +60,7 @@ description: Guide business teams through ontology modeling and BRD generation u
 | 本体要素 | 本体 Schema 映射 | BRD 文档映射 |
 |----------|-----------------|-------------|
 | **对象** | objects[] + edges[] | §3 利益相关方 + §6 数据需求 |
-| **行为** | biz_logic 中记录 | §5 业务流程 + §4 功能需求 |
+| **行为** | biz_logic 中记录 + sop_flows | §5 业务流程 + §4 功能需求 |
 | **规则** | rules[] | §7 业务规则 + §4.2 非功能需求 |
 
 ### 核心原则
@@ -206,8 +205,15 @@ description: Guide business teams through ontology modeling and BRD generation u
 **提问**：
 - 基于这个对象可以创建哪些关联对象？
 
+#### SOP 执行流程
+在识别完所有核心对象的行为后，将行为按业务执行顺序组织为 SOP 流程：
+- 每条 SOP 流程（SopFlow）代表一个完整的业务执行路径，包含 code 和 title
+- 流程中的步骤（SopStep）按实际执行顺序排列，每个步骤包含 code 和 title
+- 一个 SOP 流程可能跨越多个对象的行为
+- 根据业务复杂度，可以定义多条 SOP 流程（如正常流程、异常流程）
+
 **产出**：
-- 本体 Schema：schema 更新（biz_logic 中记录行为信息）
+- 本体 Schema：schema 更新（biz_logic 中记录行为信息，sop_flows 中记录执行流程）
 - BRD：§5 业务流程 + §4.1 功能需求
 
 ### 步骤4：规则层(Rules Layer)建模
@@ -299,13 +305,13 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 从步骤1（需求理解与领域分析）开始，每次回复用户时都必须：
 1. 回应用户的输入，提出下一步问题
-2. 在回复末尾附带当前最新的**双产出**：
-   - **BRD 文档**（Markdown 格式，已生成的章节）
-   - **Ontology Schema JSON**（基于已收集到的信息实时生成）
+2. 在回复末尾使用 `<artifact>` 标签附带当前最新的**双产出**：
+   - **BRD 文档**：包裹在 `<artifact type="brd">` 中，Markdown 格式
+   - **Ontology Schema**：包裹在 `<artifact type="schema">` 中，JSON 格式
 3. 随着用户补充信息，动态调整和丰富两部分产出
-4. **每次回复结束后，将最新的 Schema 和 BRD 写入本地文件**：
-   - 使用 指定 工具将 Schema 写入 `output/ontology_schema.json`
-   - 使用 指定 工具将 BRD 写入 `output/brd.md`
+4. **每次回复结束后，将最新的 Schema 和 BRD 通过 MCP 服务写入文件**：
+   - 调用 `mcp__graph__data_write` 将 Schema 写入 `output/ontology_schema.json`（`content` 为完整 JSON 字符串）
+   - 调用 `mcp__graph__data_write` 将 BRD 写入 `output/brd.md`（`content` 为完整 Markdown 内容）
 
 这意味着：
 - 识别出第一个核心对象时，就应生成包含该对象的初始 schema 和 BRD 数据需求章节
@@ -317,7 +323,7 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 **本体 Schema 输出格式**：
 
-Directly output the raw JSON format of `Ontology` without any Markdown code block wrappers (e.g., do not include "```json" or "```"). The output must strictly adhere to the `Plan` interface defined below:
+Schema JSON 必须放在 `<artifact type="schema">` 标签内，内容为纯 JSON（不带 ````json` 代码块包裹），严格遵循以下 `Ontology` 接口定义：
 
 ```ts
 interface OyObject {
@@ -349,6 +355,17 @@ interface Rule {
     description:string; // 约束规则的内容
 }
 
+interface SopStep {
+    code: string; // SOP步骤编码，仅包括英文、下划线，长度控制在32个字符
+    title: string; // SOP步骤标题
+}
+
+interface SopFlow {
+    code: string; // SOP流程编码，仅包括英文、下划线，长度控制在32个字符
+    title: string; // SOP流程标题
+    steps: SopStep[]; // 流程步骤列表，按执行顺序排列
+}
+
 interface Ontology {
     metaPaperId:string;
   biz_logic: string; // 业务逻辑，将用户的对话内容完整记录，后续会作为智能能力打造的需求描述
@@ -356,45 +373,54 @@ interface Ontology {
   objects: OyObject[];  // 实体对象列表
   edges: OyEdge[]; // 本体中的关系列表
   rules: Rule[]; //分析提取出来的业务规则约束
+  sop_flows: SopFlow[]; // 业务逻辑SOP执行流程列表
 }
 ```
 
 ## 输出格式规范
 
-**每次回复末尾必须附带以下两部分**：
+每次回复由三部分组成，使用 `<artifact>` 标签区分内容类型，供下游渲染系统分块解析：
 
-### 格式示例
+### 回复结构
 
 ```
-<brd>
-[当前已生成的 BRD 文档内容，Markdown 格式]
-</brd>
-<question>
-[访谈对话内容，回应输入、提出下一步问题]
-</question>
+[对话内容：回应输入、分析业务、提出下一步问题]
+
+<artifact type="brd">
+[BRD 文档的完整 Markdown 内容，不带代码块包裹]
+</artifact>
+
+<artifact type="schema">
+[Ontology Schema 的完整 JSON 内容，不带代码块包裹]
+</artifact>
 ```
 
-### BRD 输出规范
-- 使用 Markdown 格式
-- 对于尚未确定的章节，标注"待确认"
-- 每次输出已确定的所有章节内容（非增量）
-- 表格、列表等结构化形式呈现
+### 标签说明
 
-### Schema 输出规范
-- 输出原始 JSON，不使用 Markdown 代码块包裹
-- 每次输出完整的、最新的 schema（非增量片段）
-- 尚未确定的字段使用合理初始值，后续交互中更新
+| 内容 | 标签 | type 值 | 格式 | 下游渲染方式 |
+|------|------|---------|------|------------|
+| 对话内容 | 无标签 | — | 纯文本 | 对话气泡展示 |
+| BRD 文档 | `<artifact>` | `brd` | Markdown | Word 文档形式展示 |
+| Schema | `<artifact>` | `schema` | JSON | 画布/可视化渲染 |
+
+### 输出规则
+
+1. 对话内容始终在最前面，无标签包裹
+2. `<artifact>` 标签必须正确闭合（`</artifact>`）
+3. artifact 标签内的内容**不带** Markdown 代码块包裹（不要写 ````json` 或 ````markdown`）
+4. 每次回复都包含完整的双产出（非增量片段），即使部分内容未变化也要完整输出
+
 
 ## 交互指导
 
 ### 持续输出 Schema + BRD（核心要求）
 - **建模开始时，先读取 `output/ontology_schema.json` 和 `output/brd.md`（如果存在），在已有内容基础上继续建模**
-- **从识别出第一个对象开始，每次回复都必须在末尾附带完整的当前 schema JSON 和 BRD 文档**
+- **从识别出第一个对象开始，每次回复都必须使用 `<artifact>` 标签附带完整的当前 Schema 和 BRD**
 - 不要等到所有信息收集完毕才生成 schema 和 BRD，而是边建模边输出
 - 每次用户补充信息后，基于最新信息更新并输出完整的双产出
 - schema 的 biz_logic 字段应持续记录用户的对话输入
 - 对于尚未确定的字段或章节，可以使用合理的初始值或标注"待确认"，后续交互中再更新
-- **每次回复结束后，必须使用指定tool将最新的 Schema 和 BRD 写入本地文件 `output/ontology_schema.json` 和 `output/brd.md`**
+- **每次回复结束后，必须通过 `mcp__graph__data_write` 将最新的 Schema 和 BRD 写入文件 `output/ontology_schema.json` 和 `output/brd.md`**
 
 ### 循序渐进
 - 不要一次性抛出所有问题
@@ -465,23 +491,9 @@ interface Ontology {
 
 然后按照上述工作流程逐步引导用户完成建模。
 
-**关键要求：从识别出第一个对象开始，每次回复都必须在末尾附带完整的当前 schema JSON 和 BRD 文档。**
+**关键要求：从识别出第一个对象开始，每次回复都必须在末尾使用 `<artifact>` 标签附带完整的当前 Schema 和 BRD。**
 - 即使信息不完整，也要基于已知信息生成初始 schema 和 BRD
 - 用户每次补充信息后，立即更新并输出完整双产出
 - 不要等到最后才一次性生成 schema 和 BRD
-- **每次回复结束后，使用指定tool将最新的 Schema 和 BRD 持久化到本地文件 `output/ontology_schema.json` 和 `output/brd.md`**
+- **每次回复结束后，通过 `mcp__graph__data_write` 将最新的 Schema 和 BRD 持久化到文件 `output/ontology_schema.json` 和 `output/brd.md`**
 - **每次新会话开始时，先读取本地文件，在已有基础上继续建模**
-
-### 结束确认流程
-
-当用户表达完成意向时：
-
-- 用户说"完成"、"结束"、"就这样"等 → 结束建模
-- 用户提出新的业务领域 → 询问是否开始新领域建模
-
-1. **提醒最终确认**："确认完成建模吗？"
-2. **调用脚本**：用户确认后，执行以下python文件，完成本体访谈
-
-```markdown
-/references/script/finish_ontology.py
-```
