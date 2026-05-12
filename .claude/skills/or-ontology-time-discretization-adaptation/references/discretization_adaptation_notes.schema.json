@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "time_axis",
+    "schema_inventory",
     "object_mappings",
     "objective_impacts",
     "constraint_impacts",
@@ -35,6 +36,54 @@
         }
       }
     },
+    "schema_inventory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "table_name",
+          "table_role",
+          "fields",
+          "primary_key",
+          "unique_keys",
+          "schema_source"
+        ],
+        "properties": {
+          "table_name": { "type": "string" },
+          "table_role": { "type": "string" },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [ "name", "type", "semantic_role" ],
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "semantic_role": { "type": "string" },
+                "is_time_field": { "type": "boolean" },
+                "is_version_field": { "type": "boolean" },
+                "is_source_identity_field": { "type": "boolean" },
+                "is_discretized_value_field": { "type": "boolean" }
+              }
+            }
+          },
+          "primary_key": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "unique_keys": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/uniqueKey" }
+          },
+          "schema_source": {
+            "type": "string",
+            "enum": [ "discretized_schema", "or_ontology_original_schema", "unknown" ]
+          }
+        }
+      }
+    },
     "object_mappings": {
       "type": "array",
       "items": {
@@ -47,6 +96,7 @@
           "target_grain",
           "source_binding",
           "target_binding",
+          "target_schema_evidence",
           "field_rewrites",
           "mapping_confidence",
           "adaptation_actions",
@@ -78,6 +128,41 @@
               "binding_status": { "type": "string" },
               "table_name": { "type": "string" },
               "supporting_tables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "target_schema_evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schema_source",
+              "table_name",
+              "allowed_fields",
+              "primary_key",
+              "unique_keys",
+              "excluded_source_fields"
+            ],
+            "properties": {
+              "schema_source": {
+                "type": "string",
+                "enum": [ "discretized_schema", "or_ontology_original_schema", "unknown" ]
+              },
+              "table_name": { "type": "string" },
+              "allowed_fields": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "primary_key": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "unique_keys": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/uniqueKey" }
+              },
+              "excluded_source_fields": {
                 "type": "array",
                 "items": { "type": "string" }
               }
@@ -169,6 +254,20 @@
             "type": "array",
             "items": { "type": "string" }
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uniqueKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "fields" ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
         }
       }
     }

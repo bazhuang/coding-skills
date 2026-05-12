@@ -1,6 +1,6 @@
 # 图映射规则
 
-本文件定义了从算法本体模型到 NebulaGraph 图数据库结构的确定性映射规则。
+本文件定义了从运筹算法本体到 NebulaGraph 图数据库结构的确定性映射规则。
 
 ## 1. 对象类别处理
 
@@ -12,26 +12,26 @@
 ### 2.1 命名
 
 - `tag_name` = `object.table_schema.table_name`（完全一致，不做任何修改）
-- `tag_type` = `object.object_type`（枚举值：supply_node, demand_node, passthrough_node, processor_node, storage_node）
+- `tag_type` = `object.object_type`（由本体定义的节点类型枚举）
 
 ### 2.2 VID 字段确定
 
-**优先级规则**：
+**必须通过唯一索引获取**：
 
 1. 如果 `object.table_schema.indexes` 包含唯一索引：
    - 单字段：直接使用该字段
-   - 两个字段：选择其中不是 `version_id` 的字段
-   - 两个以上字段：去掉 `version_id` 后，剩余字段按下划线连接（如 `field_a_field_b`）
-2. 如果没有唯一索引：使用 `object.table_schema.primary_key[0]`
+   - 两个字段：选择其中不是版本过滤字段的字段
+   - 两个以上字段：去掉版本过滤字段后，剩余字段按下划线连接
+2. 如果没有唯一索引，则无法确定 VID，报错提示
 
 ### 2.3 字段列表
 
 `fields` = `object.table_schema.fields[].name` 的完整列表
 
-**version_id 处理**：
+**版本过滤字段处理**：
 
-- 如果 `fields` 中已包含 `version_id`，保持原样
-- 如果 `fields` 中不包含 `version_id`，在字段列表开头添加 `version_id`
+- 如果 `fields` 中已包含版本过滤字段，保持原样
+- 如果 `fields` 中不包含版本过滤字段，在字段列表开头添加版本过滤字段
 
 ### 2.4 字段类型转换
 
@@ -46,39 +46,16 @@
 | `decimal(m,n)` / `decimal` / `float` / `double` | `double` |
 | `datetime` / `timestamp` | `datetime` |
 | `date` | `date` |
-| `boolean` / `tinyint(1)` | `int` |
+| `boolean`| `bool` |
 
-### 2.5 DDL 格式
-
-```sql
-CREATE TAG IF NOT EXISTS `tag_name` (
-    `version_id` int64 COMMENT '版本ID',
-    `field1` nebula_type COMMENT '字段描述',
-    `field2` nebula_type COMMENT '字段描述'
-) comment='table_type:tag_type';
-```
-
-注意：
-
-- **不要生成 CREATE SPACE 语句**
-- 如果 `version_id` 已存在于原字段中，不要在 DDL 中重复添加
-- 字段顺序保持 `table_schema.fields` 的原始顺序
-- `version_id` 始终放在第一个位置（如果原表没有）
-
-### 2.6 TAG 索引
-
-为每个 TAG 创建 version_id 索引：
-
-```sql
-CREATE TAG INDEX IF NOT EXISTS `tag_name_version_id_index` ON `tag_name` (`version_id`);
-```
+### 2.5 字段类型转换完成后即可，无需检测时间维度
 
 ## 3. EDGE 构造规则
 
 ### 3.1 命名
 
 - `edge_name` = `object.table_schema.table_name`（完全一致）
-- `edge_type` = `object.object_type`（枚举值：transport, link）
+- `edge_type` = `object.object_type`（由本体定义的边类型枚举）
 
 ### 3.2 端点解析
 
@@ -86,7 +63,7 @@ CREATE TAG INDEX IF NOT EXISTS `tag_name_version_id_index` ON `tag_name` (`versi
 
 1. 从 `object.edge_endpoints.from_objects` 获取源对象名称列表
 2. 从 `object.edge_endpoints.to_objects` 获取目标对象名称列表
-3. 在算法本体模型的 `algorithm_objects.objects` 中查找匹配的对象
+3. 在 `or_ontology` 的 `algorithm_objects.objects` 中查找匹配的对象
 4. 使用匹配对象的 `table_schema.table_name` 作为 `src_tag` / `dst_tag`
 
 **src_vid_field / dst_vid_field 确定**：
@@ -107,142 +84,111 @@ CREATE TAG INDEX IF NOT EXISTS `tag_name_version_id_index` ON `tag_name` (`versi
 
 与 TAG 的规则相同（见 2.3 和 2.4）。
 
-### 3.5 DDL 格式
+### 3.5 无额外配置，按 3.3 和 3.4 节规则处理即可
+
+## 4. 结构化中间态格式（nebula_schema_meta.json）
+
+### 4.1 整体结构
+
+```json
+{
+  "space_name": "图空间名",
+  "tags": [
+    {
+      "name": "表名",
+      "tag_type": "节点类型",
+      "vid_field": "VID字段名",
+      "source_table": "源表名",
+      "fields": ["所有属性字段列表"],
+      "field_types": {
+        "field_name": "nebula_type"
+      },
+      "indexes": ["版本过滤字段"]
+    }
+  ],
+  "edges": [
+    {
+      "name": "边名称",
+      "edge_type": "边类型",
+      "src_tag": "源节点TAG名称",
+      "dst_tag": "目标节点TAG名称",
+      "src_vid_field": "源节点VID字段",
+      "dst_vid_field": "目标节点VID字段",
+      "rank_field": "排序字段",
+      "source_table": "源表名",
+      "fields": ["所有属性字段列表"],
+      "field_types": {
+        "field_name": "nebula_type"
+      },
+      "indexes": ["版本过滤字段"]
+    }
+  ]
+}
+```
+
+### 4.2 字段取值来源
+
+| 字段 | 取值来源 |
+|------|---------|
+| `name`（TAG/EDGE） | `table_schema.table_name` |
+| `tag_type` / `edge_type` | `object_type` |
+| `vid_field` | `table_schema.indexes` 唯一索引字段 |
+| `src_vid_field` / `dst_vid_field` | 通过 `edge_endpoints` + `foreign_keys` 解析 |
+| `source_table` | 与 `name` 一致 |
+| `src_tag` / `dst_tag` | `edge_endpoints.from_objects` / `to_objects` 对应对象的 `table_name` |
+| `fields` | `table_schema.fields[].name` 列表（确保包含版本过滤字段） |
+| `field_types` | MySQL → NebulaGraph 类型转换结果 |
+| `rank_field` | `primary_key[0]`|
+| `indexes` | 必须包含版本过滤字段 |
+
+## 5. DDL 渲染规则
+
+### 5.1 TAG DDL 格式
+
+```sql
+CREATE TAG IF NOT EXISTS `tag_name` (
+    `版本字段` int64 COMMENT '版本号',
+    `field1` nebula_type COMMENT '字段描述（来源于 table_schema.fields[].desc）',
+    `field2` nebula_type COMMENT '字段描述（来源于 table_schema.fields[].desc）'
+) comment='table_type:tag_type';
+```
+
+注意：
+
+- **不要生成 CREATE SPACE 语句**
+- 如果原表已有版本过滤字段，不要在 DDL 中重复添加
+- 字段顺序保持 `table_schema.fields` 的原始顺序
+- 版本过滤字段始终放在第一个位置（如果原表没有）
+- 每个字段的 `COMMENT` 使用 `table_schema.fields[].desc` 的值，不要使用空字符串或通用占位文本
+
+### 5.2 TAG 索引
+
+为每个 TAG 创建版本过滤字段索引：
+
+```sql
+CREATE TAG INDEX IF NOT EXISTS `tag_name_version_index` ON `tag_name` (`版本字段`);
+```
+
+### 5.3 EDGE DDL 格式
 
 ```sql
 CREATE EDGE IF NOT EXISTS `edge_name` (
-    `version_id` int64 COMMENT '版本ID',
-    `field1` nebula_type COMMENT '字段描述',
-    `src_field` string COMMENT '源节点ID',
-    `dst_field` string COMMENT '目标节点ID'
+    `版本字段` int64 COMMENT '版本号',
+    `field1` nebula_type COMMENT '字段描述'
 ) comment='table_type:edge_type';
 ```
 
 注意：
 
 - NebulaGraph EDGE 自动包含 src_vid 和 dst_vid，不需要在属性中显式定义
-- 但 src_vid_field 和 dst_vid_field 必须在 data_mapping.json 中配置
 
-### 3.6 EDGE 索引
+### 5.4 EDGE 索引
 
-为每个 EDGE 创建 version_id 索引：
+为每个 EDGE 创建版本过滤字段索引：
 
 ```sql
-CREATE EDGE INDEX IF NOT EXISTS `edge_name_version_id_index` ON `edge_name` (`version_id`);
+CREATE EDGE INDEX IF NOT EXISTS `edge_name_version_index` ON `edge_name` (`版本字段`);
 ```
-
-## 4. 时间维度检测
-
-### 4.1 时间字段识别
-
-遍历 `table_schema.fields`，匹配以下模式：
-
-**开始时间字段**：
-
-- `start_*`, `begin_*`, `*_start_date`, `*_start_time`
-- 常见字段名：`start_date`, `begin_date`, `start_time`
-
-**结束时间字段**：
-
-- `end_*`, `finish_*`, `*_end_date`, `*_end_time`
-- 常见字段名：`end_date`, `finish_date`, `end_time`
-
-### 4.2 量字段识别
-
-遍历 `table_schema.fields`，匹配以下模式：
-
-- `*_quantity`, `*_amount`, `*_volume`, `*_count`, `*_num`, `*_capacity`
-- `quantity`, `amount`, `volume`, `count`, `num`（单独出现）
-- `*_qty`, `*_vol`, `*_amt`（缩写形式）
-
-### 4.3 配置规则
-
-1. 如果表中同时包含开始时间和结束时间字段，配置 `time_dimension`
-2. 如果表中没有时间范围字段，不配置 `time_dimension`
-3. `time_interval` 从 `problem_frame.time_granularity` 获取映射：
-   - `月度` / `月` → `M`
-   - `日` / `天` → `D`
-   - `周` → `W`
-   - `季度` / `季` → `Q`
-   - `年` → `Y`
-   - 其他或不存在 → `D`（默认按日拆分）
-4. `transport` 类型的 EDGE 通常需要配置时间维度
-5. `link` 类型的 EDGE 通常不需要配置时间维度
-
-## 5. 数据映射配置格式
-
-### 5.1 TAG 配置
-
-```json
-{
-  "tag_name": "表名",
-  "tag_type": "类型标记",
-  "vid_field": "VID字段名",
-  "source_table": "源表名",
-  "description": "描述",
-  "fields": ["所有属性字段列表"],
-  "field_types": {
-    "field_name": "nebula_type"
-  },
-  "time_dimension": {
-    "start_time_field": "开始时间字段名",
-    "end_time_field": "结束时间字段名",
-    "time_interval": "D",
-    "quantity_fields": ["量字段列表"]
-  }
-}
-```
-
-### 5.2 EDGE 配置
-
-```json
-{
-  "edge_name": "边名称",
-  "edge_type": "类型标记",
-  "src_vid_field": "源节点VID字段",
-  "dst_vid_field": "目标节点VID字段",
-  "rank_field": "排序字段",
-  "source_table": "源表名",
-  "src_tag": "源节点TAG名称",
-  "dst_tag": "目标节点TAG名称",
-  "description": "描述",
-  "fields": ["所有属性字段列表"],
-  "field_types": {
-    "field_name": "nebula_type"
-  },
-  "time_dimension": {
-    "start_time_field": "开始时间字段名",
-    "end_time_field": "结束时间字段名",
-    "time_interval": "D",
-    "quantity_fields": ["量字段列表"]
-  }
-}
-```
-
-### 5.3 data_mapping.json 整体结构
-
-```json
-{
-  "tags": [ ... ],
-  "edges": [ ... ]
-}
-```
-
-### 5.4 字段取值来源
-
-| 字段 | 取值来源 |
-|------|---------|
-| `tag_name` / `edge_name` | `table_schema.table_name` |
-| `tag_type` / `edge_type` | `object_type` |
-| `vid_field` | `table_schema.indexes` 唯一索引字段或 `primary_key[0]` |
-| `src_vid_field` / `dst_vid_field` | 通过 `edge_endpoints` + `foreign_keys` 解析 |
-| `source_table` | 与 `tag_name` / `edge_name` 一致 |
-| `src_tag` / `dst_tag` | `edge_endpoints.from_objects` / `to_objects` 对应对象的 `table_name` |
-| `description` | `table_schema.table_desc` |
-| `fields` | `table_schema.fields[].name` 列表（确保包含 version_id） |
-| `field_types` | MySQL → NebulaGraph 类型转换结果 |
-| `rank_field` | 排序字段（如有）或 `null` |
-| `time_dimension` | 按时间维度检测规则生成（如不存在则省略此字段） |
 
 ## 6. 交叉引用校验
 
@@ -250,16 +196,16 @@ CREATE EDGE INDEX IF NOT EXISTS `edge_name_version_id_index` ON `edge_name` (`ve
 
 ### 6.1 TAG 列表完整性
 
-- 每个 TAG 的 `tag_name` 唯一
+- 每个 TAG 的 `name` 唯一
 - 每个 TAG 的 `vid_field` 存在于 `fields` 列表中
-- 每个 TAG 的 `fields` 包含 `version_id`
+- 每个 TAG 的 `fields` 包含版本过滤字段
 - 每个 TAG 的 `field_types` 包含 `fields` 中的所有字段
 
 ### 6.2 EDGE 列表完整性
 
-- 每个 EDGE 的 `edge_name` 唯一
+- 每个 EDGE 的 `name` 唯一
 - 每个 EDGE 的 `src_vid_field` 和 `dst_vid_field` 存在于 `fields` 列表中
-- 每个 EDGE 的 `fields` 包含 `version_id`
+- 每个 EDGE 的 `fields` 包含版本过滤字段
 - 每个 EDGE 的 `field_types` 包含 `fields` 中的所有字段
 
 ### 6.3 TAG-EDGE 关联
@@ -270,7 +216,38 @@ CREATE EDGE INDEX IF NOT EXISTS `edge_name_version_id_index` ON `edge_name` (`ve
 
 ### 6.4 DDL 一致性
 
-- DDL 中的 TAG 数量与 nebula_graph_schema.json 中的 TAG 数量一致
-- DDL 中的 EDGE 数量与 nebula_graph_schema.json 中的 EDGE 数量一致
-- DDL 中每个 TAG/EDGE 都有对应的 version_id 索引
+- DDL 中的 TAG 数量与 nebula_schema_meta.json 中的 TAG 数量一致
+- DDL 中的 EDGE 数量与 nebula_schema_meta.json 中的 EDGE 数量一致
+- DDL 中每个 TAG/EDGE 都有对应的版本过滤字段索引
 
+## 7. DDL 执行代码生成规则
+
+生成的 `ddl_executor.py` 必须满足以下要求：
+
+### 7.1 参数设计
+
+- 接受 `--ddl-path` 参数，默认值为 `nebula_schema.sql`
+- 接受 `--config-path` 参数，默认值为 `nebula_config.json`
+
+### 7.2 连接逻辑
+
+- 从 `nebula_config` JSON 读取配置：
+  - `cluster_servers` → 转换为 `[(host, port), ...]` 元组列表（原始数据是 `[{host, port}, ...]` 字典列表）
+  - `space` → USE SPACE 语句的图空间
+  - `username` / `password` → 认证信息
+  - `pool_config` → 连接池参数
+
+### 7.3 执行逻辑
+
+- 读取 DDL 文件内容，逐行解析：
+  1. 跳过注释行（`--` 开头）和空行
+  2. 将有效行累积拼接，遇到分号表示一条完整语句
+  3. 采用逐行累积法，避免直接按分号分割导致语法截断
+- 逐条执行，输出每条语句的执行结果（成功或失败及错误信息）
+- 遇到失败立即中断，返回非零退出码
+
+### 7.4 禁止事项
+
+- 不在代码中硬编码配置值
+- 不执行 `nebula_schema.sql` 之外的任何 DDL
+- 不访问或处理业务实例数据

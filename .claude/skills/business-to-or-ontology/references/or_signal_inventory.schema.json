@@ -67,12 +67,43 @@
           "type": "string"
         },
         "text": {
-          "type": "string"
+          "type": "string",
+          "description": "只保留有价值的短证据。"
+        },
+        "table_name": {
+          "type": "string",
+          "description": "当证据来自 simulation_schema 时，优先用表名定位证据来源。"
+        },
+        "field_names": {
+          "type": "array",
+          "description": "与该短证据直接相关的关键字段名列表，仅保留高价值字段。",
+          "items": {
+            "type": "string"
+          }
         },
         "reason": {
           "type": "string"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "simulation_schema"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "required": [
+              "table_name"
+            ]
+          }
+        }
+      ]
     },
     "candidateEntity": {
       "type": "object",
@@ -331,6 +362,27 @@
             "type": "string"
           }
         },
+        "primary_key": {
+          "type": "array",
+          "description": "表主键字段列表，按 simulation_schema 原始定义保留。",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unique_keys": {
+          "type": "array",
+          "description": "表中可稳定识别的唯一键字段组合。",
+          "items": {
+            "$ref": "#/$defs/uniqueKey"
+          }
+        },
+        "foreign_keys": {
+          "type": "array",
+          "description": "表中可稳定识别的外键引用关系。",
+          "items": {
+            "$ref": "#/$defs/foreignKey"
+          }
+        },
         "supports": {
           "type": "array",
           "items": {
@@ -339,6 +391,50 @@
         },
         "note": {
           "type": "string"
+        }
+      }
+    },
+    "uniqueKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "foreignKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields",
+        "ref_table",
+        "ref_fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "ref_table": {
+          "type": "string"
+        },
+        "ref_fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

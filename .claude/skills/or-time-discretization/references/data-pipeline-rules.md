@@ -1,311 +1,274 @@
-# 时间离散化数据处理规则
+# Data Pipeline Rules
 
-本文件定义了从 `data_mapping.json` 到 MySQL → NebulaGraph → 时间拆分数据处理管线的确定性生成规则。
+## 1. Overview
 
-## 1. 输入来源
+本文件描述 or-time-discretization skill 中 4 个模板的代码生成规则。
 
-### 1.1 data_mapping.json 来源
+- **表信息**来源：`or_ontology.json` → `algorithm_objects.objects`
+- **时间拆分**来源：`time_discretization_config.json`
+- **连接配置**来源：`mysql_config.json` / `nebula_config.json`
 
-读取 `data_mapping.json`，获取：
+---
 
-- `tags[]` — 所有 TAG 定义
-  - `tag_name`、`tag_type`、`vid_field`、`source_table`、`description`
-  - `fields`、`field_types`
-  - `time_dimension`（可选）：`start_time_field`、`end_time_field`、`time_interval`、`quantity_fields`
-- `edges[]` — 所有 EDGE 定义
-  - `edge_name`、`edge_type`、`src_vid_field`、`dst_vid_field`、`rank_field`
-  - `source_table`、`src_tag`、`dst_tag`、`description`
-  - `fields`、`field_types`
-  - `time_dimension`（可选）
+## 2. 从 or_ontology 提取表信息
 
-### 1.2 配置来源
+### 2.1 表列表
 
-读取 `references/nebula_config.json`，获取：
+从 `or_ontology.algorithm_objects.objects` 中筛选 `object_category` 为 `"node"` 或 `"edge"` 的对象，取其 `table_schema.table_name` 构成完整表列表。
 
-- `cluster_servers[]` — 集群节点列表（host, port）
-- `space` — 图空间名称
-- `username`、`password` — 认证信息
-- `pool_config` — 连接池配置（min_size, max_size, idle_time, timeout, interval_check）
-- `session_config` — 会话配置（retry_times, timeout）
+| 分类 | 取值路径 |
+|------|----------|
+| node 表 | `objects[].object_category == "node"` → `objects[].table_schema.table_name` |
+| edge 表 | `objects[].object_category == "edge"` → `objects[].table_schema.table_name` |
 
-读取 `references/mysql_config.json`，获取：
+### 2.2 字段信息
 
-- `host`、`port`、`database` — 连接信息
-- `username`、`password` — 认证信息
-- `charset`、`pool_size`、`pool_recycle`、`pool_pre_ping`、`connect_timeout`
+从 `objects[].table_schema.fields[]` 获取：
+- `name` — 字段名
+- `type` — 数据类型
+- `desc` — 字段描述
+- `is_required` — 是否必填
 
-## 2. MySQL 查询生成规则
+### 2.3 VID 字段规则
 
-### 2.1 连接规则
+- **node 对象**：`table_schema.unique_keys.fields` 中的唯一键字段作为 VID
+- **edge 对象**：从 `edge_endpoints.supporting_fields` 中取第一个字段作为源点标识，最后一个作为目标点标识
 
-- 使用 `sqlalchemy` + `pymysql` 驱动
-- 连接字符串格式：`mysql+pymysql://{username}:{password}@{host}:{port}/{database}?charset={charset}`
-- 引擎配置：pool_size, pool_recycle, pool_pre_ping, connect_timeout
+### 2.4 MySQL 查询模板（mysql_query.py）
 
-### 2.2 字段检测规则
+- 查询的表列表必须从 or_ontology 提取，不得硬编码
+- 生成的 `MySQLQueryExecutor` 接受 `config_path`（mysql_config.json）
+- 按版本号过滤时，先通过 `information_schema.COLUMNS` 检查该字段是否存在
+- 表名列表由生成代码直接嵌入
+- **extra_params 处理**：读取配置时忽略 `extra_params` 字段，不将其拼接到连接 URL 或 `connect_args` 中，避免 JDBC 风格参数导致 PyMySQL 驱动异常
+- **禁止使用 `pymysql`、`dbutils`、`PooledDB`**：必须使用 SQLAlchemy 的 `create_engine` 作为数据库连接方式，通过连接池参数（`pool_size` / `pool_recycle` / `pool_pre_ping`）管理连接
+- **`connect_timeout` 必须放在 `connect_args` 字典中**，禁止作为 `create_engine()` 的直接参数（PyMySQL dialect 不识别该参数）
+- 数据查询必须使用 `pandas.read_sql` 返回 DataFrame，不得使用原生 cursor 和 DictCursor
 
-通过 `information_schema.COLUMNS` 检查表中是否存在 `version_id` 字段：
+### 2.5 Nebula 导入模板（nebula_import.py）
 
-```sql
-SELECT COUNT(*) as count
-FROM information_schema.COLUMNS
-WHERE TABLE_SCHEMA = :database
-  AND TABLE_NAME = :table_name
-  AND COLUMN_NAME = 'version_id'
-```
+- **配置常量**：必须定义 `TAGS_CONFIG` 和 `EDGES_CONFIG` 两个全局常量，每个元素包含：名称、源表名、VID 字段（node 从唯一索引字段过滤版本字段，edge 从端点支持字段取首尾）、字段列表、字段类型映射
+- **命名约束**：节点/边的名称必须严格等于本体定义中的表名，不得使用别名
+- **禁止使用 `ValueWrapper`**：直接拼接 NGQL 字符串，按类型分别处理引号转义、NULL、布尔值、日期格式化
+- **禁止硬编码单表导入逻辑**：必须遍历配置常量动态执行导入
+- **NGQL 语法**：TAG 使用 `INSERT VERTEX`，EDGE 使用 `INSERT EDGE`
+- **属性值格式**：必须使用位置值格式，不得使用 `key: value` 格式。正确示例：`INSERT VERTEX \`tag\` (\`a\`, \`b\`) VALUES 'vid':('val_a', 123);`
+- **包裹规则**：VID 使用单引号包裹，属性和表名使用反引号包裹
+- **批量大小**：固定 256 条一批，单条失败不影响同批其他记录
+- **VID 构成**：版本前缀 + VID 字段值，多字段时用下划线拼接
+- **映射内嵌**：所有映射信息内嵌到生成代码中，不得依赖外部配置文件
+- **字段类型映射**：配置中必须包含 `field_types` 字段，将本体数据类型映射为图数据库类型，禁止在运行时硬编码类型转换
+- **类型感知格式化**：`bool` → `true`/`false`；`int`/`int64` → 纯数字（try/except 保护）；`double` → 浮点数字符串；`date` → `date('YYYY-MM-DD')`；`datetime`/`timestamp` → 对应构造函数（空格替换为 `T`）；`string` → 单引号包裹并转义反斜杠和单引号
+- **空时间值处理**：JSON 序列化会将 NaT 转为字符串，格式化时需检测该字符串并输出 `NULL`
+- **版本号缺失时自动填充**：如果数据 DataFrame 中不包含版本过滤字段，必须在拼接属性时显式将该字段名和传入的版本参数值添加到 NGQL 语句中，禁止以 `NULL` 值写入。具体：先检测版本字段是否在 `df.columns` 中；遍历字段时跳过该字段（若不在数据中）；处理完后手动追加版本字段名和版本参数值
 
-### 2.3 查询规则
+---
 
-- 有 `version_id` 字段且传入版本号：`SELECT * FROM {table} WHERE version_id = :version`
-- 无 `version_id` 字段或未传入版本号：`SELECT * FROM {table}`（全表）
-- 查询结果返回 `pd.DataFrame`
+## 3. 时间拆分配置
 
-### 2.4 表收集规则
+### 3.1 配置来源
 
-从 `data_mapping.json` 中收集所有去重的 `source_table`：
+`time_discretization_config.json` 结构：
 
-- 遍历 `tags[]`，收集每个 `tag.source_table`
-- 遍历 `edges[]`，收集每个 `edge.source_table`
-- 去重后作为查询目标表列表
+顶层结构：
 
-### 2.5 类结构
+| key | 类型 | 说明 |
+|-----|------|------|
+| `objects` | array | 含时间维度的对象列表，每个元素对应 or_ontology 中一个含 time_dimension 的对象 |
 
-- `MySQLQueryExecutor` 类：封装连接、检测、查询逻辑
-- `query_by_version(table_name, version)` — 单表查询
-- `query_all_tables(version)` — 遍历所有表查询
-- `main()` — 命令行入口（--config、--version、--table、--output）
+`objects[]` 数组元素结构：
 
-## 3. NebulaGraph 导入生成规则
+| 字段 | 类型 | 来源 | 说明 |
+|------|------|------|------|
+| `object_name` | string | or_ontology 对象名称 | 对象名称 |
+| `object_category` | string | or_ontology object_category | 枚举值：`node`、`edge` |
+| `table_name` | string | or_ontology table_schema.table_name | 原始表名 |
+| `start_time_field` | string | or_ontology table_schema.fields[].name | 开始时间字段，必须能在 fields 中找到 |
+| `end_time_field` | string | or_ontology table_schema.fields[].name | 结束时间字段，必须能在 fields 中找到 |
+| `time_interval` | string | or_ontology time_dimension | 枚举值：`Y`、`Q`、`M`、`W`、`D` |
+| `quantity_fields` | string[] | or_ontology table_schema.fields[].name | 具有实际业务量含义的字段，代表可被拆分的总量，不包含衍生或换算型数值 |
+| `discretized_table` | string | 生成规则 | 格式 `discretized_{table_name}`，不得与 or_ontology 中现有表名冲突 |
 
-### 3.1 连接规则
+### 3.2 拆分模板（data_split.py）
 
-- 使用 `nebula3-python` 客户端库
-- 遍历 `cluster_servers`，任意一个节点连接成功即可
-- 每个节点尝试：创建 `ConnectionPool` → `init()` → `get_session()` → `SHOW SPACES` 验证 → 成功则保留此 pool
-- 全部失败抛出 `RuntimeError`
+- **配置加载**：从 `time_discretization_config.json` 读取拆分配置，构造函数接受图数据库连接配置路径、时间拆分配置路径、版本号、关系型数据库连接配置路径四个参数
+- **管线入口**：`process_all_splits()` 遍历配置中的对象数组，按对象类型分发到对应的图查询方法，逐个执行拆分并写回
+- **版本过滤强制要求**：图数据库查询必须以版本号作为必填过滤条件，未传入时应主动抛出异常而非降级为全量查询；节点按 VID 前缀匹配，边按源点和目标点 VID 前缀同时匹配；命令行参数应设为必填
+- **复杂类型转换**：图数据库返回的日期/时间封装对象必须通过 getter 方法提取各组件构造原生时间类型（`pd.Timestamp`），禁止直接调用 `str()` 转换（会产生带时区描述的格式，无法被关系型数据库识别）。方法名必须准确：`get_sec()` 而非 `get_second()`，`pd.Timestamp` 微秒参数名为 `microsecond=` 而非 `microsec=`
+- **属性访问规范**：图和边的属性获取接口为方法调用而非属性访问，必须加括号调用，节点调用需传入 tag 名称参数
+- **写入时间格式**：写入关系型数据库前必须将时间列转为字符串格式，避免 datetime64 和 Timestamp 对象的类型兼容性问题
+- **冗余字段排除**：拆分结果写入时必须排除已被替代的原始字段（时间范围字段被 `time_period` 替代，量值原始字段被 `discretized_` 前缀字段替代），以及图查询引入的内部标识字段
+- **ResultSet 遍历规范**：nebula3 的 `session.execute()` 返回 `ResultSet` 可迭代对象，直接遍历，不存在 `.data()` 方法。正确模式：`for record in resp:` → `record.values()[0].as_node()` / `.as_relationship()`
+- **边查询版本过滤**：NebulaGraph 不支持对 `id(e)` 使用 `STARTS WITH`，必须匹配边两端节点：`MATCH (src)-[e:name]->(dst) WHERE id(src) STARTS WITH 'ver_' AND id(dst) STARTS WITH 'ver_'`
 
-### 3.2 VID 构造规则
+### 3.3 拆分逻辑
 
-- TAG VID：`{version}_{vid_field_value}`，其中 `vid_field` 来自 `data_mapping.json` 中对应 TAG 的 `vid_field`
-- EDGE 源 VID：`{version}_{src_vid_field_value}`，其中 `src_vid_field` 来自对应 EDGE 定义
-- EDGE 目标 VID：`{version}_{dst_vid_field_value}`，其中 `dst_vid_field` 来自对应 EDGE 定义
+- `time_interval` 到 pandas offset 的映射：
+  - `Y` → `'1YS'`（年）
+  - `Q` → `'1QS'`（季度）
+  - `M` → `'1MS'`（月）
+  - `W` → `'1WS'`（周）
+  - `D` → `'1D'`（日）
 
-### 3.3 TAG 导入规则
+- **时间窗口生成**：使用 `while cur < end` 循环按 offset 逐步推进窗口，每次计算与原始区间的重叠秒数。禁止使用 `pd.date_range(start, end, freq)` 后遍历 `len(periods) - 1` 的模式，因为当起止时间在同一区间时 `date_range` 仅返回 1 个元素，导致窗口循环 0 次、拆分结果为空
 
-nGQL 语句格式：
+### 3.4 拆分结果表 DDL（discretized_schema.sql）
 
-```sql
-INSERT VERTEX `tag_name` (`field1`, `field2`, ...) VALUES '{vid}':('val1', 'val2', ...);
-```
+每个含 time_dimension 的对象生成一张拆分结果表，DDL 字段规则如下：
 
-- 字段列表来自 `data_mapping.json` 中 `tag.fields`，跳过 `vid_field`
-- 值根据 `tag.field_types` 格式化
-- 如果数据中没有 `version_id` 字段，手动添加 `version_id` 到属性列表
-- 批量大小：256 条/批次
+**表名**：`discretized_{table_name}`（与 `time_discretization_config.objects[].discretized_table` 一致）
 
-### 3.4 EDGE 导入规则
+**字段组成**：
 
-nGQL 语句格式：
+| 字段类别 | 说明 |
+|----------|------|
+| 主键 | 自增主键 |
+| 时间维度 | 固定字段名 `time_period`，日期时间类型，拆分后的时间标识 |
+| 拆分结果 | 每个 quantity_field 对应一个拆分后数值列，前缀 `discretized_`，字段类型与原字段保持一致 |
+| 其余字段 | 从本体定义的完整字段列表中获取，排除列表中外的所有字段，**必须全部保留**，包括描述性字段和元数据字段，不得编造或遗漏任何字段 |
 
-```sql
-INSERT EDGE `edge_name` (`field1`, `field2`, ...) VALUES '{src_vid}'->'{dst_vid}'@{rank}:('val1', 'val2', ...);
-```
+**排除列表**：以下字段不进入拆分结果表：
+- 主键（由 DDL 重新定义）
+- 时间范围字段（被时间维度字段替代）
+- 量值原始字段（被 `discretized_` 前缀字段替代）
+
+**字段生成流程**：
 
-- 字段列表来自 `data_mapping.json` 中 `edge.fields`，跳过 `src_vid_field` 和 `dst_vid_field`
-- `rank`：使用表中 `id` 字段的值作为 rank
-- 批量大小：256 条/批次
+1. 从本体定义中取出该对象对应的完整字段列表（含所有业务字段和元数据字段）
+2. 逐个遍历每个字段，判断是否在排除列表中
+3. 不在排除列表中的字段，**必须全部写入 DDL**，不得遗漏或跳过任何字段
 
-### 3.5 值格式化规则
+**字段名称与 COMMENT 约束**：
+- 字段名必须严格等于本体定义中的字段名，不得重命名或编造
+- COMMENT 必须严格等于本体定义中的字段描述，不得使用占位文本
+
+**数据写入约束**：
+- 拆分后的数据写入 DDL 定义的对应表
+- 仅保存拆分结果 DataFrame 中存在的字段
+- 写入前先清理同版本的旧数据
 
-| Nebula 类型 | 格式化方式 |
-|---|---|
-| `string` | `'value'`（转义单引号和反斜杠） |
-| `int` / `int64` | `int(value)` |
-| `double` | `float(value)` |
-| `bool` | `str(bool(value)).lower()` |
-| `date` | `date('value')` |
-| `datetime` | `datetime('value')` |
-| `timestamp` | `timestamp('value')` |
-| NULL / NaN | `NULL` |
+**唯一索引**：
+- 为本体定义中该对象的 `table_schema.unique_keys` 中的每个唯一键生成对应的 MySQL 唯一索引
+- 唯一索引字段组合为：版本字段（从本体 `table_schema.fields` 中筛选，字段名包含 `version` 的字段） + `unique_keys[].fields` 中的字段 + `time_period`
+- 版本字段必须从本体定义中获取，不得编造字段名
+- 索引命名格式：`uniq_{table_name}_index`
 
-### 3.6 类结构
+---
 
-- `NebulaImporter` 类：封装连接、导入逻辑
-- `connect()` — 集群连接
-- `import_tag_data(tag_name, df, mapping, version)` — TAG 导入
-- `import_edge_data(edge_name, df, mapping, version)` — EDGE 导入
-- `import_all_data(table_data, version)` — 遍历所有 TAG/EDGE 导入
-- `disconnect()` — 关闭连接
-- `main()` — 命令行入口（--config、--data-dir、--mapping、--version）
+## 4. 管线编排模板（data_pipeline.py）
 
-## 4. 数据拆分生成规则
+### 4.1 参数
 
-### 4.1 连接规则
+- `mysql_config_path` — MySQL 连接配置
+- `nebula_config_path` — NebulaGraph 连接配置
+- `time_config_path` — 时间拆分配置（time_discretization_config.json）
 
-- NebulaGraph 连接方式同 3.1 节
-- 执行 `USE {space}` 切换到目标图空间
-- 支持连接 MySQL（用于回写拆分结果）
+### 4.2 执行流程
 
-### 4.2 TAG 查询规则
+1. Step 1：查询 MySQL 仿真表数据（按版本过滤）
+2. Step 2：将查询结果导入 NebulaGraph 图数据库
+3. Step 3：从 NebulaGraph 读取数据，按时间维度拆分，将拆分结果写回 MySQL 中 DDL 定义的对应表
 
-nGQL 语句：
+### 4.3 步骤间数据传递
 
-- 有版本号：`MATCH (v:\`tag_name\`) WHERE id(v) STARTS WITH '{version}_' RETURN v`
-- 无版本号：`MATCH (v:\`tag_name\`) RETURN v`
+- **内存传递优先**：管线编排应尽量通过内存传递 DataFrame 对象，避免跨步骤的文件序列化开销和类型丢失
+- **JSON 序列化传递**：若使用 JSON 临时文件传递 DataFrame 数据，查询端必须先调用 `.to_dict(orient="records")` 将 DataFrame 转为记录列表后再序列化，禁止直接 `json.dump(DataFrame, ...)`；由于记录中可能包含 `pd.Timestamp` 等不可 JSON 序列化的类型，必须添加 `default=str` 参数将这类值转为字符串
+- **JSON 反序列化**：加载端读取 JSON 后调用 `pd.DataFrame(v)` 恢复时，必须先校验 `v` 是否为 `list` 类型，非列表类型应转为空 DataFrame 占位，避免 `pd.DataFrame` 构造函数参数校验异常
 
-解析方式：
+### 4.4 与 or_ontology 的关系
 
-- 遍历结果行，`row.values()[0].as_node()` 获取节点
-- 提取 VID：`vertex.get_id().as_string()`
-- 从 VID 中去掉 `{version}_` 前缀得到原始值
-- 遍历 `vertex.tags()` 和 `vertex.properties()` 提取属性
+- mysql_query.py 和 nebula_import.py 的表列表信息已在生成时嵌入代码
+- data_split.py 通过 `time_config_path` 获取拆分规则
+- 版本过滤字段名从 or_ontology 中提取
 
-### 4.3 EDGE 查询规则
+---
 
-nGQL 语句：
+## 5. NebulaGraph API 约束
 
-- 有版本号：`MATCH (src)-[e:\`edge_name\`]->(dst) WHERE id(src) STARTS WITH '{version}_' AND id(dst) STARTS WITH '{version}_' RETURN e`
-- 无版本号：`MATCH ()-[e:\`edge_name\`]->() RETURN e`
+### 5.1 连接配置 API
 
-解析方式：
+- **只能从 `nebula3.Config` 导入 `Config` 和 `SessionPoolConfig`**
+- **禁止使用 `PoolConfig`、`SessionConfig`**（这些类在 nebula3 中不存在）
+- `Config` 可用属性：
+  - `min_connection_pool_size`（最小连接池大小）
+  - `max_connection_pool_size`（最大连接池大小）
+  - `idle_time`（空闲时间）
+  - `timeout`（超时）
+  - `interval_check`（检查间隔）
+  - `use_http2`（是否使用 HTTP/2）
 
-- 遍历结果行，`row.values()[0].as_relationship()` 获取边
-- 提取 `start_vertex_id()`、`end_vertex_id()`
-- 去掉 `{version}_` 前缀得到原始值
-- 遍历 `edge.properties()` 提取属性
+### 5.2 ConnectionPool API
 
-### 4.4 时间拆分规则
+- `ConnectionPool.init(addresses, configs=None, ssl_conf=None)` — `addresses` 为 `(host, port)` tuple 列表
+- `ConnectionPool.get_session(user_name, password, retry_connect=True)` — 不接受额外的 session_config 参数
+- 连接代码中禁止调用 `session.release()` 后再使用 session
+- **每次获取新 session 后必须执行空间切换**：无论是创建新 session 还是复用持久 session，在执行任何数据查询或写入操作前必须先执行 `USE {space}` 切换空间
+- **禁止导入图数据库内部类型类**：不使用 `isinstance` 检查底层封装类型，应通过对象自身的方法（`is_null()`、`is_datetime()`、`is_date()` 等）进行类型检测和值提取
+---
 
-使用 `pandas.tseries.frequencies.to_offset(interval)` 获取窗口长度。
+## 6. 校验规则
 
-拆分流程：
+### 6.1 生成时校验
 
-1. 将开始/结束时间列转为 `datetime`
-2. 从 `start.floor(interval)` 开始，按 offset 生成不重叠窗口 `[window_start, window_end)`
-3. 计算每个窗口与原区间的重叠秒数 `overlap_seconds`
-4. 按 `proportional` 方法分配：`allocated_value = total * (overlap_seconds / total_seconds)`
-5. 为每个窗口创建新行，保留其他列，加入 `time_period` 和 `discretized_<field>` 列
-6. 移除原始开始/结束时间列
+- `mysql_query.py` 的表列表应与 or_ontology 中所有 node/edge 的表名一致
+- `mysql_query.py` 必须使用 SQLAlchemy 的 `create_engine` 和 `pandas.read_sql`，禁止使用 `pymysql`、`dbutils`、`PooledDB`
+- `nebula_import.py` 必须包含 `TAGS_CONFIG` 和 `EDGES_CONFIG` 全局常量，从 or_ontology 提取，禁止硬编码单个表的导入逻辑
+- `nebula_import.py` 必须包含 `import pandas as pd`，不得省略此导入（`_format_value` 中使用 `pd.isna` 进行 NaN 检测）
+- `nebula_import.py` 禁止导入或使用 `ValueWrapper` 类，应直接拼接 NGQL 字符串
+- `data_split.py` 的拆分对象必须全部来自 `time_discretization_config`
+- 生成代码不应包含 `PoolConfig`、`SessionConfig` 导入
+- 生成代码禁止从图数据库驱动的内部类型模块中显式导入封装类型，应通过对象自身提供的类型检测方法进行值转换操作，无需引用底层封装类
+- 所有 `version` 参数必须在函数体中被实际使用
+- 不得定义未使用的局部变量
+- 跨步骤使用 JSON 文件传递 DataFrame 数据时，序列化端必须使用 `.to_dict(orient="records")`，反序列化端必须校验值为 `list` 类型后再构造 DataFrame
+- 图数据库导入代码中 `_format_value` 或等效方法必须按 `field_types` 映射进行类型感知的值格式化，不得将所有值统一当作字符串处理
+- 图数据库导入代码中 `_format_value` 或等效方法必须处理序列化后的空时间值字符串，输出 `NULL`
+- 数据拆分代码中从图数据库读取的封装类型必须提取组件转换为原生值，不得直接使用 `str()` 转换
+- 数据拆分代码写入关系型数据库前必须将时间列转为字符串格式
+- 数据拆分代码写入拆分结果表前必须排除时间范围字段和量值原始字段
+- 图数据库导入代码中每次创建新 session 后必须先执行空间切换语句再进行数据操作，持久化 session 也必须在连接初始化阶段完成空间切换
+- 数据拆分代码中从图数据库读取节点时，必须通过 `vertex.properties(tag_name)` 方法（带括号和 tag 参数）获取属性，禁止使用 `vertex.properties` 属性访问
+- 数据拆分代码中从图数据库读取边时，必须通过 `edge.properties()` 方法（带括号）获取属性，禁止使用 `edge.properties` 属性访问
+- **图数据库查询方法使用规范**：nebula3 的 `ResultSet` 为可迭代对象，应直接遍历，不存在 `.data()` 方法；`session.execute()` 返回 `ResultSet`，直接 `for record in resp:` 遍历，通过 `record.values()[0]` 获取元素。禁止调用不存在的 `.data()` 方法
+- **边查询版本过滤必须按源点和目标点分别过滤**：NebulaGraph 不支持对 `id(e)` 使用 `STARTS WITH`，必须使用 `MATCH (src)-[e:edge_name]->(dst) WHERE id(src) STARTS WITH 'ver_' AND id(dst) STARTS WITH 'ver_'` 分别匹配两端节点 VID 前缀
+- **时间封装类型 getter 方法名必须准确**：`TimeWrapper` 的秒数方法为 `get_sec()`，禁止使用 `get_second()`；`DateTimeWrapper` 构造 `pd.Timestamp` 时微秒参数名为 `microsecond=`，禁止使用 `microsec=`
 
-Nebula 日期时间值转换：
+### 6.2 运行时校验
 
-- 处理 `DateWrapper`（get_year, get_month, get_day）
-- 处理 `DateTimeWrapper`（get_year, get_month, get_day, get_hour, get_minute, get_sec, get_microsec）
-- 兜底使用 `pd.to_datetime()`
+- 查询前通过 `information_schema` 检查版本过滤字段是否存在，不存在则降级为全表查询并输出警告
+- 所有 NebulaGraph 连接（`nebula_import.py`、`data_split.py`）必须使用集群连接模式，一次性传入所有节点地址给 `ConnectionPool.init`，由连接池内部处理路由和故障转移，禁止逐个节点尝试连接
+- 时间拆分时对 NaN、无效时间区间（start >= end）、总量为零的情况做保护处理
+- 图数据库查询返回的复杂类型（DateWrapper、DateTimeWrapper）需正确转换为 Python 原生值
+- 写入关系型数据库前先清理同版本旧数据，避免重复写入
+- 单表查询失败不影响后续表的查询，返回空 DataFrame 占位
 
-### 4.5 拆分结果回写规则
+---
 
-- 表名来源：从 `discretized_schema.sql` 中读取已定义的表名（`discretized_{tag_name}` / `discretized_{edge_name}`）
-- Schema 映射：按 `discretized_schema.sql` 中定义的表结构（字段名、类型）组织写入数据
-- 写入前：删除同 `version_id` 的旧数据（`DELETE FROM {table} WHERE version_id = :v`）
-- 写入方式：`df.to_sql(if_exists='append', index=False, chunksize=1000)`
-- `time_period` 转为字符串格式：`%Y-%m-%d %H:%M:%S`
+## 7. 代码稳定性要求
 
-### 4.6 处理流程
+### 7.1 连接管理
 
-`process_all_splits()` 方法：
+- 所有数据库连接必须在 `finally` 块中释放，异常发生时也不泄漏
+- 关系型数据库使用连接池（`pool_size` / `pool_recycle` / `pool_pre_ping`），禁止每次查询新建连接
+- 图数据库使用集群连接模式，一次性传入所有节点地址给 `ConnectionPool.init`，由连接池内部处理路由和故障转移
+- 连接方法中必须测试连通性（执行 `USE {space}` 切换空间），确保后续操作可用
 
-1. 遍历 `data_mapping.json` 的 `tags[]`，检查是否有 `time_dimension`
-2. 有则：query_tag_data → split_by_time_dimension → 写回 MySQL
-3. 遍历 `data_mapping.json` 的 `edges[]`，检查是否有 `time_dimension`
-4. 有则：query_edge_data → split_by_time_dimension → 写回 MySQL
+### 7.2 异常处理
 
-### 4.7 类结构
+- 关键操作方法使用 `try/except/finally` 结构，异常信息通过 `logging.error` 输出
+- `main()` 函数使用 `try/except` 捕获顶层异常，失败时 `sys.exit(1)`
+- 单条记录插入失败不影响批量中其他记录，记录失败数继续执行
+- 空 DataFrame 或空数据时跳过后续操作，不抛异常
 
-- `DataSplitter` 类：封装连接、查询、拆分、回写逻辑
-- `query_tag_data(tag_name)` — 查询 TAG
-- `query_edge_data(edge_name)` — 查询 EDGE
-- `split_by_time_dimension(df, start_time_field, end_time_field, time_interval, quantity_fields)` — 时间拆分
-- `process_all_splits()` — 处理所有拆分
-- `disconnect()` — 关闭连接
-- `main()` — 命令行入口（--config、--mapping、--version、--mysql-config）
+### 7.3 批量操作
 
-## 5. 管线编排生成规则
+- 图数据库导入使用固定批量大小（256），避免单次事务过大导致超时
+- 关系型数据库写入使用 `chunksize` 分批插入
+- 批量操作完成后记录成功/失败统计，便于问题定位
 
-### 5.1 管线流程
+### 7.4 数据兼容
 
-`DataPipeline.run(version)` 按顺序执行：
-
-1. **Step 1 — MySQL 查询**：动态导入 `mysql_query.py`，创建 `MySQLQueryExecutor`，`query_all_tables(version)` 返回 DataFrame 映射
-2. **Step 2 — NebulaGraph 导入**：动态导入 `nebula_import.py`，创建 `NebulaImporter`，`connect()` 后 `import_all_data(table_data, version)`
-3. **Step 3 — 时间拆分**：动态导入 `data_split.py`，创建 `DataSplitter`，`connect()` 后 `process_all_splits()`
-
-### 5.2 错误处理
-
-- 每一步失败时记录错误信息并立即返回
-- 记录每步的成功/失败状态
-- 全部成功返回 0，否则返回 1
-
-### 5.3 类结构
-
-- `DataPipeline` 类：封装三步编排
-- 构造函数参数：`mysql_config_path`、`nebula_config_path`、`data_mapping_path`
-- `run(version)` — 执行管线
-- `main()` — 命令行入口（--version、--mysql-config、--nebula-config）
-
-## 6. 拆分结果表 DDL 生成规则
-
-### 6.1 筛选规则
-
-遍历 `data_mapping.json` 的 `tags[]` 和 `edges[]`，仅对包含 `time_dimension` 的对象生成 DDL。
-
-### 6.2 表名规则
-
-- TAG：`discretized_{tag_name}`
-- EDGE：`discretized_{edge_name}`
-
-### 6.3 字段规则
-
-拆分结果表字段构成：
-
-1. **自增主键**：`id` — `BIGINT AUTO_INCREMENT`，主键
-2. `version_id` — `VARCHAR(64)` NOT NULL，版本标识
-3. `time_period` — `DATETIME` NOT NULL，时间窗口起点
-4. **主键字段**（重命名）：
-   - TAG：保留 `vid_field` 并重命名为 `source_{vid_field}`，类型继承原字段
-   - EDGE：保留 `src_vid_field` 和 `dst_vid_field` 并重命名为 `source_{src_vid_field}` 和 `source_{dst_vid_field}`，类型继承原字段
-5. **量字段**：对 `time_dimension.quantity_fields` 中的每个量字段，生成 `discretized_{field}`，类型为 `DECIMAL(18, 4)`
-6. **其他描述性字段**：保留 `data_mapping.json` 中 `fields` 里除以下字段外的所有字段：
-   - `version_id`（已替换为第 2 项）
-   - VID 相关字段（已替换为第 4 项）
-   - 时间范围字段（`start_time_field`、`end_time_field`）
-   - 量字段（已替换为第 5 项 discretized 版本）
-
-### 6.4 NebulaGraph 到 MySQL 类型映射
-
-| NebulaGraph 类型 | MySQL 类型 | 说明 |
-|---|---|---|
-| `string` | `VARCHAR(256)` | 字符串字段 |
-| `int` | `INT` | 整型 |
-| `int64` | `BIGINT` | 长整型 |
-| `double` | `DECIMAL(18, 4)` | 浮点/金额字段 |
-| `bool` | `TINYINT(1)` | 布尔型 |
-| `date` | `DATE` | 日期 |
-| `datetime` | `DATETIME` | 日期时间 |
-
-类型继承规则：描述性字段的 MySQL 类型由 `data_mapping.json` 中 `field_types` 的 NebulaGraph 类型按上表映射。
-
-### 6.5 输出
-
-将所有 `CREATE TABLE` 语句写入 `discretized_schema.sql`。
-
-## 7. 输出文件清单
-
-| 文件 | 内容 |
-|------|------|
-| `mysql_query.py` | MySQL 查询脚本 |
-| `nebula_import.py` | NebulaGraph 导入脚本 |
-| `data_split.py` | 时间拆分脚本 |
-| `data_pipeline.py` | 管线编排脚本 |
-| `discretized_schema.sql` | 时间拆分结果回写表 MySQL DDL |
-
-## 8. 校验规则
-
-- TAG/EDGE 数量与 `data_mapping.json` 一致
-- 所有 `source_table` 都能在 MySQL 查询中覆盖
-- `time_dimension` 拆分配置与 `data_mapping.json` 中定义一致
-- VID 格式统一为 `{version}_{pk_value}`
-- 集群连接策略为遍历 `cluster_servers`，任意一个连接成功即可
-- 四个 Python 文件均可独立运行（data_pipeline.py 依赖其他三个）
-- `discretized_schema.sql` 中每个有 `time_dimension` 的 TAG/EDGE 都有对应的 DDL 表
-- `discretized_schema.sql` 表结构与 DDL 格式规则（第 6 节）一致
+- 图数据库返回的复杂类型（DateWrapper、DateTimeWrapper）需转换为 Python 原生值
+- 时间字段写入关系型数据库前转为字符串格式，避免 MySQL 类型兼容问题
+- `NaN` / `None` 统一转换为 `NULL`，不同类型按 string/int/double/bool/date/datetime 分别格式化
+- 拆分结果为空时返回空 DataFrame 而非报错，管线继续执行

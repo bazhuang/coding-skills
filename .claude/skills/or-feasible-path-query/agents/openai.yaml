@@ -1,7 +1,0 @@
-interface:
-  display_name: "OR Feasible Path Query"
-  short_description: "Generate NebulaGraph path query code from OR ontology"
-  default_prompt: "Use $or-feasible-path-query to extract supply/demand nodes and edges from algorithm ontology, generate nGQL queries and Python path loader code for finding feasible paths."
-
-policy:
-  allow_implicit_invocation: true
