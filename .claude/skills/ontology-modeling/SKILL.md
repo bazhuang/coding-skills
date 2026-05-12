@@ -11,7 +11,7 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 ## 数据输出
 
-每次生成的 Ontology Schema 和 BRD 文档必须通过 MCP 服务持久化，后续交互在已有数据基础上进行增量修改。对话输出使用 `<artifact>` 标签区分内容类型（`type="brd"` 用于 BRD 文档，`type="schema"` 用于 Ontology Schema），供下游渲染系统分块解析。详见"输出格式规范"章节。
+每次生成的 Ontology Schema 和 BRD 文档默认写入本地 `docs/` 目录，后续交互在已有数据基础上进行增量修改。对话输出使用 `<artifact>` 标签区分内容类型（`type="brd"` 用于 BRD 文档，`type="schema"` 用于 Ontology Schema），供下游渲染系统分块解析。详见"输出格式规范"章节。
 
 ### 文件路径约定
 
@@ -26,10 +26,11 @@ description: Guide business teams through ontology modeling and BRD generation u
    - 如果存在：读取现有文件内容，作为当前建模的基础，在对话中告知用户"已加载上次的建模进度"
    - 如果不存在：从零开始生成
 
-2. **每次交互结束时**：将最新的 Schema 和 BRD 通过 `mcp__graph__data_write` MCP 服务写入对应文件
-   - 调用 `mcp__graph__data_write`，参数 `file_path` 设为 `docs/ontology_schema.json` 的绝对路径，参数 `content` 设为完整的 Ontology Schema JSON 字符串
-   - 调用 `mcp__graph__data_write`，参数 `file_path` 设为 `docs/brd.md` 的绝对路径，参数 `content` 设为完整的 BRD Markdown 内容
+2. **每次交互结束时**：将最新的 Schema 和 BRD 默认直接写入本地对应文件
+   - 将完整的 Ontology Schema JSON 字符串写入 `docs/ontology_schema.json`
+   - 将完整的 BRD Markdown 内容写入 `docs/brd.md`
    - 每次覆盖写入完整内容（非增量），确保文件始终是最新状态
+   - 只有当用户明确要求使用 MCP 持久化，或当前运行环境必须通过 MCP 服务写文件时，才改用 `mcp__graph__data_write`
 
 3. **跨会话延续**：不同 Claude Code 会话可以通过读取本地文件恢复建模进度
    - 用户可以说"继续上次的本体建模"，skill 读取文件后从中断处继续
@@ -309,9 +310,10 @@ description: Guide business teams through ontology modeling and BRD generation u
    - **BRD 文档**：包裹在 `<artifact type="brd">` 中，Markdown 格式
    - **Ontology Schema**：包裹在 `<artifact type="schema">` 中，JSON 格式
 3. 随着用户补充信息，动态调整和丰富两部分产出
-4. **每次回复结束后，将最新的 Schema 和 BRD 通过 MCP 服务写入文件**：
-   - 调用 `mcp__graph__data_write` 将 Schema 写入 `docs/ontology_schema.json`（`content` 为完整 JSON 字符串）
-   - 调用 `mcp__graph__data_write` 将 BRD 写入 `docs/brd.md`（`content` 为完整 Markdown 内容）
+4. **每次回复结束后，将最新的 Schema 和 BRD 默认直接写入本地文件**：
+   - 将完整 JSON 字符串写入 `docs/ontology_schema.json`
+   - 将完整 Markdown 内容写入 `docs/brd.md`
+   - 只有当用户明确要求使用 MCP 持久化，或当前运行环境必须通过 MCP 服务写文件时，才改用 `mcp__graph__data_write`
 
 这意味着：
 - 识别出第一个核心对象时，就应生成包含该对象的初始 schema 和 BRD 数据需求章节
@@ -420,7 +422,7 @@ interface Ontology {
 - 每次用户补充信息后，基于最新信息更新并输出完整的双产出
 - schema 的 biz_logic 字段应持续记录用户的对话输入
 - 对于尚未确定的字段或章节，可以使用合理的初始值或标注"待确认"，后续交互中再更新
-- **每次回复结束后，必须通过 `mcp__graph__data_write` 将最新的 Schema 和 BRD 写入文件 `docs/ontology_schema.json` 和 `docs/brd.md`**
+- **每次回复结束后，默认直接将最新的 Schema 和 BRD 写入本地文件 `docs/ontology_schema.json` 和 `docs/brd.md`；只有用户明确要求 MCP 持久化或当前环境必须通过 MCP 写文件时，才使用 `mcp__graph__data_write`**
 
 ### 循序渐进
 - 不要一次性抛出所有问题
@@ -495,5 +497,5 @@ interface Ontology {
 - 即使信息不完整，也要基于已知信息生成初始 schema 和 BRD
 - 用户每次补充信息后，立即更新并输出完整双产出
 - 不要等到最后才一次性生成 schema 和 BRD
-- **每次回复结束后，通过 `mcp__graph__data_write` 将最新的 Schema 和 BRD 持久化到文件 `docs/ontology_schema.json` 和 `docs/brd.md`**
+- **每次回复结束后，默认直接将最新的 Schema 和 BRD 持久化到本地文件 `docs/ontology_schema.json` 和 `docs/brd.md`；只有用户明确要求 MCP 持久化或当前环境必须通过 MCP 写文件时，才使用 `mcp__graph__data_write`**
 - **每次新会话开始时，先读取本地文件，在已有基础上继续建模**
