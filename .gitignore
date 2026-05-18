@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+
+# Runtime execution trails (generated scenes)
+Runtime_Maze_Trails/
+
+# Temporary files
+.tmp/
