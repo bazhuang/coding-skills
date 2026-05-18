@@ -1,6 +1,6 @@
 ---
 name: or-main-agent
-description: Orchestrate the full build-time operations-research model generation flow. Use when Codex needs to coordinate OR skills from business inputs through ontology, discretization, graph/path definitions, DSL rewrites, core code, runtime assembly, gates, memory, and recovery while never processing runtime instance data.
+description: "Default entrypoint for 运筹算法打造, 运筹算法生成, 运筹建模代码生成, 需供运筹算法, 供需匹配优化, 资源调度优化, 路径流/网络流优化, and end-to-end operations-research runtime generation. Use when Codex needs to coordinate the full build-time OR skill chain from business ontology and simulation schema through or_ontology, mandatory time discretization, graph modeling, path queries, DSL generation, nonlinear optimization, feasibility safeguard, core code, runtime assembly, gates, memory, and recovery while never processing runtime instance data."
 ---
 
 # OR Main Agent
@@ -12,6 +12,10 @@ business input -> or_ontology -> discretized or_ontology -> or_dsl -> runtime co
 ```
 
 本 skill 只负责编排、记忆、审查和恢复；不替代下游专业 skill 的语义标准化、图建模、路径查询、DSL 生成、DSL 重写或代码生成能力。
+
+## 触发入口
+
+当用户提出“运筹算法打造”、“运筹算法生成”、“运筹建模代码生成”、“需供运筹”、“供需匹配优化”、“资源调度优化”、“路径流/网络流优化”或要求从业务本体/schema 端到端生成可运行运筹代码时，默认先触发本 skill 作为主编排入口，再由本 skill 顺序调用下游专业 skill。
 
 ## 适用输入
 
@@ -53,6 +57,42 @@ business input -> or_ontology -> discretized or_ontology -> or_dsl -> runtime co
 5. 每个状态后刷新 artifact metadata、hash、消费者和 stale 状态。
 6. 对关键状态执行 gate：`ontology_discretized`、`dsl_safeguarded`、`runtime_packaged`。
 7. 若出现失败，按 artifact 反向依赖生成恢复计划；不得在主 agent 内修补专业 skill 输出。
+
+## Skill 调用流程
+
+主 agent 必须按以下顺序调用专业 skill。除非用户显式提供的 `main_agent_flow` 禁用某状态，否则不得因为 `has_time_dimension=false`、`has_spatial_network=false` 或 `requires_path_query=false` 跳过专业阶段；无结构性改写时应产出 completed 的 pass-through / identity artifact，并在 `manifest` 记录证据。
+
+| 状态 | 调用 skill | 主要输入 | 主要输出 |
+| --- | --- | --- | --- |
+| `input_profiled` | 主 agent 内部画像 | `business_ontology`, `simulation_schema` | `scenario_profile` |
+| `ontology_ready` | `business-to-or-ontology` | `business_ontology`, `simulation_schema` | `or_ontology` |
+| `time_pipeline_ready` | `or-time-discretization` | `or_ontology`, `simulation_schema` | `discretized_schema`, time pipeline artifacts |
+| `graph_schema_ready` | `directed-graph-modeling` | `or_ontology`, `discretized_schema` | `graph_modeling_sql`, graph schema artifacts |
+| `path_query_ready` | `or-spatial-path-query` | `graph_modeling_sql` | path query artifacts |
+| `ontology_discretized` | `or-ontology-time-discretization-adaptation` | `or_ontology`, `discretized_schema` | `or_ontology_time_discretized` |
+| `loader_ready` | `or-data-loader-code` | `or_ontology_time_discretized`, path query artifacts | runtime data loader code |
+| `dsl_ready` | `or-ontology-to-dsl` | `or_ontology_time_discretized`, loader/path contracts | `or_dsl` |
+| `dsl_optimized` | `or-dsl-nonlinear-optimization` | `or_dsl` | `dsl_optimized` |
+| `dsl_safeguarded` | `or-dsl-feasibility-safeguard` | `dsl_optimized` | `dsl_safeguarded` |
+| `core_code_ready` | `or-dsl-to-core-code` | `dsl_safeguarded` | core optimization code |
+| `runtime_packaged` | `or-runtime-assembly` | loader code, core code, final DSL | runtime package |
+| `verified` | 主 agent gate/review | `ontology_discretized`, `dsl_safeguarded`, `runtime_packaged` | `gate_results`, `manifest`, reviews |
+
+完整调用链：
+
+```text
+business-to-or-ontology
+-> or-time-discretization
+-> directed-graph-modeling
+-> or-spatial-path-query
+-> or-ontology-time-discretization-adaptation
+-> or-data-loader-code
+-> or-ontology-to-dsl
+-> or-dsl-nonlinear-optimization
+-> or-dsl-feasibility-safeguard
+-> or-dsl-to-core-code
+-> or-runtime-assembly
+```
 
 ## 禁止事项
 

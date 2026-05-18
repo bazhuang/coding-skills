@@ -1,7 +1,7 @@
 interface:
   display_name: "OR Main Agent"
-  short_description: "Orchestrate supply-demand OR algorithm generation"
-  default_prompt: "Use $or-main-agent to orchestrate the build-time supply-demand operations-research algorithm generation flow for 需供运筹算法打造 across ontology, mandatory time discretization and ontology time-adaptation, mandatory graph modeling and path-query passes, mandatory DSL nonlinear-optimization and feasibility-safeguard passes, core code, runtime assembly, gates, memory, and recovery without processing runtime instance data. When business_ontology is not explicitly provided, look for the business ontology model in the project's docs/ directory first, not in memory/ run artifacts."
+  short_description: "运筹算法打造全流程编排与运行包生成"
+  default_prompt: "Use $or-main-agent as the default entrypoint for 运筹算法打造、运筹算法生成、需供运筹、供需匹配优化、资源调度优化、路径流/网络流优化, orchestrating the full build-time OR flow across ontology, mandatory time discretization, graph/path passes, DSL optimization and safeguard, core code, runtime assembly, gates, memory, and recovery without processing runtime instance data."
 
 policy:
   allow_implicit_invocation: true
