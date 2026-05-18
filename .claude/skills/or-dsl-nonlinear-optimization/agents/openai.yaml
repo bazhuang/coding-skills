@@ -1,0 +1,7 @@
+interface:
+  display_name: "OR DSL Nonlinear Optimization"
+  short_description: "Reformulate nonlinear OR DSL"
+  default_prompt: "Use $or-dsl-nonlinear-optimization to analyze an operations-research DSL, identify nonlinear elements, reformulate them into a solver-friendly equivalent DSL, and return the complete optimized DSL JSON."
+
+policy:
+  allow_implicit_invocation: true

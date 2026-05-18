@@ -1,0 +1,117 @@
+"""
+Runtime MySQL table loader.
+
+Generated at: {{ generation_time | default("unknown") }}
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote_plus
+
+import pandas as pd
+from sqlalchemy import create_engine, text
+
+
+REQUIRED_MYSQL_CONFIG_FIELDS = ["host", "port", "database", "username", "password"]
+DEFAULT_TABLES = {{ tables | default([]) | tojson }}
+DEFAULT_VERSION_FIELD = "{{ version_field | default("version_id") }}"
+DEFAULT_MYSQL_CONFIG_PATH = Path("db/config/mysql_config.json")
+
+
+def _load_json_file(path: str | Path) -> dict[str, Any]:
+    with Path(path).open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"Config file must contain a JSON object: {path}")
+    return data
+
+
+def _validate_mysql_config(config: dict[str, Any]) -> None:
+    missing = [field for field in REQUIRED_MYSQL_CONFIG_FIELDS if field not in config]
+    if missing:
+        raise ValueError(f"MySQL config missing required fields: {missing}")
+
+
+def _build_mysql_url(config: dict[str, Any]) -> str:
+    charset = config.get("charset", "utf8mb4")
+    username = quote_plus(str(config["username"]))
+    password = quote_plus(str(config["password"]))
+    host = config["host"]
+    port = int(config.get("port", 3306))
+    database = config["database"]
+    return f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}?charset={charset}"
+
+
+class TableLoader:
+    def __init__(
+        self,
+        config_path: str | Path = DEFAULT_MYSQL_CONFIG_PATH,
+        config: dict[str, Any] | None = None,
+        tables: list[dict[str, Any]] | None = None,
+    ):
+        self.config = config if config is not None else _load_json_file(config_path)
+        _validate_mysql_config(self.config)
+        self.tables = tables if tables is not None else DEFAULT_TABLES
+        self.engine = None
+
+    def connect(self) -> None:
+        url = _build_mysql_url(self.config)
+        connect_args: dict[str, Any] = {}
+        if "connect_timeout" in self.config:
+            connect_args["connect_timeout"] = int(self.config["connect_timeout"])
+        extra_params = self.config.get("extra_params") or {}
+        if not isinstance(extra_params, dict):
+            raise ValueError("MySQL config extra_params must be an object when provided.")
+        connect_args.update(extra_params)
+
+        self.engine = create_engine(
+            url,
+            pool_size=int(self.config.get("pool_size", 5)),
+            pool_recycle=int(self.config.get("pool_recycle", 3600)),
+            pool_pre_ping=bool(self.config.get("pool_pre_ping", True)),
+            connect_args=connect_args,
+        )
+
+    def close(self) -> None:
+        if self.engine is not None:
+            self.engine.dispose()
+            self.engine = None
+
+    def load_table(
+        self,
+        table_name: str,
+        version_id: str,
+        columns: list[str] | None = None,
+        version_field: str | None = DEFAULT_VERSION_FIELD,
+    ) -> pd.DataFrame:
+        if not version_id:
+            raise ValueError("version_id is required.")
+        if self.engine is None:
+            raise RuntimeError("TableLoader.connect() must be called before loading data.")
+
+        select_expr = "*"
+        if columns:
+            select_expr = ", ".join(f"`{column}`" for column in columns)
+        if version_field:
+            query = text(f"SELECT {select_expr} FROM `{table_name}` WHERE `{version_field}` = :version_id")
+            return pd.read_sql(query, self.engine, params={"version_id": version_id})
+
+        query = text(f"SELECT {select_expr} FROM `{table_name}`")
+        return pd.read_sql(query, self.engine)
+
+    def load_all(self, version_id: str) -> dict[str, pd.DataFrame]:
+        tables: dict[str, pd.DataFrame] = {}
+        for table in self.tables:
+            table_name = table["table_name"]
+            version_field = table.get("version_field", DEFAULT_VERSION_FIELD)
+            columns = table.get("columns")
+            tables[table_name] = self.load_table(
+                table_name=table_name,
+                version_id=version_id,
+                columns=columns,
+                version_field=version_field,
+            )
+        return tables

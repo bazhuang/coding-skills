@@ -1,7 +1,0 @@
-interface:
-  display_name: "OR Ontology Spatial Path Query Embedding"
-  short_description: "Embed graph feasible-path queries into or_ont"
-  default_prompt: "Use $or-ontology-spatial-path-query-embedding to derive graph database feasible path queries from graph modeling SQL and embed them into the time-discretized or_ont."
-
-policy:
-  allow_implicit_invocation: true

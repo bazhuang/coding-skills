@@ -1,0 +1,551 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "or_dsl",
+  "description": "Structured operations-research or_dsl schema for model generation",
+  "type": "object",
+  "required": [
+    "meta_info",
+    "data_def",
+    "decision_vars",
+    "objective",
+    "constraints",
+    "solve_config",
+    "output_config"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "meta_info": {
+      "type": "object",
+      "required": [
+        "scene_id",
+        "scene_type",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scene_id": {
+          "type": "string"
+        },
+        "scene_type": {
+          "type": "string",
+          "enum": [
+            "路径优化",
+            "库存优化",
+            "排班优化",
+            "选址优化",
+            "混合优化"
+          ]
+        },
+        "creator": {
+          "type": "string",
+          "default": "auto_gen_by_llm"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^v\\d+\\.\\d+\\.\\d+$"
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "data_def": {
+      "type": "object",
+      "required": [
+        "tables",
+        "index_sets",
+        "parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "table_name",
+              "fields",
+              "primary_key"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "table_name": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "type",
+                    "desc",
+                    "is_required"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "string",
+                        "int",
+                        "float",
+                        "datetime",
+                        "boolean"
+                      ]
+                    },
+                    "desc": {
+                      "type": "string"
+                    },
+                    "is_required": {
+                      "type": "boolean"
+                    },
+                    "default_value": {}
+                  }
+                }
+              },
+              "primary_key": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "foreign_key": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "field",
+                    "ref_table",
+                    "ref_field"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "ref_table": {
+                      "type": "string"
+                    },
+                    "ref_field": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "default": []
+              }
+            }
+          }
+        },
+        "index_sets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "set_name",
+              "source",
+              "desc"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "set_name": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]+$"
+              },
+              "source": {
+                "type": "string",
+                "pattern": "^(paths|derived\\.[a-z0-9_]+|tables\\.[a-z0-9_]+|tables\\.(\\*|[a-z0-9_]+)\\.[a-z0-9_]+)$"
+              },
+              "source_fields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^tables\\.[a-z0-9_]+\\.[a-z0-9_]+$"
+                },
+                "default": []
+              },
+              "filter": {
+                "type": "string",
+                "default": ""
+              },
+              "desc": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "param_name",
+              "source",
+              "index_sets",
+              "data_type",
+              "desc"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "param_name": {
+                "type": "string",
+                "pattern": "^PARAM_[A-Z][A-Z0-9_]+$"
+              },
+              "source": {
+                "type": "string",
+                "pattern": "^tables\\.[a-z0-9_]+\\.[a-z0-9_]+$"
+              },
+              "index_sets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "data_type": {
+                "type": "string",
+                "enum": [
+                  "int",
+                  "float",
+                  "string",
+                  "datetime"
+                ]
+              },
+              "desc": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "link_name",
+              "source_set",
+              "target_set",
+              "link_type",
+              "source",
+              "desc"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "link_name": {
+                "type": "string",
+                "pattern": "^LINK_[A-Z][A-Z0-9_]+$"
+              },
+              "source_set": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]+$"
+              },
+              "target_set": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]+$"
+              },
+              "link_type": {
+                "type": "string",
+                "enum": [
+                  "one_to_one",
+                  "one_to_many",
+                  "many_to_many"
+                ]
+              },
+              "source": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+$"
+              },
+              "source_field": {
+                "type": "string"
+              },
+              "target_field": {
+                "type": "string"
+              },
+              "filter": {
+                "type": "string",
+                "default": ""
+              },
+              "desc": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "decision_vars": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "var_name",
+          "var_type",
+          "index_sets",
+          "desc"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "var_name": {
+            "type": "string",
+            "pattern": "^VAR_[A-Z][A-Z0-9_]+$"
+          },
+          "var_type": {
+            "type": "string",
+            "enum": [
+              "binary",
+              "integer",
+              "continuous"
+            ]
+          },
+          "index_sets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lower_bound": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "default": 0
+          },
+          "upper_bound": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "default": null
+          },
+          "desc": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "required": [
+        "obj_type",
+        "obj_terms",
+        "desc"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "obj_type": {
+          "type": "string",
+          "enum": [
+            "minimize",
+            "maximize"
+          ]
+        },
+        "obj_terms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "term_name",
+              "expression",
+              "coefficient",
+              "desc"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "term_name": {
+                "type": "string",
+                "pattern": "^TERM_[A-Z][A-Z0-9_]+$"
+              },
+              "expression": {
+                "type": "string"
+              },
+              "coefficient": {
+                "type": [
+                  "number",
+                  "string"
+                ],
+                "default": 1
+              },
+              "desc": {
+                "type": "string"
+              }
+            }
+          },
+          "minItems": 1
+        },
+        "desc": {
+          "type": "string"
+        }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "constraint_id",
+          "constraint_type",
+          "direction",
+          "left_expression",
+          "right_expression",
+          "index_sets",
+          "priority",
+          "desc"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "constraint_id": {
+            "type": "string",
+            "pattern": "^CONST_[A-Z][A-Z0-9_]+$"
+          },
+          "constraint_type": {
+            "type": "string",
+            "enum": [
+              "equality",
+              "inequality"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "==",
+              "<=",
+              ">="
+            ]
+          },
+          "left_expression": {
+            "type": "string"
+          },
+          "right_expression": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "index_sets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "relaxable": {
+            "type": "boolean",
+            "default": false
+          },
+          "penalty": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0
+          },
+          "desc": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "solve_config": {
+      "type": "object",
+      "required": [
+        "solver_type",
+        "solver_params"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "solver_type": {
+          "type": "string",
+          "enum": [
+            "ortools",
+            "gurobi",
+            "cplex",
+            "scip",
+            "glpk"
+          ]
+        },
+        "solver_params": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "timeout": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 300
+            },
+            "precision": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.01
+            },
+            "threads": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 4
+            },
+            "solution_limit": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1000
+            }
+          }
+        },
+        "warm_start": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "output_config": {
+      "type": "object",
+      "required": [
+        "output_fields",
+        "output_format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "output_fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "expression",
+              "desc"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "expression": {
+                "type": "string"
+              },
+              "desc": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "output_format": {
+          "type": "string",
+          "enum": [
+            "json",
+            "csv",
+            "excel",
+            "txt"
+          ]
+        },
+        "output_path": {
+          "type": "string",
+          "default": "./optimization_result"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_files.schema.json",
+  "title": "OR Runtime Files Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["files"],
+  "properties": {
+    "files": {
+      "type": "array",
+      "minItems": 6,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "const": "main.py" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "const": "README.md" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "const": "data_loader.py" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "const": "model_builder.py" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "responsibility", "source", "content"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "responsibility": { "type": "string", "minLength": 1 },
+          "source": {
+            "type": "string",
+            "enum": [
+              "data_loader_code_bundle",
+              "core_code_bundle",
+              "or_runtime_assembly",
+              "graph_path_queries"
+            ]
+          },
+          "content": { "type": "string" },
+          "public_interfaces": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

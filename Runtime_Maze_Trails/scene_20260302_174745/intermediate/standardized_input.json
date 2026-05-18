@@ -1,0 +1,1055 @@
+{
+  "meta": {
+    "scene_id": "gas_city_gate_dispatch_profit",
+    "scene_name": "天然气城燃需供匹配利润最大化",
+    "scene_type": "resource_flow_profit",
+    "industry": "natural_gas",
+    "version": "v1.0.0",
+    "created_at": "2023-10-27T10:00:00Z",
+    "description": "基于资源池、需求池、门站及管输运力的天然气调度优化，目标为最大化利润，考虑照付不议惩罚"
+  },
+  "data_schema": {
+    "tables": [
+      {
+        "table_name": "monthly_demand_pool",
+        "table_desc": "需求池表，定义客户的需求计划及价格",
+        "table_type": "demand",
+        "fields": [
+          {
+            "name": "id",
+            "type": "int",
+            "desc": "主键ID",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "version_id",
+            "type": "int",
+            "desc": "版本号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "demand_plan_code",
+            "type": "string",
+            "desc": "需求计划编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": "unique"
+          },
+          {
+            "name": "customer_code",
+            "type": "string",
+            "desc": "客户编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "customer_name",
+            "type": "string",
+            "desc": "客户名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "quantity",
+            "type": "float",
+            "desc": "需求量",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "unit_selling_price",
+            "type": "float",
+            "desc": "销售单价",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">=0"
+          },
+          {
+            "name": "delivery_start_time",
+            "type": "datetime",
+            "desc": "交付开始时间",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "delivery_end_time",
+            "type": "datetime",
+            "desc": "交付结束时间",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">= delivery_start_time"
+          },
+          {
+            "name": "minimum_satisfy_quantity",
+            "type": "float",
+            "desc": "最小满足量",
+            "is_required": false,
+            "default_value": "0",
+            "constraints": ">=0"
+          },
+          {
+            "name": "must_supply_gas",
+            "type": "string",
+            "desc": "是否必须供气",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "allow_below_plan_supply",
+            "type": "string",
+            "desc": "是否允许低于计划量供应",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "company_code",
+            "type": "string",
+            "desc": "公司编码",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_create",
+            "type": "datetime",
+            "desc": "创建时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_modified",
+            "type": "datetime",
+            "desc": "修改时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "creator",
+            "type": "string",
+            "desc": "创建人",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "modifier",
+            "type": "string",
+            "desc": "修改人",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          }
+        ],
+        "primary_key": [
+          "demand_plan_code"
+        ],
+        "foreign_keys": [],
+        "indexes": [
+          "version_id",
+          "customer_code"
+        ],
+        "time_field": "delivery_start_time"
+      },
+      {
+        "table_name": "monthly_resource_pool",
+        "table_desc": "资源池表，定义气源供应能力及成本",
+        "table_type": "resource",
+        "fields": [
+          {
+            "name": "id",
+            "type": "int",
+            "desc": "主键ID",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "version_id",
+            "type": "int",
+            "desc": "版本号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "purchase_agreement_no",
+            "type": "string",
+            "desc": "采购合同号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": "unique"
+          },
+          {
+            "name": "company_code",
+            "type": "string",
+            "desc": "公司编码",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "resource_supply_code",
+            "type": "string",
+            "desc": "资源供应编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "resource_supply_name",
+            "type": "string",
+            "desc": "资源供应名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "quantity",
+            "type": "float",
+            "desc": "供应量上限",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "min_quantity",
+            "type": "float",
+            "desc": "最小提取量（照付不议基准）",
+            "is_required": false,
+            "default_value": "0",
+            "constraints": ">=0"
+          },
+          {
+            "name": "unit_price",
+            "type": "float",
+            "desc": "资源单价",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">=0"
+          },
+          {
+            "name": "delivery_start_time",
+            "type": "datetime",
+            "desc": "交付开始时间",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "delivery_end_time",
+            "type": "datetime",
+            "desc": "交付结束时间",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">= delivery_start_time"
+          },
+          {
+            "name": "resource_status",
+            "type": "string",
+            "desc": "资源状态",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "over_extract",
+            "type": "string",
+            "desc": "是否允许超提",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "no_discuss_percent",
+            "type": "float",
+            "desc": "照付不议系数",
+            "is_required": false,
+            "default_value": "0",
+            "constraints": ">=0"
+          },
+          {
+            "name": "resource_type",
+            "type": "string",
+            "desc": "资源类型",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_create",
+            "type": "datetime",
+            "desc": "创建时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_modified",
+            "type": "datetime",
+            "desc": "修改时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "creator",
+            "type": "string",
+            "desc": "创建人",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "modifier",
+            "type": "string",
+            "desc": "修改人",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "mandatory_delivery",
+            "type": "int",
+            "desc": "是否强制交付",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          }
+        ],
+        "primary_key": [
+          "purchase_agreement_no"
+        ],
+        "foreign_keys": [],
+        "indexes": [
+          "version_id",
+          "resource_supply_code"
+        ],
+        "time_field": "delivery_start_time"
+      },
+      {
+        "table_name": "ontology_city_gas_station_info",
+        "table_desc": "城燃门站信息，作为透传节点",
+        "table_type": "passthrough_node",
+        "fields": [
+          {
+            "name": "version_id",
+            "type": "int",
+            "desc": "版本号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "gate_station_code",
+            "type": "string",
+            "desc": "城燃门站编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": "unique"
+          },
+          {
+            "name": "city_gas_org_code",
+            "type": "string",
+            "desc": "城燃公司编号",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "station_name",
+            "type": "string",
+            "desc": "城燃门站名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "upper_bound",
+            "type": "float",
+            "desc": "门站业务上限",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ">=0"
+          },
+          {
+            "name": "lower_bound",
+            "type": "float",
+            "desc": "门站业务下限",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ">=0"
+          },
+          {
+            "name": "modifier",
+            "type": "string",
+            "desc": "修改人ID",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_modified",
+            "type": "datetime",
+            "desc": "修改时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          }
+        ],
+        "primary_key": [
+          "gate_station_code"
+        ],
+        "foreign_keys": [],
+        "indexes": [
+          "version_id"
+        ],
+        "time_field": null
+      },
+      {
+        "table_name": "ontology_resource_download_site",
+        "table_desc": "资源下载站信息，作为透传节点",
+        "table_type": "passthrough_node",
+        "fields": [
+          {
+            "name": "version_id",
+            "type": "int",
+            "desc": "版本号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "resource_download_site_code",
+            "type": "string",
+            "desc": "资源下载站编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": "unique"
+          },
+          {
+            "name": "resource_download_site_name",
+            "type": "string",
+            "desc": "资源下载站名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_modified",
+            "type": "datetime",
+            "desc": "修改时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          }
+        ],
+        "primary_key": [
+          "resource_download_site_code"
+        ],
+        "foreign_keys": [],
+        "indexes": [
+          "version_id"
+        ],
+        "time_field": null
+      },
+      {
+        "table_name": "rel_demand_gate_station",
+        "table_desc": "需求与门站的映射关系",
+        "table_type": "link",
+        "fields": [
+          {
+            "name": "id",
+            "type": "int",
+            "desc": "主键ID",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "version_id",
+            "type": "int",
+            "desc": "版本号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "demand_plan_code",
+            "type": "string",
+            "desc": "需求计划编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gate_station_code",
+            "type": "string",
+            "desc": "城燃门站编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_create",
+            "type": "datetime",
+            "desc": "创建时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_modified",
+            "type": "datetime",
+            "desc": "修改时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "creator",
+            "type": "string",
+            "desc": "创建人ID",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "modifier",
+            "type": "string",
+            "desc": "修改人ID",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "foreign_keys": [
+          {
+            "field": "demand_plan_code",
+            "ref_table": "monthly_demand_pool",
+            "ref_field": "demand_plan_code",
+            "relationship": "many_to_one"
+          },
+          {
+            "field": "gate_station_code",
+            "ref_table": "ontology_city_gas_station_info",
+            "ref_field": "gate_station_code",
+            "relationship": "many_to_one"
+          }
+        ],
+        "indexes": [
+          "version_id",
+          "demand_plan_code",
+          "gate_station_code"
+        ],
+        "time_field": null
+      },
+      {
+        "table_name": "rel_resource_site",
+        "table_desc": "资源与下载站的映射关系",
+        "table_type": "link",
+        "fields": [
+          {
+            "name": "id",
+            "type": "int",
+            "desc": "主键ID",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "version_id",
+            "type": "int",
+            "desc": "版本号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "purchase_agreement_no",
+            "type": "string",
+            "desc": "资源合同ID",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "resource_download_site_code",
+            "type": "string",
+            "desc": "资源下载站编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_create",
+            "type": "datetime",
+            "desc": "创建时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_modified",
+            "type": "datetime",
+            "desc": "修改时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "creator",
+            "type": "string",
+            "desc": "创建人ID",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "modifier",
+            "type": "string",
+            "desc": "修改人ID",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "foreign_keys": [
+          {
+            "field": "purchase_agreement_no",
+            "ref_table": "monthly_resource_pool",
+            "ref_field": "purchase_agreement_no",
+            "relationship": "many_to_one"
+          },
+          {
+            "field": "resource_download_site_code",
+            "ref_table": "ontology_resource_download_site",
+            "ref_field": "resource_download_site_code",
+            "relationship": "many_to_one"
+          }
+        ],
+        "indexes": [
+          "version_id",
+          "purchase_agreement_no",
+          "resource_download_site_code"
+        ],
+        "time_field": null
+      },
+      {
+        "table_name": "monthly_transport_pool",
+        "table_desc": "管输运力表，定义管道运输能力及成本",
+        "table_type": "transport",
+        "fields": [
+          {
+            "name": "id",
+            "type": "int",
+            "desc": "主键ID",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "version_id",
+            "type": "int",
+            "desc": "版本号",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "company_code",
+            "type": "string",
+            "desc": "公司编码",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "transport_code",
+            "type": "string",
+            "desc": "运力编码",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "transport_name",
+            "type": "string",
+            "desc": "运力名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "delivery_point_name",
+            "type": "string",
+            "desc": "交付点名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "delivery_point_code",
+            "type": "string",
+            "desc": "交付点编码",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "station_name",
+            "type": "string",
+            "desc": "站点名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "station_code",
+            "type": "string",
+            "desc": "站点编码",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "consignor_name",
+            "type": "string",
+            "desc": "托运人名称",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "resource_supplier",
+            "type": "string",
+            "desc": "资源供应商",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "route",
+            "type": "string",
+            "desc": "路由",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "transport_status",
+            "type": "string",
+            "desc": "运力状态",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "pipe_type",
+            "type": "string",
+            "desc": "管输类型",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "design_gas_capacity",
+            "type": "float",
+            "desc": "设计输气能力上限",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">0"
+          },
+          {
+            "name": "unit_price",
+            "type": "float",
+            "desc": "管输单价",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">=0"
+          },
+          {
+            "name": "min_amount",
+            "type": "float",
+            "desc": "最小输气量",
+            "is_required": false,
+            "default_value": "0",
+            "constraints": ">=0"
+          },
+          {
+            "name": "delivery_start_time",
+            "type": "datetime",
+            "desc": "交付开始时间",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "delivery_end_time",
+            "type": "datetime",
+            "desc": "交付结束时间",
+            "is_required": true,
+            "default_value": null,
+            "constraints": ">= delivery_start_time"
+          },
+          {
+            "name": "gmt_create",
+            "type": "datetime",
+            "desc": "创建时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "gmt_modified",
+            "type": "datetime",
+            "desc": "修改时间",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "creator",
+            "type": "string",
+            "desc": "创建人",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          },
+          {
+            "name": "modifier",
+            "type": "string",
+            "desc": "修改人",
+            "is_required": false,
+            "default_value": null,
+            "constraints": ""
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "foreign_keys": [],
+        "indexes": [
+          "version_id",
+          "delivery_point_code",
+          "station_code"
+        ],
+        "time_field": "delivery_start_time"
+      }
+    ]
+  },
+  "data_source": {
+    "source_type": "nebula",
+    "nebula": {
+      "connection": {
+        "graphd_host": "10.203.124.45",
+        "graphd_port": 9669,
+        "timeout_ms": 6000,
+        "max_connection_pool_size": 10
+      },
+      "auth": {
+        "username": "gas_match_rw",
+        "password": "2CbAetxCua"
+      },
+      "query": {
+        "default_space": "gas_match_new",
+        "default_timeout_ms": 3000
+      },
+      "retry": {
+        "max_retries": 3,
+        "retry_interval_ms": 1000
+      },
+      "version_field": "version_id"
+    }
+  },
+  "path_query": {
+    "query_template": "MATCH p = (r)-[:{edges}*1..10]->(d)\nWHERE ANY(label IN labels(r) WHERE label IN {resources}) == true\n  AND ANY(label IN labels(d) WHERE label IN {demands}) == true\n  AND properties(r).version_id == {version_id}\n  AND properties(d).version_id == {version_id}\n  AND ALL(e IN relationships(p) WHERE e.version_id == {version_id}) == true\nRETURN p",
+    "query_params": {
+      "resource_list": [
+        "monthly_resource_pool"
+      ],
+      "demand_list": [
+        "monthly_demand_pool"
+      ],
+      "edge_list": [
+        "rel_resource_site",
+        "rel_demand_gate_station",
+        "monthly_transport_pool"
+      ]
+    }
+  },
+  "business_objective": {
+    "objective_type": "maximize",
+    "objective_desc": "最大化利润，即销售收入减去资源采购成本、管输运力成本及资源照付不议惩罚成本",
+    "objective_components": [
+      {
+        "component_name": "sales_revenue",
+        "component_desc": "销售天然气产生的收入",
+        "component_type": "revenue",
+        "calculation": "sum(实际供应量 * 销售单价)",
+        "related_tables": [
+          "monthly_demand_pool"
+        ],
+        "related_fields": [
+          "quantity",
+          "unit_selling_price"
+        ],
+        "is_inferred": false,
+        "inference_reason": ""
+      },
+      {
+        "component_name": "resource_cost",
+        "component_desc": "采购天然气资源的成本",
+        "component_type": "variable_cost",
+        "calculation": "sum(实际提取量 * 资源单价)",
+        "related_tables": [
+          "monthly_resource_pool"
+        ],
+        "related_fields": [
+          "quantity",
+          "unit_price"
+        ],
+        "is_inferred": false,
+        "inference_reason": ""
+      },
+      {
+        "component_name": "transport_cost",
+        "component_desc": "使用管道运输产生的运力成本",
+        "component_type": "variable_cost",
+        "calculation": "sum(实际运输量 * 管输单价)",
+        "related_tables": [
+          "monthly_transport_pool"
+        ],
+        "related_fields": [
+          "design_gas_capacity",
+          "unit_price"
+        ],
+        "is_inferred": false,
+        "inference_reason": ""
+      },
+      {
+        "component_name": "take_or_pay_penalty",
+        "component_desc": "未满足资源最小提取量（照付不议）产生的惩罚成本",
+        "component_type": "penalty",
+        "calculation": "sum(max(0, 最小提取量 - 实际提取量) * 资源单价 * 照付不议系数)",
+        "related_tables": [
+          "monthly_resource_pool"
+        ],
+        "related_fields": [
+          "min_quantity",
+          "unit_price",
+          "no_discuss_percent"
+        ],
+        "is_inferred": true,
+        "inference_reason": "根据业务逻辑'资源照付不议惩罚 = 未满足最小量的部分x单价x照付不议系数'及表字段min_quantity, unit_price, no_discuss_percent推断得出"
+      }
+    ],
+    "objective_formula": "sales_revenue - resource_cost - transport_cost - take_or_pay_penalty"
+  },
+  "business_constraints": {
+    "constraints": [
+      {
+        "constraint_id": "CONST_001",
+        "constraint_name": "资源供应上限约束",
+        "constraint_desc": "每个资源的实际提取量不能超过其最大供应量",
+        "constraint_scope": "per_resource",
+        "is_hard": true,
+        "related_tables": [
+          "monthly_resource_pool"
+        ],
+        "related_fields": [
+          "quantity"
+        ],
+        "constraint_formula": "sum(实际提取量) <= quantity"
+      },
+      {
+        "constraint_id": "CONST_002",
+        "constraint_name": "需求满足上限约束",
+        "constraint_desc": "每个需求的实际供应量不能超过其计划需求量",
+        "constraint_scope": "per_demand",
+        "is_hard": true,
+        "related_tables": [
+          "monthly_demand_pool"
+        ],
+        "related_fields": [
+          "quantity"
+        ],
+        "constraint_formula": "sum(实际供应量) <= quantity"
+      },
+      {
+        "constraint_id": "CONST_003",
+        "constraint_name": "管输运力上限约束",
+        "constraint_desc": "每条管输路径的实际流量不能超过其设计输气能力",
+        "constraint_scope": "per_time",
+        "is_hard": true,
+        "related_tables": [
+          "monthly_transport_pool"
+        ],
+        "related_fields": [
+          "design_gas_capacity"
+        ],
+        "constraint_formula": "实际运输量 <= design_gas_capacity"
+      },
+      {
+        "constraint_id": "CONST_004",
+        "constraint_name": "门站业务能力约束",
+        "constraint_desc": "经过门站的总流量需在门站业务上下限之间",
+        "constraint_scope": "per_node",
+        "is_hard": true,
+        "related_tables": [
+          "ontology_city_gas_station_info"
+        ],
+        "related_fields": [
+          "upper_bound",
+          "lower_bound"
+        ],
+        "constraint_formula": "lower_bound <= sum(过站流量) <= upper_bound"
+      },
+      {
+        "constraint_id": "CONST_005",
+        "constraint_name": "管输最小量约束",
+        "constraint_desc": "每条管输路径的实际流量需满足最小输气量要求（如果启用）",
+        "constraint_scope": "per_time",
+        "is_hard": true,
+        "related_tables": [
+          "monthly_transport_pool"
+        ],
+        "related_fields": [
+          "min_amount"
+        ],
+        "constraint_formula": "实际运输量 >= min_amount"
+      },
+      {
+        "constraint_id": "CONST_006",
+        "constraint_name": "需求最小满足量约束",
+        "constraint_desc": "需求的实际供应量需满足最小满足量要求（如果存在）",
+        "constraint_scope": "per_demand",
+        "is_hard": false,
+        "related_tables": [
+          "monthly_demand_pool"
+        ],
+        "related_fields": [
+          "minimum_satisfy_quantity"
+        ],
+        "constraint_formula": "sum(实际供应量) >= minimum_satisfy_quantity"
+      }
+    ]
+  }
+}

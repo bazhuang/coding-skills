@@ -1,0 +1,593 @@
+# DSL硬约束松弛优化分析报告
+
+## LLM完整响应
+
+# DSL约束软化方案
+
+## 1. 可软化约束识别
+根据模型分析，以下约束属于硬边界或最小量约束，存在因参数冲突导致无解的风险，需进行软化：
+- **资源供应量上限约束** (`CONST_RESOURCE_SUPPLY_LIMIT`)：属于场景1（硬边界上限），需允许突破供应上限。
+- **需求满足量上限约束** (`CONST_DEMAND_LIMIT`)：属于场景1（硬边界上限），需允许突破需求上限（即超供）。
+- **需求最小满足量约束** (`CONST_DEMAND_MIN_SATISFY`)：属于场景2（最小量达标），需允许未达标缺口。
+- **管输运力容量约束** (`CONST_TRANSPORT_CAPACITY`)：属于场景1（硬边界上限），需允许突破运力上限。
+- **门站业务上限约束** (`CONST_GATE_STATION_CAPACITY`)：属于场景1（硬边界上限），需允许突破门站上限。
+- **管输最小量逻辑约束** (`CONST_TRANSPORT_MIN_AMOUNT_LOGIC`)：属于场景2（最小量达标），需允许未达标缺口。
+
+**不可软化约束**：
+- `CONST_TRANSPORT_USAGE_LINK`：定义了流量与开关变量的逻辑关系，属于决策逻辑定义约束，不可软化。
+- `CONST_RESOURCE_SHORTAGE_DEF`：定义了照付不议缺口的计算方式，属于数学定义类约束，不可软化。
+
+## 2. 松弛变量设计
+根据场景分类，设计以下松弛变量：
+
+**场景1：硬边界上限松弛（过剩松弛）**
+1. `VAR_resource_surplus_slack`：索引集 `RESOURCE_IDS`，对应资源供应上限。
+2. `VAR_demand_surplus_slack`：索引集 `DEMAND_IDS`，对应需求满足上限。
+3. `VAR_transport_surplus_slack`：索引集 `TRANSPORT_IDS`，对应管输运力上限。
+4. `VAR_gate_surplus_slack`：索引集 `GATE_STATION_IDS`，对应门站业务上限。
+
+**场景2：最小量达标兜底松弛（缺口松弛）**
+1. `VAR_demand_min_cover_slack`：索引集 `DEMAND_IDS`，对应需求最小满足量。
+2. `VAR_transport_min_cover_slack`：索引集 `TRANSPORT_IDS`，对应管输最小运输量。
+
+## 3. 约束软化实施
+- **上限约束软化**：将 `实际量 ≤ 边界值` 修改为 `实际量 ≤ 边界值 + VAR_..._surplus_slack`。
+- **最小量约束软化**：将 `实际量 ≥ 最小量` 修改为 `实际量 + VAR_..._min_cover_slack ≥ 最小量`。
+- **目标函数调整**：在最大化利润目标中，减去所有松弛变量的惩罚成本。
+  - 场景1（上限突破）惩罚系数：**100**（高惩罚，尽量避免）。
+  - 场景2（最小量未达标）惩罚系数：**50**（中低惩罚，优先保障核心利润）。
+
+## 4. 设计说明总结
+本方案针对天然气城燃门站匹配场景，为资源、需求、运力及门站的上限约束添加了4种过剩松弛变量，为需求最小满足和运力最小量约束添加了2种缺口松弛变量。共修改6个约束，新增6类变量。惩罚系数设计上，上限突破设为100以严格限制违规，最小量缺口设为50以平衡达标率与利润。严格保留了流量守恒、开关逻辑及辅助变量定义等核心业务约束，确保模型在极端参数下仍可求解且业务逻辑不变。
+
+## 终版完整DSL
+
+```json
+{
+  "meta_info": {
+    "scene_id": "gas_city_gate_matching_profit",
+    "scene_type": "路径优化",
+    "creator": "auto_gen_by_llm",
+    "version": "v1.1.0_linearized_soft",
+    "create_time": "2023-10-27T10:00:00Z"
+  },
+  "data_def": {
+    "tables": [
+      {
+        "table_name": "monthly_demand_pool",
+        "fields": [
+          {
+            "name": "demand_plan_code",
+            "type": "string",
+            "desc": "需求计划编码",
+            "is_required": true
+          },
+          {
+            "name": "quantity",
+            "type": "float",
+            "desc": "计划需求量",
+            "is_required": true
+          },
+          {
+            "name": "unit_selling_price",
+            "type": "float",
+            "desc": "单位销售价格",
+            "is_required": true
+          },
+          {
+            "name": "minimum_satisfy_quantity",
+            "type": "float",
+            "desc": "最小满足量",
+            "is_required": false
+          }
+        ],
+        "primary_key": [
+          "demand_plan_code"
+        ]
+      },
+      {
+        "table_name": "monthly_resource_pool",
+        "fields": [
+          {
+            "name": "purchase_agreement_no",
+            "type": "string",
+            "desc": "采购合同号",
+            "is_required": true
+          },
+          {
+            "name": "quantity",
+            "type": "float",
+            "desc": "计划供应量",
+            "is_required": true
+          },
+          {
+            "name": "min_quantity",
+            "type": "float",
+            "desc": "最小供应量（照付不议基准）",
+            "is_required": true
+          },
+          {
+            "name": "unit_price",
+            "type": "float",
+            "desc": "单位采购价格",
+            "is_required": true
+          },
+          {
+            "name": "no_discuss_percent",
+            "type": "float",
+            "desc": "照付不议系数",
+            "is_required": false
+          }
+        ],
+        "primary_key": [
+          "purchase_agreement_no"
+        ]
+      },
+      {
+        "table_name": "monthly_transport_pool",
+        "fields": [
+          {
+            "name": "transport_code",
+            "type": "string",
+            "desc": "运力编码",
+            "is_required": true
+          },
+          {
+            "name": "design_gas_capacity",
+            "type": "float",
+            "desc": "设计输气能力（上限）",
+            "is_required": true
+          },
+          {
+            "name": "unit_price",
+            "type": "float",
+            "desc": "单位运输价格",
+            "is_required": true
+          },
+          {
+            "name": "min_amount",
+            "type": "float",
+            "desc": "最小运输量",
+            "is_required": false
+          }
+        ],
+        "primary_key": [
+          "transport_code"
+        ]
+      },
+      {
+        "table_name": "ontology_city_gas_station_info",
+        "fields": [
+          {
+            "name": "gate_station_code",
+            "type": "string",
+            "desc": "城燃门站编码",
+            "is_required": true
+          },
+          {
+            "name": "upper_bound",
+            "type": "float",
+            "desc": "门站业务上限",
+            "is_required": false
+          }
+        ],
+        "primary_key": [
+          "gate_station_code"
+        ]
+      }
+    ],
+    "index_sets": [
+      {
+        "set_name": "DEMAND_IDS",
+        "source": "monthly_demand_pool.demand_plan_code",
+        "desc": "需求计划ID集合"
+      },
+      {
+        "set_name": "RESOURCE_IDS",
+        "source": "monthly_resource_pool.purchase_agreement_no",
+        "desc": "资源合同ID集合"
+      },
+      {
+        "set_name": "TRANSPORT_IDS",
+        "source": "monthly_transport_pool.transport_code",
+        "desc": "管输运力ID集合"
+      },
+      {
+        "set_name": "GATE_STATION_IDS",
+        "source": "ontology_city_gas_station_info.gate_station_code",
+        "desc": "城燃门站ID集合"
+      },
+      {
+        "set_name": "FEASIBLE_PATHS",
+        "source": "path_query.paths",
+        "desc": "可行路径集合，每个元素为[节点ID, 边ID, 节点ID, ..., 边ID, 节点ID]的列表，起点为资源，终点为需求"
+      }
+    ],
+    "parameters": [
+      {
+        "param_name": "PARAM_DEMAND_QUANTITY",
+        "source": "monthly_demand_pool.quantity",
+        "index_sets": [
+          "DEMAND_IDS"
+        ],
+        "data_type": "float",
+        "desc": "需求计划量"
+      },
+      {
+        "param_name": "PARAM_SELLING_PRICE",
+        "source": "monthly_demand_pool.unit_selling_price",
+        "index_sets": [
+          "DEMAND_IDS"
+        ],
+        "data_type": "float",
+        "desc": "单位销售价格"
+      },
+      {
+        "param_name": "PARAM_MIN_SATISFY_QTY",
+        "source": "monthly_demand_pool.minimum_satisfy_quantity",
+        "index_sets": [
+          "DEMAND_IDS"
+        ],
+        "data_type": "float",
+        "desc": "需求最小满足量"
+      },
+      {
+        "param_name": "PARAM_RESOURCE_QUANTITY",
+        "source": "monthly_resource_pool.quantity",
+        "index_sets": [
+          "RESOURCE_IDS"
+        ],
+        "data_type": "float",
+        "desc": "资源计划供应量"
+      },
+      {
+        "param_name": "PARAM_RESOURCE_MIN_QUANTITY",
+        "source": "monthly_resource_pool.min_quantity",
+        "index_sets": [
+          "RESOURCE_IDS"
+        ],
+        "data_type": "float",
+        "desc": "资源最小供应量（照付不议基准）"
+      },
+      {
+        "param_name": "PARAM_RESOURCE_PRICE",
+        "source": "monthly_resource_pool.unit_price",
+        "index_sets": [
+          "RESOURCE_IDS"
+        ],
+        "data_type": "float",
+        "desc": "资源单位采购价格"
+      },
+      {
+        "param_name": "PARAM_TAKE_OR_PAY_PERCENT",
+        "source": "monthly_resource_pool.no_discuss_percent",
+        "index_sets": [
+          "RESOURCE_IDS"
+        ],
+        "data_type": "float",
+        "desc": "照付不议惩罚系数"
+      },
+      {
+        "param_name": "PARAM_TRANSPORT_CAPACITY",
+        "source": "monthly_transport_pool.design_gas_capacity",
+        "index_sets": [
+          "TRANSPORT_IDS"
+        ],
+        "data_type": "float",
+        "desc": "管输设计能力上限"
+      },
+      {
+        "param_name": "PARAM_TRANSPORT_PRICE",
+        "source": "monthly_transport_pool.unit_price",
+        "index_sets": [
+          "TRANSPORT_IDS"
+        ],
+        "data_type": "float",
+        "desc": "管输单位运输价格"
+      },
+      {
+        "param_name": "PARAM_TRANSPORT_MIN_AMOUNT",
+        "source": "monthly_transport_pool.min_amount",
+        "index_sets": [
+          "TRANSPORT_IDS"
+        ],
+        "data_type": "float",
+        "desc": "管输最小运输量"
+      },
+      {
+        "param_name": "PARAM_GATE_UPPER_BOUND",
+        "source": "ontology_city_gas_station_info.upper_bound",
+        "index_sets": [
+          "GATE_STATION_IDS"
+        ],
+        "data_type": "float",
+        "desc": "门站业务上限"
+      }
+    ],
+    "links": []
+  },
+  "decision_vars": [
+    {
+      "var_name": "VAR_PATH_FLOW",
+      "var_type": "continuous",
+      "index_sets": [
+        "FEASIBLE_PATHS"
+      ],
+      "lower_bound": 0,
+      "desc": "路径上的天然气流量"
+    },
+    {
+      "var_name": "VAR_RESOURCE_SHORTAGE",
+      "var_type": "continuous",
+      "index_sets": [
+        "RESOURCE_IDS"
+      ],
+      "lower_bound": 0,
+      "desc": "资源未满足照付不议量的部分（辅助变量）"
+    },
+    {
+      "var_name": "VAR_USE_TRANSPORT",
+      "var_type": "binary",
+      "index_sets": [
+        "TRANSPORT_IDS"
+      ],
+      "lower_bound": 0,
+      "upper_bound": 1,
+      "desc": "运输边是否被使用（1=使用，0=不使用）"
+    },
+    {
+      "var_name": "VAR_resource_surplus_slack",
+      "var_type": "continuous",
+      "index_sets": [
+        "RESOURCE_IDS"
+      ],
+      "lower_bound": 0,
+      "desc": "【场景1-上限松弛】资源硬边界上限过剩松弛变量，代表突破供应边界的规模，非负"
+    },
+    {
+      "var_name": "VAR_demand_surplus_slack",
+      "var_type": "continuous",
+      "index_sets": [
+        "DEMAND_IDS"
+      ],
+      "lower_bound": 0,
+      "desc": "【场景1-上限松弛】需求硬边界上限过剩松弛变量，代表突破需求边界的规模，非负"
+    },
+    {
+      "var_name": "VAR_demand_min_cover_slack",
+      "var_type": "continuous",
+      "index_sets": [
+        "DEMAND_IDS"
+      ],
+      "lower_bound": 0,
+      "desc": "【场景2-最小量兜底】需求最小量达标缺口松弛变量，代表未达最小量的缺口，非负"
+    },
+    {
+      "var_name": "VAR_transport_surplus_slack",
+      "var_type": "continuous",
+      "index_sets": [
+        "TRANSPORT_IDS"
+      ],
+      "lower_bound": 0,
+      "desc": "【场景1-上限松弛】运力硬边界上限过剩松弛变量，代表突破运力边界的规模，非负"
+    },
+    {
+      "var_name": "VAR_transport_min_cover_slack",
+      "var_type": "continuous",
+      "index_sets": [
+        "TRANSPORT_IDS"
+      ],
+      "lower_bound": 0,
+      "desc": "【场景2-最小量兜底】运力最小量达标缺口松弛变量，代表未达最小运输量的缺口，非负"
+    },
+    {
+      "var_name": "VAR_gate_surplus_slack",
+      "var_type": "continuous",
+      "index_sets": [
+        "GATE_STATION_IDS"
+      ],
+      "lower_bound": 0,
+      "desc": "【场景1-上限松弛】门站硬边界上限过剩松弛变量，代表突破门站业务上限的规模，非负"
+    }
+  ],
+  "objective": {
+    "obj_type": "maximize",
+    "obj_terms": [
+      {
+        "term_name": "TERM_SALES_REVENUE",
+        "expression": "sum(VAR_PATH_FLOW[p] * PARAM_SELLING_PRICE[p[-1]] for p in FEASIBLE_PATHS)",
+        "coefficient": 1,
+        "desc": "销售收入：路径终点对应的需求单价乘以流量"
+      },
+      {
+        "term_name": "TERM_RESOURCE_COST",
+        "expression": "sum(VAR_PATH_FLOW[p] * PARAM_RESOURCE_PRICE[p[0]] for p in FEASIBLE_PATHS)",
+        "coefficient": -1,
+        "desc": "资源采购成本：路径起点对应的资源单价乘以流量"
+      },
+      {
+        "term_name": "TERM_TRANSPORT_COST",
+        "expression": "sum(VAR_PATH_FLOW[p] * sum(PARAM_TRANSPORT_PRICE[e] for e in p if e in TRANSPORT_IDS) for p in FEASIBLE_PATHS)",
+        "coefficient": -1,
+        "desc": "管输运力成本：路径经过的所有边的运输单价之和乘以流量"
+      },
+      {
+        "term_name": "TERM_TAKE_OR_PAY_PENALTY",
+        "expression": "sum(VAR_RESOURCE_SHORTAGE[r] * PARAM_RESOURCE_PRICE[r] * PARAM_TAKE_OR_PAY_PERCENT[r] for r in RESOURCE_IDS)",
+        "coefficient": -1,
+        "desc": "照付不议惩罚：未满足资源最小量的部分（辅助变量）乘以单价和系数"
+      },
+      {
+        "term_name": "TERM_RESOURCE_SURPLUS_PENALTY",
+        "expression": "sum(VAR_resource_surplus_slack[r] for r in RESOURCE_IDS)",
+        "coefficient": -100,
+        "desc": "【场景1-上限松弛】资源供应上限突破惩罚"
+      },
+      {
+        "term_name": "TERM_DEMAND_SURPLUS_PENALTY",
+        "expression": "sum(VAR_demand_surplus_slack[d] for d in DEMAND_IDS)",
+        "coefficient": -100,
+        "desc": "【场景1-上限松弛】需求上限突破惩罚"
+      },
+      {
+        "term_name": "TERM_DEMAND_MIN_COVER_PENALTY",
+        "expression": "sum(VAR_demand_min_cover_slack[d] for d in DEMAND_IDS)",
+        "coefficient": -50,
+        "desc": "【场景2-最小量兜底】需求最小量未达标惩罚"
+      },
+      {
+        "term_name": "TERM_TRANSPORT_SURPLUS_PENALTY",
+        "expression": "sum(VAR_transport_surplus_slack[t] for t in TRANSPORT_IDS)",
+        "coefficient": -100,
+        "desc": "【场景1-上限松弛】运力上限突破惩罚"
+      },
+      {
+        "term_name": "TERM_TRANSPORT_MIN_COVER_PENALTY",
+        "expression": "sum(VAR_transport_min_cover_slack[t] for t in TRANSPORT_IDS)",
+        "coefficient": -50,
+        "desc": "【场景2-最小量兜底】运力最小量未达标惩罚"
+      },
+      {
+        "term_name": "TERM_GATE_SURPLUS_PENALTY",
+        "expression": "sum(VAR_gate_surplus_slack[g] for g in GATE_STATION_IDS)",
+        "coefficient": -100,
+        "desc": "【场景1-上限松弛】门站上限突破惩罚"
+      }
+    ],
+    "desc": "最大化利润：销售收入 - 资源成本 - 运输成本 - 照付不议惩罚 - 各类松弛变量惩罚"
+  },
+  "constraints": [
+    {
+      "constraint_id": "CONST_RESOURCE_SUPPLY_LIMIT",
+      "constraint_type": "inequality",
+      "direction": "<=",
+      "left_expression": "sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if p[0] == r)",
+      "right_expression": "PARAM_RESOURCE_QUANTITY[r] + VAR_resource_surplus_slack[r]",
+      "index_sets": [
+        "RESOURCE_IDS"
+      ],
+      "priority": 1,
+      "desc": "【场景1-上限松弛】资源供应量上限约束：从资源点流出的总量不超过计划供应量，允许突破并惩罚"
+    },
+    {
+      "constraint_id": "CONST_DEMAND_LIMIT",
+      "constraint_type": "inequality",
+      "direction": "<=",
+      "left_expression": "sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if p[-1] == d)",
+      "right_expression": "PARAM_DEMAND_QUANTITY[d] + VAR_demand_surplus_slack[d]",
+      "index_sets": [
+        "DEMAND_IDS"
+      ],
+      "priority": 1,
+      "desc": "【场景1-上限松弛】需求满足量上限约束：流入需求点的总量不超过计划需求量，允许突破并惩罚"
+    },
+    {
+      "constraint_id": "CONST_DEMAND_MIN_SATISFY",
+      "constraint_type": "inequality",
+      "direction": ">=",
+      "left_expression": "sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if p[-1] == d) + VAR_demand_min_cover_slack[d]",
+      "right_expression": "PARAM_MIN_SATISFY_QTY[d]",
+      "index_sets": [
+        "DEMAND_IDS"
+      ],
+      "priority": 1,
+      "desc": "【场景2-最小量兜底】需求最小满足量约束：流入需求点的总量需满足最小要求，允许缺口并惩罚"
+    },
+    {
+      "constraint_id": "CONST_TRANSPORT_CAPACITY",
+      "constraint_type": "inequality",
+      "direction": "<=",
+      "left_expression": "sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if t in p)",
+      "right_expression": "PARAM_TRANSPORT_CAPACITY[t] + VAR_transport_surplus_slack[t]",
+      "index_sets": [
+        "TRANSPORT_IDS"
+      ],
+      "priority": 1,
+      "desc": "【场景1-上限松弛】管输运力容量约束：通过每条运输边的流量不超过设计能力，允许突破并惩罚"
+    },
+    {
+      "constraint_id": "CONST_TRANSPORT_USAGE_LINK",
+      "constraint_type": "inequality",
+      "direction": "<=",
+      "left_expression": "sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if t in p)",
+      "right_expression": "PARAM_TRANSPORT_CAPACITY[t] * VAR_USE_TRANSPORT[t]",
+      "index_sets": [
+        "TRANSPORT_IDS"
+      ],
+      "priority": 1,
+      "desc": "不可软化核心约束，禁止修改：运输使用逻辑约束：若不使用运输边(VAR_USE_TRANSPORT=0)，则流量强制为0；若使用，流量上限为容量"
+    },
+    {
+      "constraint_id": "CONST_TRANSPORT_MIN_AMOUNT_LOGIC",
+      "constraint_type": "inequality",
+      "direction": ">=",
+      "left_expression": "sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if t in p) + VAR_transport_min_cover_slack[t]",
+      "right_expression": "PARAM_TRANSPORT_MIN_AMOUNT[t] * VAR_USE_TRANSPORT[t]",
+      "index_sets": [
+        "TRANSPORT_IDS"
+      ],
+      "priority": 1,
+      "desc": "【场景2-最小量兜底】管输最小量逻辑约束：若使用运输边(VAR_USE_TRANSPORT=1)，流量需满足最小运输量，允许缺口并惩罚"
+    },
+    {
+      "constraint_id": "CONST_GATE_STATION_CAPACITY",
+      "constraint_type": "inequality",
+      "direction": "<=",
+      "left_expression": "sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if g in p)",
+      "right_expression": "PARAM_GATE_UPPER_BOUND[g] + VAR_gate_surplus_slack[g]",
+      "index_sets": [
+        "GATE_STATION_IDS"
+      ],
+      "priority": 1,
+      "desc": "【场景1-上限松弛】门站业务上限约束：通过门站节点的总流量不超过业务上限，允许突破并惩罚"
+    },
+    {
+      "constraint_id": "CONST_RESOURCE_SHORTAGE_DEF",
+      "constraint_type": "inequality",
+      "direction": ">=",
+      "left_expression": "VAR_RESOURCE_SHORTAGE[r]",
+      "right_expression": "PARAM_RESOURCE_MIN_QUANTITY[r] - sum(VAR_PATH_FLOW[p] for p in FEASIBLE_PATHS if p[0] == r)",
+      "index_sets": [
+        "RESOURCE_IDS"
+      ],
+      "priority": 1,
+      "desc": "不可软化核心约束，禁止修改：照付不议缺口定义约束：辅助变量大于等于最小量与实际提取量的差值"
+    }
+  ],
+  "solve_config": {
+    "solver_type": "scip",
+    "solver_params": {
+      "timeout": 300,
+      "gap": 0.01,
+      "threads": 4
+    },
+    "warm_start": false
+  },
+  "output_config": {
+    "output_fields": [
+      {
+        "name": "path_flow",
+        "expression": "VAR_PATH_FLOW",
+        "desc": "路径分配流量"
+      },
+      {
+        "name": "transport_usage",
+        "expression": "VAR_USE_TRANSPORT",
+        "desc": "运输边使用状态"
+      },
+      {
+        "name": "resource_shortage",
+        "expression": "VAR_RESOURCE_SHORTAGE",
+        "desc": "资源照付不议缺口量"
+      },
+      {
+        "name": "total_profit",
+        "expression": "objective.value",
+        "desc": "总利润"
+      }
+    ],
+    "output_format": "csv",
+    "output_path": "./optimization_result"
+  }
+}
+```

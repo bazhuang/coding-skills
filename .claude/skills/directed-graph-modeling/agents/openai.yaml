@@ -1,7 +1,7 @@
 interface:
   display_name: "Directed Graph Modeling"
-  short_description: "Convert OR ontology to NebulaGraph schema and DDL"
-  default_prompt: "Use $directed-graph-modeling to convert algorithm ontology objects into NebulaGraph TAG/EDGE schema, DDL templates, and data mapping configuration."
+  short_description: "Convert or_ontology to NebulaGraph schema and DDL"
+  default_prompt: "Use $directed-graph-modeling to convert or_ontology objects into NebulaGraph TAG/EDGE schema, DDL templates, and data mapping configuration."
 
 policy:
   allow_implicit_invocation: true

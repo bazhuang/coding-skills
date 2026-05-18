@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nebula_config.schema.json",
+  "title": "NebulaGraph Configuration",
+  "description": "NebulaGraph 图数据库连接通用配置 Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cluster_servers", "space", "username", "password"],
+  "properties": {
+    "cluster_servers": {
+      "type": "array",
+      "description": "NebulaGraph 集群地址列表（至少一个）",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/serverEndpoint" }
+    },
+    "space": {
+      "type": "string",
+      "description": "NebulaGraph 图空间名",
+      "minLength": 1
+    },
+    "username": {
+      "type": "string",
+      "description": "连接用户名",
+      "minLength": 1
+    },
+    "password": {
+      "type": "string",
+      "description": "连接密码"
+    },
+    "pool_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "连接池配置",
+      "properties": {
+        "min_size": {
+          "type": "integer",
+          "description": "最小连接数",
+          "minimum": 0,
+          "default": 2
+        },
+        "max_size": {
+          "type": "integer",
+          "description": "最大连接数",
+          "minimum": 1,
+          "default": 10
+        },
+        "idle_time": {
+          "type": "integer",
+          "description": "空闲连接超时（秒）",
+          "minimum": 0,
+          "default": 1800
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "连接超时（秒），0 表示无限等待",
+          "minimum": 0,
+          "default": 0
+        },
+        "interval_check": {
+          "type": "integer",
+          "description": "健康检查间隔（秒），-1 表示禁用",
+          "default": -1
+        }
+      }
+    },
+    "session_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "会话配置",
+      "properties": {
+        "retry_times": {
+          "type": "integer",
+          "description": "失败重试次数",
+          "minimum": 0,
+          "default": 3
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "会话超时（毫秒）",
+          "minimum": 0,
+          "default": 60000
+        }
+      }
+    }
+  },
+  "$defs": {
+    "serverEndpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "port"],
+      "properties": {
+        "host": {
+          "type": "string",
+          "format": "hostname"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-loader-code-output.schema.json",
+  "title": "Data Loader Code Output Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["files"],
+  "properties": {
+    "files": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "const": "table_loader.py" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "const": "path_loader.py" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "const": "data_loader.py" } }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "responsibility",
+          "generation_strategy",
+          "public_interfaces",
+          "depends_on",
+          "content"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "table_loader.py",
+              "path_loader.py",
+              "data_loader.py"
+            ]
+          },
+          "responsibility": { "type": "string" },
+          "generation_strategy": {
+            "type": "string",
+            "enum": ["jinja2_template", "llm_generated", "mixed"]
+          },
+          "public_interfaces": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "content": { "type": "string" }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

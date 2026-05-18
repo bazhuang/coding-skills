@@ -1,75 +1,80 @@
 skill: business-to-or-ontology
 
 input_contract:
-  biz_ont:
-    semantic_role: 业务本体，承载业务对象与角色说明
+  business_ontology:
+    semantic_role: 业务本体，承载以对象、关系和规则组织的运筹业务应用全景表达
     expected_content:
-      - 业务对象
-      - 角色关系
-      - 资源流动
-      - 主体业务描述
-      - 主业务目标或关键约束（若主体描述中已包含）
-      - 边界条件
-      - 优先级
-      - 例外规则
-      - 口径说明
+      - 对象语义
+      - 关系语义
+      - 流动语义
+      - 需求语义
+      - 规则边界
+      - 运行口径
+      - 数据承载线索
+      - 非内核运行流程
   simulation_schema:
     semantic_role: 表 schema 或仿真表 schema
     expected_content:
-      - 表结构
-      - 字段定义
-      - 主外键关系
-      - 仿真表定义
+      - 结构粒度
+      - 字段语义
+      - 关系证据
       - 数据承载证据
 
 substeps:
   - id: extract_signals
-    purpose: 提取与运筹建模直接相关的业务信号，形成可追溯的中间结果
+    purpose: 从业务全景表达中剥离运筹问题内核，形成可追溯的运筹信号清单
     include_inputs:
-      - biz_ont
+      - business_ontology
       - simulation_schema
     include_references:
       - references/需供运筹元模型.md
       - references/or_signal_inventory.schema.json
     task_appendix: |
-      遵循 `SKILL.md` 中的标准化原则，本阶段只补充抽取层要求。
-      `candidate_entities` 只保留与当前场景目标、约束、流动对象、节点连接或关键数据路径直接相关，且能独立承载对象语义或连接语义的对象；仅提供审计、版本、通用元数据或无直接业务作用的表，不得直接提为候选对象。
-      稳定表达对象间连接、映射、挂接、归属或可达关系的表，即使暂时不能稳定落到精确 `edge` 子类，也必须作为独立候选对象进入 `candidate_entities`；若只能稳定判断其为“对象型”或“连接型”，应降低分类粒度保留，并写明 `retention_reason` 与 `classification_confidence`。
-      `candidate_constraints` 要按单条规则逐条抽取；只要识别出约束语义，对原文或 schema 中已出现的服务优先级、最低履约、强制满足、阈值、上下界、容量、条件触发等约束，不得因自信度不足而静默遗漏。
-      若某个 schema 字段的作用对象已明确是 `node` 或 `edge`，且字段名或字段说明已明确表达约束语义，则该字段直接视为约束，必须进入 `candidate_constraints`。
-      每条 `candidate_constraints` 都必须给出 `confidence`，取值只能是 `high`、`medium`、`low`。
-      只有在无法稳定整理成一条可表达的约束时，相关内容才写入 `open_questions`。
+      按 `SKILL.md` 的“抽取运筹信号”和“标准化规则”执行。
+      本阶段只产出中间信号，不产出最终标准对象或 `or_ontology`。
+      输出重点包括相关片段、候选对象、候选目标、候选约束、schema 证据与信息不足问题。
+      `relevant_fragments` 只保留后续标准化真正需要的高价值短证据，不要大段转录输入。
+      对来自 `simulation_schema` 的证据，优先用 `table_name` 指向仿真表，并只列关键字段名；不要把 DDL 片段直接抄进 `text`。
+      `schema_evidence` 必须逐表结构化保留 `table_name`、关键字段、`primary_key`、可稳定识别的 `unique_keys` 和 `foreign_keys`；不要只写成自由文本备注。
+      所有候选约束必须逐条表达，并保留 `confidence`。
+      对服务优先级、最低履约、可达性、容量上限/下限等语义明确的约束字段，要进入候选约束，不得因为表很多而省略。
+      明确区分 `business_ontology` 内嵌 schema/字段描述 与 `simulation_schema` 的职责：
+      `business_ontology` 内嵌 schema、字段清单、字段说明和表样例一律忽略，不能作为 `table_schema`、字段全集、字段顺序、主键、唯一键、外键、对象命名或关系结构来源。
+      若 `business_ontology` 内嵌 schema 与 `simulation_schema` 对字段或表结构存在冲突，直接忽略前者，以 `simulation_schema` 为唯一结构真值；必要时可记录到 `open_questions` 或证据说明。
+      `simulation_schema.fields[*].type` 必须按原始数据库类型文本抽取，例如 `varchar(64)`、`decimal(20,4)`、`bigint(20) unsigned`、`date`；不要做通用类型归一化。
     output_artifacts:
       - name: or_signal_inventory
         type: json
         schema_path: references/or_signal_inventory.schema.json
 
   - id: normalize_ontology
-    purpose: 基于抽取结果完成标准化映射，并产出最终运筹算法本体 or_ont
+    purpose: 基于抽取结果完成标准化映射，并产出最终 or_ontology
+    include_inputs:
+      - simulation_schema
     include_artifacts:
       - extract_signals.or_signal_inventory
     include_references:
       - references/需供运筹元模型.md
       - references/本体映射.schema.json
-      - references/算法本体模型.schema.json
+      - references/or_ontology.schema.json
     task_appendix: |
-      遵循 `SKILL.md` 中的标准化原则，本阶段只补充映射层要求。
-      只允许基于上游 `extract_signals.or_signal_inventory` 做标准化映射；不得重新大范围筛读原始业务输入，也不得引入未在上游信号中出现的核心业务对象、目标或约束。
-      若为完成映射必须补充弱推理，只能补充高度确定的信息，并显式标记 `is_inferred` 与 `inference_basis`；若上游信号不足以支持稳定映射，优先写入 `open_questions`。
-      对每个无法直接一跳落入元模型类型的业务对象，必须在 `ontology_mapping.mapping_rationale` 或对象级 `mapping_basis` 中明确说明映射理由。
-      对关注的非 `resource` 对象，必须显式给出 schema 绑定状态：`attached` 时填写 `table_schema`，并根据 `simulation_schema` 中对应主表逐表完整转录原始 schema，而不是输出字段摘要；`referenced` 时填写 `supporting_tables`，必要时补 `supporting_fields`，`missing` 时在 `open_questions` 中说明缺口；不得编造表 schema。
-      若某个非 `resource` 对象同时受实体主表和关系表支撑，应优先将稳定描述对象自身属性的实体主表绑定为 `table_schema`；若某张表主要表达对象间映射关系，则应优先单独标准化为 `link`，而不是吸收到某个 `node` 的 schema 绑定中。
-      `attached` 表示对象直接绑定到主表；一旦采用该绑定，标准化结果中的 `table_schema` 就必须按原表逐字段完整转录，字段顺序、主键以及可稳定识别的索引/外键信息都应保留，而不是做字段重要性判断、裁剪或摘要化处理。
-      若 `attached` 对象输出的 `table_schema.fields` 少于原始主表字段数，或明显只是 `supporting_fields` 的展开结果，视为标准化失败。
-      目标系统必须先输出 `objective_system.objective_terms`，再用 `objective_system.objective_aggregation` 说明总目标如何包含这些子项；只有当原文确实无法稳定拆出构成子项时，才允许退化为单项表达。
-      候选约束进入本阶段后，要么逐条落入正式约束，要么在 `open_questions` 中说明无法稳定标准化的原因；任何静默丢失都视为标准化不完整。
-      正式约束必须保留 `confidence`，取值只能是 `high`、`medium`、`low`；若本阶段调整了约束表达粒度或拆分方式，应同步重新判断对应约束的 `confidence`。
-      若某个 schema 约束字段的作用对象已明确是 `node` 或 `edge`，且字段名语义明确表达约束含义，则必须直接落入对应对象的正式约束；继续留在 `open_questions` 视为标准化不足，除非字段语义或作用对象存在明确冲突证据。
-      `open_questions` 只能暴露上游信号中已经出现但信息不足的疑点；至少包含 `question`，并在可提供时补充 `evidence_ids` 与 `impact`。
+      按 `SKILL.md` 的“标准化运筹本体”和“标准化规则”执行。
+      本阶段以 `extract_signals.or_signal_inventory` 为主输入，同时把 `simulation_schema` 作为结构核对依据；不重新发明上游未出现的核心对象、目标或约束。
+      输出重点包括映射依据、最终对象体系、目标系统、正式约束、schema 绑定与剩余 `open_questions`。
+      上游候选约束要逐条落入正式约束；无法稳定落入的原因必须显式说明，继续留在 `open_questions` 视为标准化不足。
+      `open_questions` 只能暴露上游信号中已经出现但信息不足的疑点。
+      对 `attached` 对象，要根据 `simulation_schema` 中对应主表逐表完整转录原始 schema，而不是输出字段摘要。
+      字段顺序、原始字段类型文本、主键、可稳定识别的唯一键和外键信息都应保留。
+      若 `simulation_schema` 中存在具名 `UNIQUE KEY` 或唯一索引，必须写入 `table_schema.unique_keys`，并显式保留唯一键对应的字段列表；不要只保留主键而丢掉唯一键字段组合。
+      若当前表字段组合能够稳定匹配到其他表的唯一键字段组合，必须写入 `table_schema.foreign_keys`，其中本表字段放入 `fields`，被引用表字段放入 `ref_fields`。
+      若存在明显引用关系，但无法为被引用侧稳定识别唯一键字段组合，必须写入 `open_questions`，不得仅把 `foreign_keys` 留空。
+      `business_ontology` 内嵌 schema/字段描述不得覆盖、拼接、删改、重命名或重写 `simulation_schema` 原表结构；这些内容本身应被忽略。
+      若 `business_ontology` 内嵌 schema 与 `simulation_schema` 冲突，结构绑定一律以 `simulation_schema` 为准，必要时可进入 `open_questions`。
+      若 `attached` 对象输出的 `table_schema.fields` 少于原始主表字段数、只是 `supporting_fields` 的展开结果、混入仅存在于 `business_ontology` 内嵌 schema 的字段，或把 `varchar(64)`、`decimal(20,4)` 等原始类型改写为 `string`、`float` 等抽象类型，视为标准化不完整。
     output_artifacts:
       - name: ontology_mapping
         type: json
         schema_path: references/本体映射.schema.json
-      - name: or_ont
+      - name: or_ontology
         type: json
-        schema_path: references/算法本体模型.schema.json
+        schema_path: references/or_ontology.schema.json

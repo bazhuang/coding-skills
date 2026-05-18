@@ -1,282 +1,212 @@
 ---
 name: business-to-or-ontology
-description: Standardize business ontology inputs into a precise OR algorithm ontology. Use when Codex needs to normalize business objects, objectives, constraints, and data evidence into an accurate, shallow, natural-language-first result rather than a formulaized model.
+description: Standardize business ontology inputs into a precise or_ontology. Use when Codex needs to normalize business objects, objectives, constraints, and data evidence into an accurate, shallow, natural-language-first result rather than a formulaized model.
 ---
 
 # Business To OR Ontology
 
-将业务本体 `biz_ont` 标准化为可供后续建模使用的需供网络导向运筹算法本体 `or_ont`。
+将 `business_ontology` 标准化为需供网络导向的 `or_ontology`。
 
-术语口径：
+本 skill 只做一件事：从业务全景表达中剥离运筹问题内核，并把它标准化为浅层、可追溯、自然语言优先的运筹语义结果。
 
-- 业务本体：`biz_ont`
-- 运筹算法本体：`or_ont`
-- 运筹 DSL：`or_dsl`
+## 适用输入
 
-这个 skill 的目标只有两个：
+使用本 skill 时通常需要两类输入：
 
-1. 标准化
-2. 准确性
+- `business_ontology`：以对象、关系和规则组织的“运筹业务应用全景表达”。它不是优化问题的形式化定义，常混合对象定义、关系结构、流动机制、规则边界、管理流程、系统对象与运行口径。
+- `simulation_schema`：表 schema 或仿真表 schema，用于提供表结构、字段定义、主外键关系、唯一键/索引定义、仿真表定义及数据承载证据。
 
-它只负责从 `biz_ont` 到 `or_ont` 的标准化，不负责其他类型的产物生成。
+输入边界必须明确区分：
 
-## 适用范围
+- `business_ontology` 中若内嵌了对象 schema、字段清单、字段说明或表样例，这些内容一律忽略，不参与对象识别、规则抽取、结构绑定或命名判断。
+- `simulation_schema` 是数据结构真值来源；`table_schema`、字段全集、字段顺序、主键、唯一键、外键和表绑定状态只能以它为准。
+- `simulation_schema` 中的字段类型也必须原样保留到 `table_schema.fields[*].type`，例如 `varchar(64)`、`bigint(20) unsigned`、`decimal(20,4)`、`datetime`、`date`。
+- 不得把 `business_ontology` 内嵌 schema 与 `simulation_schema` 拼接、折中或混合成新的 `table_schema`。
+- 若 `business_ontology` 内嵌 schema 与 `simulation_schema` 冲突，直接忽略前者，只以 `simulation_schema` 为准；必要时可把冲突写入 `open_questions`。
 
-适用于“需供网络导向”的业务建模输入，尤其是输入中同时存在：
+若场景不能稳定表达为需供网络中的 `resource`、`node`、`edge`，本 skill 不是合适入口。
 
-1. 业务对象与角色说明
-   对应执行层输入名 `biz_ont`；必要时也可包含主业务目标、关键约束、边界条件、优先级、例外规则与口径说明
-2. 表 schema 或仿真表 schema
-   对应执行层输入名 `simulation_schema`
+## 必读资源
 
-典型结果应能落入需供网络元模型中的：
+按任务需要读取：
 
-- `resource`
-- `node`
-- `edge`
+- [execution_plan.yaml](execution_plan.yaml)：内部两阶段编排、输入输出 artifact。
+- [references/需供运筹元模型.md](references/需供运筹元模型.md)：`resource`、`node`、`edge` 及其子类定义。
+- [references/or_signal_inventory.schema.json](references/or_signal_inventory.schema.json)：阶段 1 输出 schema。
+- [references/本体映射.schema.json](references/本体映射.schema.json)：标准化过程输出 schema。
+- [references/or_ontology.schema.json](references/or_ontology.schema.json)：最终 `or_ontology` 输出 schema。
 
-以及其细分类：
+## 输出
 
-- `supply_node`
-- `demand_node`
-- `passthrough_node`
-- `processor_node`
-- `storage_node`
-- `transport`
-- `link`
+必须产出：
 
-若场景不适合用上述对象体系表达，这个 skill 就不是最合适的入口。
+- `or_signal_inventory`：阶段 1 中间信号。
+- `ontology_mapping`：阶段 2 映射过程与依据。
+- `or_ontology`：最终 `or_ontology`。
 
-## 输入特点
+所有输出必须符合对应 schema。不要输出决策变量、索引集合、线性化、松弛、惩罚设计、求解器代码或 `or_dsl`。
 
-执行层通常将本 skill 需要的源材料归并为以下两类输入：
+## 工作流程
 
-- `biz_ont`
-  - 承载业务对象、角色关系、资源流动与主体业务描述；在部分场景下也可同时包含主目标、关键约束、边界条件、优先级、例外规则与口径说明
-- `simulation_schema`
-  - 承载表 schema、字段结构、主外键关系、仿真表定义及其他数据承载证据
+### 1. 抽取运筹信号
 
-上面两个执行层输入名，分别承接本 skill 在“适用范围”中提到的两类业务材料；`biz_ont` 固定表示业务本体输入，语义仍以业务材料本身为准。
+从 `business_ontology` 和 `simulation_schema` 中剥离运筹问题内核，输出 `or_signal_inventory`。
 
-用户输入通常混有大量非建模内容，例如：
+抽取时必须先做源头分工：
 
-- 背景介绍
-- 组织分工
-- 系统建设说明
-- 实施路径
-- 宣传性描述
+- 从 `business_ontology` 抽业务对象语义、流动语义、目标语义、约束语义和规则口径。
+- 从 `simulation_schema` 抽表结构证据、字段证据、主键/唯一键/索引证据、关系证据和数据粒度证据。
+- `simulation_schema` 的字段类型按原始数据库类型字符串抽取，不做 `varchar -> string`、`decimal -> float`、`tinyint -> boolean/int` 这类归一化。
+- 忽略 `business_ontology` 内嵌 schema、字段清单、字段说明和表样例；它们不能作为 `simulation_schema` 的替代来源，也不能参与字段集合、对象命名或关系结构判断。
 
-处理时只保留以下信息：
+第一阶段输出要尽量短，只保留后续标准化真正需要的证据：
 
-- 业务目标
-- 业务约束
-- 对象角色
-- 资源流动
-- 场景边界
-- 优化优先级
-- 数据证据
+- `relevant_fragments` 只保留高价值短证据，不要大段复述输入。
+- 来自 `simulation_schema` 的证据优先通过表名引用，显式填写 `table_name`，必要时只补少量关键字段名。
+- 不要把整段 DDL、长字段串或长业务原文搬进中间文件；长输入应被压缩为“表名 + 关键字段/规则点”的可追溯信号。
+- `schema_evidence` 必须结构化保留 `table_name`、关键字段、`primary_key`、可稳定识别的 `unique_keys` 和 `foreign_keys`，不要仅写成自由文本说明。
 
-## 读取顺序
+抽取对象：
 
-先读取本文件，再按需读取下列文件：
+- 业务需求描述
+- 目标倾向
+- 约束规则
+- 资源流动对象
+- 供给、需求、中转、处理、存储节点
+- 运输或连接关系
+- 支撑上述内容的数据证据
 
-1. 内部执行阶段定义：
-   - [execution_plan.yaml](execution_plan.yaml)
-2. 元模型参考：
-   - [references/需供运筹元模型.md](references/需供运筹元模型.md)
-3. 中间信号结果 schema：
-   - [references/or_signal_inventory.schema.json](references/or_signal_inventory.schema.json)
-4. 标准化过程 schema：
-   - [references/本体映射.schema.json](references/本体映射.schema.json)
-5. 最终标准化结果 schema：
-   - [references/算法本体模型.schema.json](references/算法本体模型.schema.json)
+过滤对象：
 
-## 能力边界
+- 只提供语境、组织、系统建设或实施过程的内容。
+- 只表达管理流程、操作流程、系统流程或结果呈现的内容。
+- 只表达状态流转、权限职责、记录追踪或数据治理的内容。
+- 不能稳定支撑运筹问题内核的数据结构说明。
 
-本 skill 只做“标准化表达”，不做“深入建模表达”。
+流程机制中只有稳定表达优化需求或约束的规则才抽取。判断依据是它是否限定了可行域、资源流动、对象匹配、数量边界、时间边界、优先级、条件作用或例外作用；单纯流程顺序、操作动作、状态流转或系统交互不得抽取为约束。
 
-### 要做的事
+### 2. 标准化运筹本体
 
-- 过滤无关输入
-- 抽取与运筹建模直接相关的业务信号
-- 将业务对象归一到需供网络元模型
-- 将目标、约束、数据证据整理成可追溯的浅层表达
-- 暴露信息不足或语义不稳定的问题
+基于 `or_signal_inventory` 标准化对象、目标、约束和数据证据，并重新使用 `simulation_schema` 做结构核对，输出 `ontology_mapping` 与 `or_ontology`。
 
-### 不做的事
+阶段 2 不重新大范围筛读原始业务输入，不引入上游信号中没有出现的核心业务对象、目标或约束。必须补充弱推理时，只能补高度确定的信息，并显式写出 `is_inferred` 与 `inference_basis`。`simulation_schema` 在这一阶段的职责是核对和完整转录表结构，而不是重新发明业务语义。
 
-- 不输出 `or_ont` 之外的其他实现形态
-- 不输出决策变量、索引集合及其线性化、松弛、惩罚设计等可执行公式细节
-- 不引入与标准化无关的配置结构或实现细节
-- 不为了“完整”牺牲“准确”
+## 标准化规则
 
-若某段内容是否影响目标或约束无法稳定判断，优先写入 `open_questions`，不要直接当作建模事实。
+### 运筹内核
 
-## 内部流程
+- `business_ontology` 不是“目标函数 + 约束集合”的形式化模型，不能机械转写。
+- 先判断内容是否属于运筹问题内核，再做标准化。
+- 数据结构、流程机制和方案管理逻辑只有在稳定支撑资源、节点、连接、目标或约束的抽象语义时才保留为证据。
+- 不确定内容写入 `open_questions`，不要用猜测补成建模事实。
 
-这个 skill 对外是一个能力单元，对内按两阶段工作。
+### 对象
 
-### 阶段 1：抽取运筹信号
+对象必须优先落入元模型既有类型：
 
-目标：从混合业务输入中提取与运筹建模直接相关、可追溯的中间信号。
+- `resource`：在网络中被供给、运输、消耗、存储或转化的真实流动对象。
+- `node`：承载资源产生、消耗、中转、处理或存储的对象。
+- `edge`：承载节点之间资源转移或映射连接的对象。
 
-输出必须符合 [references/or_signal_inventory.schema.json](references/or_signal_inventory.schema.json)。
+识别顺序：
 
-这一阶段重点做：
+1. 先识别真正流动的 `resource`。
+2. 再识别承载资源流动的 `node`。
+3. 最后识别承载流动或映射关系的 `edge`。
 
-- 相关片段筛选与 schema 证据保留
-- 候选对象、目标、约束抽取
-- `open_questions` 暴露
+不要把管理性对象、规则性对象、结果性对象、组织性对象、流程性对象或记录性对象直接当成 `resource`。若对象只是资源供给或需求的记录载体，应继续判断其背后的节点角色。
 
-这一阶段不做：
+候选对象必须同时满足：
 
-- 不产出最终标准对象
-- 不产出最终 `or_ont`
-- 不产出深层公式化建模结果
+- 与当前场景目标、约束、流动对象、节点连接或关键数据路径直接相关。
+- 能独立承载对象语义或连接语义。
 
-### 阶段 2：标准化运筹算法本体
+仅提供治理性、追踪性、状态性、通用元数据或无直接业务作用的表，不进入 `candidate_entities`。
 
-目标：基于阶段 1 的信号结果，完成对象、目标、约束的标准化映射，并产出最终 `or_ont`。
+### 节点
 
-输出必须符合：
+- 向网络输出资源的一侧，优先识别为 `supply_node`。
+- 从网络接收并消耗资源的一侧，优先识别为 `demand_node`。
+- 只承担流入流出、不承担存储或转化功能的中转位置，优先识别为 `passthrough_node`。
+- 对资源执行加工、变换、处理等作用的对象，优先识别为 `processor_node`。
+- 对资源执行库存持有、储存释放、时间平移等作用的对象，优先识别为 `storage_node`。
 
-- [references/本体映射.schema.json](references/本体映射.schema.json)
-- [references/算法本体模型.schema.json](references/算法本体模型.schema.json)
+若输入明确存在供给、需求、传输或匹配语义，结果应优先形成 `resource + node + edge` 的网络表达。
 
-这一阶段重点做：
+### 线路
 
-- 对象、目标、约束标准化
-- 数据支撑整理与映射依据记录
-- `open_questions` 收敛
+- 存在承载资源在节点间发生实际转移的通道语义时，优先识别为 `transport`。
+- 仅表达节点或对象之间的非转移型连接语义，且不承载资源实际转移时，优先识别为 `link`。
+- 不要把所有节点关系默认识别成 `transport`。
 
-这一阶段不做：
+稳定承载连接语义、且不能稳定描述任一端对象自身属性的数据结构，默认先按 `link` 候选处理。若它稳定表达对象间非转移型连接关系，即使暂时不能精确落到 `edge` 子类，也必须作为独立候选对象进入 `candidate_entities`。
 
-- 不重新大范围筛原始业务文本
-- 不凭空补充业务事实
-- 不越界进入求解器或 `or_dsl` 表达
+### 数据证据
 
-## 标准化原则
+schema 只提供数据承载与粒度证据，不替代业务语义。
 
-### 1. 先筛选，再标准化
+这里的 schema 默认指 `simulation_schema`。`business_ontology` 中出现的 schema 片段、字段示例、属性列举、对象属性说明一律忽略，不参与 `attached` 对象 `table_schema` 的直接来源判断。
 
-- schema 的作用是提供数据承载与粒度证据，不替代业务语义本身
-- 对无关信息不做总结式保留，避免污染后续结果
-- 对不确定内容保持克制，不以猜测替代标准化
+对关注的非 `resource` 对象，必须显式说明 schema 绑定状态：
 
-### 2. 先识别流动对象，再识别网络角色
+- `attached`：对象直接绑定到主表；必须按 `simulation_schema` 中原表逐字段完整转录 `table_schema`，保留字段顺序、原始字段类型文本、主键、可稳定识别的唯一键和外键信息。
+- `referenced`：只能稳定确认来源表；填写 `supporting_tables`，必要时补 `supporting_fields`。
+- `missing`：无法稳定确认数据支撑；写入 `open_questions`。
 
-- 先识别真正被供给、运输、消耗、存储或转化的 `resource`
-- 再识别承载其流动的 `node`
-- 最后识别承载流动或映射关系的 `edge`
-- 所有业务对象都优先映射到元模型既有类型，不先创造新的顶层对象类型
+若某个 `node` 同时受实体主表和关系表支撑，优先将描述对象自身属性的实体主表绑定为 `table_schema`；关系表保留为连接证据。
 
-对象识别时遵循：
+若某个 `edge` 同时受实体主表和关系表支撑，优先将直接定义关系语义及字段来源的关系表绑定为 `table_schema`；实体主表只作补充证据。
 
-- `resource` 优先表示场景中真实流动的业务对象
-- 不要把合同、计划、规则、模型、结果、组织单元、流程步骤等管理性、承载性对象直接当成 `resource`
-- 不要把资源的商业载体误写成资源本身
-- 不要把节点上的业务记录误写成节点类型
-- 若某个对象更像资源供给/需求的记录载体，应继续判断其对应的节点角色，而不是直接归为 `resource`
-- 若输入明确存在供给、需求、传输或匹配语义，结果应优先形成 `resource + node + edge` 的网络表达
-- 若业务对象无法直接稳定落入某一类型，应在过程输出与最终输出中明确记录映射理由，再决定是否拆分角色或暴露为 `open_questions`
-- 对关注的非 `resource` 对象，必须显式说明 schema 绑定情况：能稳定绑定主表时使用 `schema_binding_status = attached` 并填写 `table_schema`；此时必须根据 `simulation_schema` 中对应主表逐表完整转录原始 schema，不得输出字段级摘要、筛选结果或关键字段子集。只能稳定确认来源表时保留 `supporting_tables` / `supporting_fields`；无法稳定确认时写入 `open_questions`。不要构造假的表 schema
-- 若某个 `node` 同时受实体主表和关系表支撑，优先把稳定描述该对象自身属性的实体主表绑定为 `table_schema`；关系表只保留为连接证据。
-- 若某个 `edge` 同时受实体主表和关系表支撑，优先把直接定义该关系语义及其字段来源的关系表绑定为 `table_schema`；实体主表只保留为补充证据。
-- 判断能否挂主表 schema 时，看该表是否稳定描述对象自身，而不是它是否还需其他表辅助连接；能单独回答“对象是谁、有哪些自身属性”的表，通常应优先作为主表 schema
-- `attached` 表示对象直接绑定到某张主表；一旦采用该绑定，`table_schema` 就必须按原表逐字段完整转录，字段顺序、主键以及可稳定识别的索引/外键信息都应随主表保留，不要再做字段重要性判断、裁剪或摘要化处理
-- 若 `attached` 对象输出的 `table_schema.fields` 少于原始主表字段，或明显只是 `supporting_fields` 的展开结果，视为标准化失败
-- 阶段 1 的候选资格有两个门槛：与当前场景直接相关；能独立承载对象语义或连接语义。两者缺一不可
-- 若一张表稳定承载对象语义或连接语义，即使暂时不能精确落到 `node` / `edge` 细类，也应先保留为候选，再在后续阶段细化分类
-- 审计字段、通用元数据、纯版本控制、与当前场景目标/约束/对象无直接关系的表，不进入 `candidate_entities`
+不得编造表 schema。不得用 `business_ontology` 内嵌 schema 去补齐、删减、改名、改序、改类型或覆盖 `simulation_schema` 原表字段。若 `attached` 对象输出的 `table_schema.fields` 少于原始主表字段数，明显只是 `supporting_fields` 的展开结果，混入仅存在于 `business_ontology` 内嵌 schema 而不在 `simulation_schema` 中的字段，或把原始数据库类型擅自归一化为 `string`、`float`、`boolean` 等抽象类型，视为失败。
 
-节点角色识别时遵循：
+若 `simulation_schema` 中能稳定识别 `UNIQUE KEY` 或唯一索引，必须写入 `table_schema.unique_keys`，并显式列出唯一键对应的字段组合；不要只保留“有唯一键”这一事实。
 
-- 向网络输出资源的一侧，优先识别为 `supply_node`
-- 从网络接收并消耗资源的一侧，优先识别为 `demand_node`
-- 只承担流入流出、不承担存储或转化功能的中转位置，优先识别为 `passthrough_node`
-- 对资源执行加工、变换、处理等作用的对象，优先识别为 `processor_node`
-- 对资源执行库存持有、储存释放、时间平移等作用的对象，优先识别为 `storage_node`
+### 目标
 
-### 3. 线路识别以“是否承载实体运输”为分界
+- 目标保持浅层、自然语言优先。
+- 先拆出清晰、独立的 `objective_terms`，再用 `objective_aggregation` 说明总目标如何包含这些子项。
+- 即使业务本质上是单一总目标，只要它由多个可独立解释的业务价值项或代价项构成，也应拆成目标子项。
+- 只有原文无法稳定拆解构成项时，才允许退化为单项目标。
+- 如需表达式，只允许自然语言加简单数学符号，不输出求解器可直接使用的严格目标函数。
 
-- 存在实体运输、配送、输送等承载资源转移语义的，优先识别为 `transport`
-- 仅表达映射、归属、关联、可达、连通等关系而不承载实体运输的，优先识别为 `link`
-- 不要把所有节点关系默认都识别成 `transport`
-- 若某张表的核心作用是连接两个已识别对象，主体字段是两端对象编码、外键或对照关系，且不稳定描述任一对象自身属性，应优先提升为 `link`，而不是并入某个 `node` 的主表 schema
-- 对对照表、关系表、映射表、挂接表、关联表这类纯连接型表，默认先按 `link` 候选处理；只有在其同时稳定承载对象自身属性时，才考虑并回对象表
-- 这类连接型表在阶段 1 至少要先作为独立候选对象进入 `candidate_entities`；若暂时不能稳定落到 `link`，也应保留为连接候选，而不是仅留在 `schema_evidence`
+### 约束
 
-### 4. 目标保持浅层、自然语言优先
-
-- 目标必须先拆成清晰、独立的目标子项，再给出总目标如何包含这些子项的汇总表达
-- 即使业务本质上是单一总目标，只要它由收入项、成本项、惩罚项等构成，也应先将这些构成项写入 `objective_system.objective_terms`
-- `objective_system.objective_aggregation` 必须写清总目标名称、业务含义、聚合表达，以及它包含哪些子项
-- 只有当原文确实没有可稳定拆解的构成项时，才允许 `objective_terms` 只保留一个总目标子项
-- 若必须补表达式，只允许“自然语言 + 简单数学符号”
-- 不要输出求解器可直接使用的严格目标函数定义
-
-### 5. 约束按“单条规则单条表达”处理
-
-表达原则：
-
-- 一条业务约束对应一条标准化约束
-- 约束以自然语言表达为主，必要时只补简洁符号
-- 不要把多类规则压缩成单条笼统约束
-- 若一段原文中包含多条彼此解耦的约束，只要能够基于原文与上下文做稳定的弱推理拆分，就应拆成多条标准化约束，而不是因为它们写在一句话里就强行合并
-- 只要能够识别出约束语义，就应先抽取为约束，不因确定性不足而直接遗漏；确定性通过 `confidence` 表达，而不是用省略代替判断
-- 约束自信度统一分为三级：`high`、`medium`、`low`
-- 不要补 decision variable、bound 推导、slack 设计、线性化策略、公式实现
+- 一条业务规则对应一条约束表达。
+- 约束以自然语言表达为主，必要时只补简洁符号。
+- 不把多类规则压缩成单条笼统约束。
+- 若一段原文包含多条彼此解耦的约束，应拆成多条。
+- 只要识别出约束语义，就先抽取为约束；确定性通过 `confidence` 表达，不用省略代替判断。
+- `confidence` 只能是 `high`、`medium`、`low`。
+- 不补决策变量、bound 推导、slack 设计、线性化策略或公式实现。
 
 约束来源：
 
-- 第一来源是业务规则文本，包括 `biz_ont` 中直接出现的关键约束、边界条件、优先级、例外规则与口径说明
-- 第二来源是 `simulation_schema` 中语义明确、指向稳定的约束字段，例如上下界、容量、最低履约、服务门槛、条件触发等
-- 若同一段原文或同一组字段同时承载多条彼此独立的规则，例如“容量/上下界”和“优先级/必达/最低服务水平/强制履约”，必须拆成多条约束，不能合并成一条复合描述
+- `business_ontology` 中明确限定可行域、边界、优先级、条件作用、例外作用或业务口径的规则。
+- `simulation_schema` 中语义明确、作用对象稳定、能够表达数量边界、状态边界、关系边界、时间边界或条件作用的字段。
 
-阶段 1 如何抽取：
+候选约束进入阶段 2 后，要么落入正式约束，要么在 `open_questions` 中说明无法稳定标准化的原因；不得静默丢失。
 
-- 业务文本中识别出的约束，要逐条进入 `candidate_constraints`，不要因自信度较低而省略
-- `simulation_schema` 中识别出的约束字段，要抽取为 `candidate_constraints`；其中，若某个字段的作用对象已明确是 `node` 或 `edge`，且字段名语义明确表达约束含义，则该字段直接视为约束，不再作为待确认信号处理
-- 每条 `candidate_constraints` 都必须给出 `confidence`，取值只能是 `high`、`medium`、`low`
-- 只有在无法稳定整理成一条可表达的约束时，相关疑点才写入 `open_questions`
+若某个 schema 约束字段的作用对象已明确是 `node` 或 `edge`，且字段名或字段说明明确表达约束语义，必须进入 `candidate_constraints`，并在阶段 2 落入对应对象的正式约束，除非存在明确冲突证据。
 
-阶段 2 如何落地：
+### 推理与问题
 
-- 只允许基于上游已抽取的候选约束做标准化，不重新发明新的核心约束来源
-- 上游已抽出的候选约束，要么落入正式约束，要么在 `open_questions` 中说明为什么仍无法稳定标准化，不能静默丢失
-- 正式约束必须保留 `confidence`，并与上游候选约束的判断保持一致；若阶段 2 调整了表达粒度或拆分方式，应同步重新判断对应约束的 `confidence`
-- 若某个 schema 约束字段的作用对象已明确是 `node` 或 `edge`，且字段名语义明确表达约束含义，则在本阶段必须直接落入对应对象的正式约束，而不是继续悬置为待确认问题
-
-阶段级拆分、保留与落地规则以 [execution_plan.yaml](execution_plan.yaml) 为准；本节只保留统一原则，用来帮助快速判断“哪些算约束、从哪里抽、何时落地”。
-
-### 6. 推理必须弱、显式、可回溯
-
-- 优先保留用户原意，不为了“完整”牺牲准确
-- 只允许高度确定且有明确依据的弱推理
-- 所有推理项都要显式标记 `is_inferred`
-- 推理无法稳定成立时，写入 `open_questions`
-
-## 输出结构
-
-最终输出包括两个正式文件和一个中间文件：
-
-1. 过程文件：记录标准化过程与依据
-2. 最终文件：记录标准化后的运筹语义结果
-3. 中间文件：`or_signal_inventory`
-
-三者都服务于“准确标准化”，不服务于“直接建模求解”。
+- 只允许高度确定且有明确依据的弱推理。
+- 所有推理项都要显式标记 `is_inferred`，并填写 `inference_basis`。
+- `open_questions` 只暴露已经出现但信息不足或语义不稳定的疑点。
+- `open_questions` 至少包含 `question`，可提供时补充 `evidence_ids` 与 `impact`。
 
 ## 质量检查
 
-提交最终结果前，至少检查以下问题：
+提交前检查：
 
-1. 是否引入了用户未提供且无充分依据的新概念
-2. 是否把目标误写成约束，或把约束误写成目标
-3. 是否把一条约束拆坏或合并错
-4. 是否为了“像模型”而写出了过深公式
-5. 是否遗漏了数据支撑不足或语义不稳定的提示
-6. 是否把承载资源的业务记录误写成 `resource`
-7. 是否遗漏了明显存在的 `supply_node` 或 `demand_node`
-8. 是否混淆了 `resource`、节点与线路的语义层级
-9. 场景中真正流动的 `resource` 是否已被单独识别
-10. 若某一层无法稳定识别，是否已在 `open_questions` 中明确暴露
+1. 是否引入了用户未提供且无充分依据的新概念。
+2. 是否把目标误写成约束，或把约束误写成目标。
+3. 是否遗漏、合并错或拆坏约束。
+4. 是否为了“像模型”而写出过深公式。
+5. 是否把管理性对象、记录载体或流程动作误写成 `resource`、`node` 或 `edge`。
+6. 是否遗漏明显存在的 `supply_node`、`demand_node` 或 `edge`。
+7. 是否混淆 `resource`、`node` 与 `edge` 的语义层级。
+8. `attached` 对象的 `table_schema` 是否完整转录原始主表。
+9. 上游候选目标和候选约束是否都已落入正式结果或 `open_questions`。
+10. 所有 schema 输出是否满足对应 JSON Schema。
+11. 是否错误地让 `business_ontology` 内嵌 schema 干扰了 `simulation_schema` 的字段集合、字段顺序、主键、唯一键或表选择。
