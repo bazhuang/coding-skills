@@ -1,0 +1,86 @@
+skill: or-ontology-time-discretization-adaptation
+
+input_contract:
+  or_ontology:
+    semantic_role: 原始 or_ontology
+    expected_content:
+      - 问题框架
+      - 算法对象
+      - 目标系统
+      - 约束系统
+      - 映射依据
+      - 待确认问题
+  discretized_schema:
+    semantic_role: 时间离散后的数据表 schema
+    expected_content:
+      - 离散化表结构
+      - 字段定义
+      - 主键与唯一键
+      - 表注释
+      - 时间字段与来源标识字段
+
+substeps:
+  - id: analyze_discretization
+    purpose: 提取离散化时间轴、目标表 schema 证据、对象映射和字段替换关系，形成中间适配分析结果
+    include_inputs:
+      - or_ontology
+      - discretized_schema
+    include_references:
+      - references/time-discretization-adaptation-rules.md
+      - references/input_or_ontology.schema.json
+      - references/discretization_adaptation_notes.schema.json
+    task_appendix: |
+      本阶段只做离散化适配分析，不直接输出最终 or_ontology_time_discretized。
+      必须从 discretized_schema 中逐表抽取 schema_inventory，记录每张离散化表的字段、主键、唯一键和字段来源。
+      object_mappings[*].target_schema_evidence 必须引用 schema_inventory 中的目标表，并列出允许进入最终 table_schema 的字段名全集。
+      field_rewrites 只描述语义引用如何替换；不得把 field_rewrites 当作最终 table_schema 字段清单。
+      schema_inventory 中字段类型要保留离散化目标表里的原始数据库类型文本。
+      unique_keys 必须来自 discretized_schema 中目标离散化表的唯一键证据；目标表无唯一键证据时不要补造。
+    output_artifacts:
+      - name: discretization_adaptation_notes
+        type: json
+        schema_path: references/discretization_adaptation_notes.schema.json
+
+  - id: adapt_ontology
+    purpose: 基于离散化分析结果生成适配后的 or_ontology_time_discretized 草案
+    include_inputs:
+      - or_ontology
+      - discretized_schema
+    include_artifacts:
+      - analyze_discretization.discretization_adaptation_notes
+    include_references:
+      - references/time-discretization-adaptation-rules.md
+      - references/or_ontology_time_discretized.schema.json
+    task_appendix: |
+      本阶段基于原 `or_ontology`、`discretized_schema` 和上游 `discretization_adaptation_notes` 生成适配草案。
+      对 attached 对象，table_schema 必须按 target_schema_evidence 指向的离散化表完整重建。
+      table_schema.fields、primary_key、unique_keys 和 foreign_keys 只能来自 discretized_schema 的目标表证据，不能从原始 or_ontology 的旧 table_schema 搬运。
+      table_schema.unique_keys 必须继承目标离散化表 schema 中可稳定识别的唯一键字段组合；目标表无唯一键证据时不要从原始 or_ontology 补造。
+      table_schema.fields[*].type 必须保留 discretized_schema 的原始数据库类型文本，不得改写为 string、float、boolean 等抽象类型。
+    output_artifacts:
+      - name: or_ontology_time_discretized
+        type: json
+        schema_path: references/or_ontology_time_discretized.schema.json
+
+  - id: validate_schema_alignment
+    purpose: 对草案做 schema 证据一致性校验，并输出最终 or_ontology_time_discretized
+    include_inputs:
+      - discretized_schema
+    include_artifacts:
+      - analyze_discretization.discretization_adaptation_notes
+      - adapt_ontology.or_ontology_time_discretized
+    include_references:
+      - references/time-discretization-adaptation-rules.md
+      - references/or_ontology_time_discretized.schema.json
+    task_appendix: |
+      本阶段只做最终一致性修正，不重建业务语义。
+      必须逐个 attached 对象检查 table_schema.table_name 是否存在于 discretized_schema 或被保守保留为原始非离散维表。
+      对已映射到离散化主表的对象，table_schema.fields 必须与 discretized_schema 中该目标表字段集合一致；删除目标表中不存在的旧字段，补齐目标表中遗漏的字段。
+      对已映射到离散化主表的对象，table_schema.fields[*].type 必须与 discretized_schema 中对应字段的原始数据库类型文本一致。
+      对已映射到离散化主表的对象，table_schema.unique_keys 若存在，必须与 discretized_schema 中目标表的唯一键证据一致，且不得引用目标表不存在的字段。
+      delivery_start_time、delivery_end_time 等原日期区间字段若未出现在目标离散化表中，不得保留在 table_schema.fields；其语义应通过 time_period 或 open_questions 表达。
+      related_fields、supporting_fields 和目标/约束引用必须使用 target_schema_evidence 中存在的字段；找不到目标字段时写入 open_questions，不得引用不存在字段。
+    output_artifacts:
+      - name: or_ontology_time_discretized
+        type: json
+        schema_path: references/or_ontology_time_discretized.schema.json

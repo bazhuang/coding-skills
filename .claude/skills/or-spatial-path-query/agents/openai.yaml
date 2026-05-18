@@ -1,0 +1,7 @@
+interface:
+  display_name: "OR Spatial Path Query"
+  short_description: "Generate graph feasible-path queries from SQL"
+  default_prompt: "Use $or-spatial-path-query to derive graph database feasible path queries from graph modeling SQL."
+
+policy:
+  allow_implicit_invocation: true

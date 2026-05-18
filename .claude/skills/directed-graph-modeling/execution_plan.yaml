@@ -1,0 +1,44 @@
+substeps:
+  - id: generate_schema_meta
+    type: llm
+    purpose: |
+      读取输入的 or_ontology JSON，从 algorithm_objects.objects 中筛选 node/edge 对象，
+      按映射规则生成 nebula_schema_meta.json 结构化中间态，必须通过 nebula_schema_meta.schema.json 校验。
+    include_inputs:
+      - or_ontology
+    output_artifacts:
+      - name: nebula_schema_meta
+        type: json
+        schema_path: references/nebula_schema_meta.schema.json
+
+  - id: render_ddl_and_executor
+    type: llm
+    purpose: |
+      基于校验通过的 nebula_schema_meta.json 中间态，渲染 nebula_schema.sql DDL 语句，
+      并生成 ddl_executor.py 执行代码。
+      渲染 DDL 时，必须从 or_ontology 中读取对应对象的 table_schema.fields[].desc，
+      作为 NebulaGraph TAG/EDGE 字段的 COMMENT 值。
+    include_artifacts:
+      - generate_schema_meta.nebula_schema_meta
+    include_inputs:
+      - or_ontology
+    output_artifacts:
+      - name: nebula_schema
+        type: sql
+      - name: ddl_executor
+        type: python
+
+  - id: execute_ddl
+    type: action
+    purpose: 将生成的 DDL 语句执行到 NebulaGraph 集群
+    action: subprocess
+    command:
+      - "python3"
+      - "{step_dir}/ddl_executor.py"
+      - "--ddl"
+      - "{step_dir}/nebula_schema.sql"
+      - "--config"
+      - "db/config/nebula_config.json"
+    depends_on:
+      - render_ddl_and_executor
+    on_failure: abort

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mysql_config.schema.json",
+  "title": "MySQL Configuration",
+  "description": "MySQL 数据库连接通用配置 Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["host", "port", "database", "username", "password"],
+  "properties": {
+    "host": {
+      "type": "string",
+      "description": "MySQL 服务器地址",
+      "format": "hostname"
+    },
+    "port": {
+      "type": "integer",
+      "description": "MySQL 端口号",
+      "minimum": 1,
+      "maximum": 65535,
+      "default": 3306
+    },
+    "database": {
+      "type": "string",
+      "description": "目标数据库名",
+      "minLength": 1
+    },
+    "username": {
+      "type": "string",
+      "description": "连接用户名",
+      "minLength": 1
+    },
+    "password": {
+      "type": "string",
+      "description": "连接密码"
+    },
+    "charset": {
+      "type": "string",
+      "description": "字符集",
+      "enum": ["utf8", "utf8mb4"],
+      "default": "utf8mb4"
+    },
+    "pool_size": {
+      "type": "integer",
+      "description": "连接池最大连接数",
+      "minimum": 1,
+      "default": 5
+    },
+    "pool_recycle": {
+      "type": "integer",
+      "description": "连接回收间隔（秒）",
+      "minimum": 0,
+      "default": 3600
+    },
+    "pool_pre_ping": {
+      "type": "boolean",
+      "description": "使用前心跳检测",
+      "default": true
+    },
+    "connect_timeout": {
+      "type": "integer",
+      "description": "连接超时（秒）",
+      "minimum": 0,
+      "default": 10
+    },
+    "extra_params": {
+      "type": "object",
+      "description": "额外连接参数（如 useUnicode、useSSL 等）",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

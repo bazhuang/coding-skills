@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "or-data-loader-code/or_ontology_time_discretized.schema.json",
+  "title": "or_ontology_time_discretized",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "problem_frame",
+    "algorithm_objects",
+    "objective_system",
+    "constraint_system",
+    "mapping_rationale",
+    "open_questions"
+  ],
+  "properties": {
+    "problem_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "problem_type",
+        "optimization_goal",
+        "time_granularity",
+        "business_scope"
+      ],
+      "properties": {
+        "problem_type": { "type": "string" },
+        "optimization_goal": { "type": "string" },
+        "time_granularity": { "type": "string" },
+        "business_scope": { "type": "string" }
+      }
+    },
+    "algorithm_objects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "objects" ],
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/algorithmObject" }
+        }
+      }
+    },
+    "objective_system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objective_type",
+        "objective_terms",
+        "objective_aggregation"
+      ],
+      "properties": {
+        "objective_type": {
+          "type": "string",
+          "enum": [ "maximize", "minimize", "balance", "satisfy_priority" ]
+        },
+        "objective_terms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/objectiveTerm" }
+        },
+        "objective_aggregation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary_name",
+            "business_meaning",
+            "expression",
+            "expression_style",
+            "includes_terms"
+          ],
+          "properties": {
+            "summary_name": { "type": "string" },
+            "business_meaning": { "type": "string" },
+            "expression": { "type": "string" },
+            "expression_style": {
+              "type": "string",
+              "enum": [ "natural_language", "natural_language_with_symbols" ]
+            },
+            "includes_terms": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "constraint_system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "constraints" ],
+      "properties": {
+        "constraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/constraintItem" }
+        }
+      }
+    },
+    "mapping_rationale": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/openQuestion" }
+    }
+  },
+  "$defs": {
+    "dataTable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "table_name", "table_desc", "fields", "primary_key" ],
+      "properties": {
+        "table_name": { "type": "string" },
+        "table_desc": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dataField" }
+        },
+        "primary_key": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "unique_keys": {
+          "description": "从 discretized_schema 中目标离散化表继承的唯一键字段组合。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/uniqueKey" }
+        },
+        "foreign_keys": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/foreignKey" }
+        },
+        "time_field": { "type": "string" }
+      }
+    },
+    "dataField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "name", "type", "desc", "is_required" ],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "desc": { "type": "string" },
+        "is_required": { "type": "boolean" }
+      }
+    },
+    "uniqueKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "fields" ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "foreignKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "field", "ref_table", "ref_field" ],
+      "properties": {
+        "field": { "type": "string" },
+        "ref_table": { "type": "string" },
+        "ref_field": { "type": "string" }
+      }
+    },
+    "algorithmObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_name",
+        "object_category",
+        "object_type",
+        "source_business_entities",
+        "grain",
+        "business_role",
+        "data_support"
+      ],
+      "properties": {
+        "object_name": { "type": "string" },
+        "object_category": {
+          "type": "string",
+          "enum": [ "resource", "node", "edge" ]
+        },
+        "object_type": {
+          "type": "string",
+          "enum": [
+            "resource",
+            "supply_node",
+            "demand_node",
+            "passthrough_node",
+            "processor_node",
+            "storage_node",
+            "transport",
+            "link"
+          ]
+        },
+        "source_business_entities": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "schema_binding_status": {
+          "type": "string",
+          "enum": [ "not_applicable", "attached", "referenced", "missing" ]
+        },
+        "supporting_tables": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "supporting_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "table_schema": { "$ref": "#/$defs/dataTable" },
+        "grain": { "type": "string" },
+        "business_role": { "type": "string" },
+        "edge_endpoints": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "data_support": {
+          "type": "string",
+          "enum": [ "full", "partial", "missing", "unknown" ]
+        }
+      }
+    },
+    "objectiveTerm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "business_meaning",
+        "expression",
+        "expression_style",
+        "related_tables",
+        "related_fields",
+        "is_inferred"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "business_meaning": { "type": "string" },
+        "expression": { "type": "string" },
+        "expression_style": {
+          "type": "string",
+          "enum": [ "natural_language", "natural_language_with_symbols" ]
+        },
+        "related_tables": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "related_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "is_inferred": { "type": "boolean" },
+        "inference_basis": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "constraintItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "constraint_category",
+        "business_meaning",
+        "expression",
+        "expression_style",
+        "confidence",
+        "related_tables",
+        "related_fields",
+        "data_support"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "constraint_category": { "type": "string" },
+        "business_meaning": { "type": "string" },
+        "expression": { "type": "string" },
+        "expression_style": {
+          "type": "string",
+          "enum": [ "natural_language", "natural_language_with_symbols" ]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [ "high", "medium", "low" ]
+        },
+        "related_tables": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "related_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "data_support": {
+          "type": "string",
+          "enum": [ "full", "partial", "missing", "unknown" ]
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "openQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "question" ],
+      "properties": {
+        "question": { "type": "string" },
+        "evidence_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "impact": { "type": "string" }
+      }
+    }
+  }
+}

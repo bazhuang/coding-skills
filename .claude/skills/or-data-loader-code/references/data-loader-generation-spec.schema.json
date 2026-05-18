@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-loader-generation-spec.schema.json",
+  "title": "Data Loader Generation Spec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mysql_config_default_path",
+    "nebula_config_default_path",
+    "graph_path_queries_input",
+    "tables",
+    "path_queries",
+    "primary_key_mapping"
+  ],
+  "properties": {
+    "mysql_config_default_path": { "const": "db/config/mysql_config.json" },
+    "nebula_config_default_path": { "const": "db/config/nebula_config.json" },
+    "graph_path_queries_input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_path", "version_id_placeholder"],
+      "properties": {
+        "schema_path": { "type": "string" },
+        "version_id_placeholder": { "const": "{version_id}" }
+      }
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["table_name", "columns", "primary_key", "version_field"],
+        "properties": {
+          "table_name": { "type": "string" },
+          "columns": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "primary_key": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "version_field": { "type": ["string", "null"] },
+          "source_object_names": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "path_queries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query_name", "query_template"],
+        "properties": {
+          "query_name": { "type": "string" },
+          "query_template": {
+            "type": "string",
+            "pattern": "\\{version_id\\}"
+          }
+        }
+      }
+    },
+    "primary_key_mapping": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

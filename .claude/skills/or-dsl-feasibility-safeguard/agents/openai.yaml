@@ -1,0 +1,7 @@
+interface:
+  display_name: "OR DSL Feasibility Safeguard"
+  short_description: "Safeguard OR DSL feasibility"
+  default_prompt: "Use $or-dsl-feasibility-safeguard to analyze an operations-research DSL, classify softenable constraints into resource-like and non-resource-like boundary constraints, apply prioritized slack variables and penalty terms, and return the complete safeguarded DSL JSON."
+
+policy:
+  allow_implicit_invocation: true

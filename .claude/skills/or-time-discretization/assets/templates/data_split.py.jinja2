@@ -1,0 +1,781 @@
+"""
+数据拆分脚本
+
+从 NebulaGraph 查询数据，根据 time_discretization_config.json 的时间拆分配置进行拆分。
+拆分规则从 time_discretization_config 中读取，不再依赖 data_mapping.json。
+此文件由 or-gen 构建时自动生成。
+
+生成时间: {{ generated_at }}
+"""
+
+import json
+import logging
+import pandas as pd
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timedelta
+from pandas.tseries.frequencies import to_offset
+from nebula3.gclient.net import ConnectionPool
+from nebula3.Config import Config
+
+logger = logging.getLogger(__name__)
+
+
+# 时间粒度到 pandas offset 的映射
+TIME_INTERVAL_MAP = {
+    'Y': '1YS',
+    'Q': '1QS',
+    'M': '1MS',
+    'W': '1WS',
+    'D': '1D',
+}
+
+# 日期级粒度判断（用于 endpoint_strategy）
+DATE_LEVEL = {
+    'D', 'W', 'M', 'Q', 'Y', 'A',
+    'ME', 'QE', 'YE', 'WE',
+    'MS', 'QS', 'YS', 'WS'
+}
+
+
+def split_by_time_granularity(
+    df: pd.DataFrame,
+    start_time_col: str,
+    end_time_col: str,
+    total_col,  # str or list/tuple of str
+    interval: str,
+    distribution_method: str = "proportional",
+    endpoint_strategy: str = "auto",  # auto, inclusive, exclusive
+) -> pd.DataFrame:
+    """将时间区间按指定粒度拆分并将数值分配到每个时间槽。
+
+    实现流程：
+    1. 将 `start_time_col` 与 `end_time_col` 转为 `datetime`。
+    2. 使用 `pandas.tseries.frequencies.to_offset(interval)` 获取窗口长度 `offset`。
+    3. 逐行处理：从 `start.floor(interval)` 开始，按 `offset` 生成不重叠窗口
+        `[window_start, window_end)`，直到覆盖 `end`；对于每个窗口计算与原区间的
+        重叠秒数 `overlap_seconds`，并收集有重叠的窗口。
+    4. 根据 `distribution_method` 分配数值：
+        - `proportional`：按重叠时长比例分配，allocated_value = total * (overlap_seconds / total_seconds)。
+        - `equal`：将 `total` 平均分配到所有有重叠的窗口。
+    5. 为每个被分配的窗口创建新行，保留原始其他列并加入：
+        - `time_period`：窗口起点（作为该时间槽的标识）
+        - `allocated_value`：分配到该时间槽的数值
+
+    参数:
+    - df (pd.DataFrame): 输入表格。
+    - start_time_col (str): 起始时间列名。
+    - end_time_col (str): 结束时间列名。
+    - total_col (str or list[str]): 需要拆分的数值列名，支持单列字符串或字符串列表。
+    - interval (str): 粒度字符串（例如 'D', 'H', '15T'，由 pandas 解析）。
+    - distribution_method (str): 'proportional'（按重叠时长比例）或 'equal'（均分）。
+    - endpoint_strategy (str): 'auto'（自动判断）、'inclusive'（包含结束点）或 'exclusive'（不包含结束点）。
+
+    返回:
+        - pd.DataFrame: 每行对应一个 `time_period` 槽及若干 `allocated_<col>` 列，保留原始其他列；
+            当 `total_col` 为单列时，仍会保留兼容字段 `allocated_value`。原始的开始/结束时间列在返回结果中被移除。
+
+    注意:
+    - `time_period` 表示窗口的起点，窗口语义为半开区间 `[time_period, time_period + offset)`。
+    - 已对 NaN、无效区间（start >= end）和 `total_seconds == 0` 做基本保护；如需不同
+    的边界或包含端点语义，请自行调整实现。
+    - 对于跨越大量窗口的长时间区间，性能受窗口数量影响（每行按窗口数迭代）。
+    - 时区（timezone-aware）处理会继承 pandas 的 datetime 行为，必要时请先统一时区。
+    """
+
+    if endpoint_strategy == "auto":
+        if interval in DATE_LEVEL:
+            include_end = True
+        else:
+            include_end = False
+    elif endpoint_strategy == "inclusive":
+        include_end = True
+    else:
+        include_end = False
+
+    result_rows = []
+
+    # 确保时间列为 datetime
+    df = df.copy()
+
+    # 处理 NebulaGraph 的特殊数据类型
+    def convert_nebula_datetime(val):
+        """转换 NebulaGraph 的日期时间类型为 pandas datetime"""
+        if pd.isna(val):
+            return pd.NaT
+
+        # 如果已经是 datetime 类型，直接返回
+        if isinstance(val, (pd.Timestamp, datetime)):
+            return val
+
+        # 处理 NebulaGraph 的 DateWrapper/DateTimeWrapper
+        if hasattr(val, 'get_year'):
+            # DateWrapper: 有 get_year, get_month, get_day 方法
+            try:
+                year = val.get_year()
+                month = val.get_month()
+                day = val.get_day()
+                return pd.Timestamp(year=year, month=month, day=day)
+            except:
+                pass
+
+        if hasattr(val, 'get_hour'):
+            # DateTimeWrapper: 有完整的日期时间方法
+            try:
+                year = val.get_year()
+                month = val.get_month()
+                day = val.get_day()
+                hour = val.get_hour()
+                minute = val.get_minute()
+                second = val.get_sec()
+                microsecond = val.get_microsec()
+                return pd.Timestamp(
+                    year=year, month=month, day=day,
+                    hour=hour, minute=minute, second=second, microsecond=microsecond
+                )
+            except:
+                pass
+
+        # 尝试直接转换
+        try:
+            return pd.to_datetime(val)
+        except:
+            return pd.NaT
+
+    df[start_time_col] = df[start_time_col].apply(convert_nebula_datetime)
+    df[end_time_col] = df[end_time_col].apply(convert_nebula_datetime)
+
+    offset = to_offset(interval)
+
+    for _, row in df.iterrows():
+        start = row[start_time_col]
+        end = row[end_time_col]
+        # 支持单列或多列 total_col
+        if isinstance(total_col, (list, tuple)):
+            totals_keys = list(total_col)
+        else:
+            totals_keys = [total_col]
+
+        total_values = {k: row.get(k) for k in totals_keys}
+
+        # 调整结束时间：如果包含结束点，则加上一个时间单位
+        if include_end:
+            # 对于日期级粒度，结束时间需要包含当天结束时刻
+            end += pd.Timedelta(days=1)
+        else:
+            end = end
+
+        # 忽略无效区间
+        if pd.isna(start) or pd.isna(end) or start >= end:
+            continue
+
+        # 计算覆盖的窗口（以窗口起点为准）
+        # 对于非固定频率（月/季/年），不能用 floor，需要手动计算窗口起点
+        if interval in ('1YS', '1QS', '1MS', '1WS'):
+            if interval == '1MS':
+                cur = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            elif interval == '1QS':
+                month = ((start.month - 1) // 3) * 3 + 1
+                cur = start.replace(month=month, day=1, hour=0, minute=0, second=0, microsecond=0)
+            elif interval == '1YS':
+                cur = start.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            else:  # 1WS
+                cur = start - pd.Timedelta(days=start.weekday())
+                cur = cur.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            cur = start.floor(interval)
+
+        overlapping = []
+
+        while cur < end:
+            window_start = cur
+            window_end = cur + offset
+
+            overlap_start = max(start, window_start)
+            overlap_end = min(end, window_end)
+            overlap_seconds = max(0.0, (overlap_end - overlap_start).total_seconds())
+
+            if overlap_seconds > 0:
+                overlapping.append((window_start, window_end, overlap_seconds))
+
+            cur = window_end
+
+        if not overlapping:
+            continue
+
+        if distribution_method == "proportional":
+            total_seconds = (end - start).total_seconds()
+            for window_start, window_end, overlap_seconds in overlapping:
+                new_row = row.to_dict()
+                new_row["time_period"] = window_start
+
+                for k, v in total_values.items():
+                    allocated_col = f"allocated_{k}"
+                    allocated_val = 0.0
+                    if total_seconds > 0 and not pd.isna(v):
+                        allocated_val = v * (overlap_seconds / total_seconds)
+                    new_row[allocated_col] = allocated_val
+
+                # 兼容单列旧接口：保留 allocated_value
+                if len(totals_keys) == 1:
+                    new_row["allocated_value"] = new_row[f"allocated_{totals_keys[0]}"]
+
+                result_rows.append(new_row)
+        else:  # equal distribution among overlapping windows
+            n = len(overlapping)
+            if n == 0:
+                continue
+            for window_start, window_end, _ in overlapping:
+                new_row = row.to_dict()
+                new_row["time_period"] = window_start
+
+                for k, v in total_values.items():
+                    allocated_col = f"allocated_{k}"
+                    per = 0.0 if pd.isna(v) else (v / n)
+                    new_row[allocated_col] = per
+
+                if len(totals_keys) == 1:
+                    new_row["allocated_value"] = new_row[f"allocated_{totals_keys[0]}"]
+
+                result_rows.append(new_row)
+
+    if not result_rows:
+        # 构建返回列名（保留兼容 allocated_value）
+        allocated_cols = [f"allocated_{c}" for c in (total_col if isinstance(total_col, (list, tuple)) else [total_col])]
+        extra_cols = ["time_period"] + allocated_cols
+        if not isinstance(total_col, (list, tuple)):
+            extra_cols.append("allocated_value")
+        return pd.DataFrame(columns=list(df.columns) + extra_cols)
+
+    result_df = pd.DataFrame(result_rows)
+    # 移除原始的开始/结束时间列（使用单个 time_period 表示）
+    cols = [c for c in df.columns if c in result_df.columns and c not in (start_time_col, end_time_col)]
+    allocated_cols = [f"allocated_{c}" for c in (total_col if isinstance(total_col, (list, tuple)) else [total_col])]
+    extra = ["time_period"] + allocated_cols
+    if not isinstance(total_col, (list, tuple)):
+        extra.append("allocated_value")
+    return result_df[cols + extra]
+
+
+class DataSplitter:
+    """数据拆分器"""
+
+    def __init__(self, config_path: str, time_config_path: str, version: str = None, mysql_config_path: str = None):
+        """初始化拆分器
+
+        Args:
+            config_path: nebula_config.json 配置文件路径
+            time_config_path: time_discretization_config.json 配置文件路径
+            version: 版本号（可选，用于过滤特定版本的数据）
+            mysql_config_path: mysql_config.json 配置文件路径（用于存储拆分结果到MySQL）
+        """
+        self.config_path = Path(config_path)
+        self.time_config_path = Path(time_config_path)
+        self.mysql_config_path = Path(mysql_config_path) if mysql_config_path else None
+        self.version = version
+        self.config = self._load_config()
+        self.time_config = self._load_time_config()
+        self.mysql_config = self._load_mysql_config() if self.mysql_config_path else None
+        self.connection_pool = None
+        self.session = None
+        self.mysql_engine = None
+
+    def _load_config(self) -> Dict[str, Any]:
+        """加载 NebulaGraph 配置"""
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
+
+        with open(self.config_path, 'r', encoding='utf-8') as fp:
+            return json.load(fp)
+
+    def _load_time_config(self) -> Dict[str, Any]:
+        """加载时间拆分配置"""
+        if not self.time_config_path.exists():
+            raise FileNotFoundError(f"时间拆分配置文件不存在: {self.time_config_path}")
+
+        with open(self.time_config_path, 'r', encoding='utf-8') as fp:
+            return json.load(fp)
+
+    def _load_mysql_config(self) -> Dict[str, Any]:
+        """加载 MySQL 配置"""
+        if not self.mysql_config_path.exists():
+            raise FileNotFoundError(f"MySQL 配置文件不存在: {self.mysql_config_path}")
+
+        with open(self.mysql_config_path, 'r', encoding='utf-8') as fp:
+            return json.load(fp)
+
+    def connect(self):
+        """连接到 NebulaGraph 集群
+
+        一次性传入所有集群节点地址到 ConnectionPool.init，由连接池内部处理路由和故障转移。
+        """
+        logger.info("连接到 NebulaGraph...")
+
+        # 创建连接池配置
+        pool_config = Config()
+        pool_config.min_connection_pool_size = self.config['pool_config']['min_size']
+        pool_config.max_connection_pool_size = self.config['pool_config']['max_size']
+        pool_config.idle_time = self.config['pool_config']['idle_time']
+        pool_config.timeout = self.config['pool_config']['timeout']
+        pool_config.interval_check = self.config['pool_config']['interval_check']
+
+        # 构建集群地址列表，一次性传入
+        addresses = [
+            (server['host'], server['port'])
+            for server in self.config['cluster_servers']
+        ]
+        logger.info(f"  集群节点: {', '.join([f'{h}:{p}' for h, p in addresses])}")
+
+        self.connection_pool = ConnectionPool()
+        self.connection_pool.init(addresses, pool_config)
+
+        # 获取会话
+        self.session = self.connection_pool.get_session(
+            self.config['username'],
+            self.config['password']
+        )
+
+        # 切换到目标空间
+        use_space_sql = f"USE `{self.config['space']}`"
+        result = self.session.execute(use_space_sql)
+        if not result.is_succeeded():
+            raise RuntimeError(f"切换空间失败: {result.error_msg()}")
+
+        logger.info(f"✓ 成功连接到 NebulaGraph")
+        logger.info(f"  - 集群节点: {len(addresses)} 个")
+        logger.info(f"  - 空间: {self.config['space']}")
+
+        # 连接 MySQL（如果配置了）
+        if self.mysql_config:
+            self._connect_mysql()
+
+    def _connect_mysql(self):
+        """连接到 MySQL 数据库"""
+        from sqlalchemy import create_engine, text
+
+        logger.info("连接到 MySQL 数据库（用于存储拆分结果）...")
+        cfg = self.mysql_config
+        connection_string = (
+            f"mysql+pymysql://{cfg['username']}:{cfg['password']}"
+            f"@{cfg['host']}:{cfg['port']}/{cfg['database']}"
+            f"?charset={cfg.get('charset', 'utf8mb4')}"
+        )
+        self.mysql_engine = create_engine(
+            connection_string,
+            pool_size=cfg.get('pool_size', 5),
+            pool_recycle=cfg.get('pool_recycle', 3600),
+            pool_pre_ping=cfg.get('pool_pre_ping', True),
+            connect_args={'connect_timeout': cfg.get('connect_timeout', 10)}
+        )
+        with self.mysql_engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info(f"✓ 成功连接到 MySQL")
+        logger.info(f"  - 主机: {cfg['host']}:{cfg['port']}")
+        logger.info(f"  - 数据库: {cfg['database']}")
+
+    def disconnect(self):
+        """断开连接"""
+        if self.session:
+            self.session.release()
+            self.session = None
+
+        if self.connection_pool:
+            self.connection_pool.close()
+            self.connection_pool = None
+
+        logger.info("✓ 已断开 NebulaGraph 连接")
+
+        if self.mysql_engine:
+            self.mysql_engine.dispose()
+            self.mysql_engine = None
+            logger.info("✓ 已断开 MySQL 连接")
+
+    def query_tag_data(self, tag_name: str) -> pd.DataFrame:
+        """查询 TAG 数据
+
+        Args:
+            tag_name: TAG 名称
+
+        Returns:
+            DataFrame
+        """
+        if not self.version:
+            raise ValueError("查询图数据库时必须指定 version 参数")
+
+        logger.info(f"查询 TAG 数据: {tag_name}, 版本号: {self.version}")
+
+        # 通过 VID 版本号前缀过滤数据
+        query = f"MATCH (v:`{tag_name}`) WHERE id(v) STARTS WITH '{self.version}_' RETURN v"
+
+        result = self.session.execute(query)
+        if not result.is_succeeded():
+            raise RuntimeError(f"查询失败: {result.error_msg()}")
+
+        # 解析结果
+        rows = []
+        if result.row_size() > 0:
+            for row in result:
+                vertex = row.values()[0].as_node()
+                vid_full = vertex.get_id().as_string()
+
+                # 从 VID 中提取原始值（去掉版本号前缀）
+                if vid_full.startswith(f"{self.version}_"):
+                    vid_original = vid_full[len(self.version) + 1:]
+                else:
+                    vid_original = vid_full
+
+                row_data = {
+                    'vid': vid_full,
+                    'vid_original': vid_original
+                }
+
+                # 提取属性
+                for tag_name_inner in vertex.tags():
+                    props = vertex.properties(tag_name_inner)
+                    for prop_name, prop_value in props.items():
+                        row_data[prop_name] = self._convert_value(prop_value)
+
+                rows.append(row_data)
+
+        df = pd.DataFrame(rows)
+        logger.info(f"  ✓ 查询到 {len(df)} 条记录")
+
+        return df
+
+    def query_edge_data(self, edge_name: str) -> pd.DataFrame:
+        """查询 EDGE 数据
+
+        Args:
+            edge_name: EDGE 名称
+
+        Returns:
+            DataFrame
+        """
+        if not self.version:
+            raise ValueError("查询图数据库时必须指定 version 参数")
+
+        logger.info(f"查询 EDGE 数据: {edge_name}, 版本号: {self.version}")
+
+        # 通过 VID 版本号前缀过滤边的源点和目标点
+        query = f"MATCH (src)-[e:`{edge_name}`]->(dst) WHERE id(src) STARTS WITH '{self.version}_' AND id(dst) STARTS WITH '{self.version}_' RETURN e"
+
+        result = self.session.execute(query)
+        if not result.is_succeeded():
+            raise RuntimeError(f"查询失败: {result.error_msg()}")
+
+        # 解析结果
+        rows = []
+        if result.row_size() > 0:
+            for row in result:
+                edge = row.values()[0].as_relationship()
+                src_vid_full = edge.start_vertex_id().as_string()
+                dst_vid_full = edge.end_vertex_id().as_string()
+
+                # 从 VID 中提取原始值（去掉版本号前缀）
+                src_vid_original = src_vid_full[len(self.version) + 1:] if src_vid_full.startswith(f"{self.version}_") else src_vid_full
+                dst_vid_original = dst_vid_full[len(self.version) + 1:] if dst_vid_full.startswith(f"{self.version}_") else dst_vid_full
+
+                row_data = {
+                    'src_vid': src_vid_full,
+                    'dst_vid': dst_vid_full,
+                    'src_vid_original': src_vid_original,
+                    'dst_vid_original': dst_vid_original
+                }
+
+                # 提取属性
+                props = edge.properties()
+                for prop_name in props.keys():
+                    row_data[prop_name] = self._convert_value(props[prop_name])
+
+                rows.append(row_data)
+
+        df = pd.DataFrame(rows)
+        logger.info(f"  ✓ 查询到 {len(df)} 条记录")
+
+        return df
+
+    def _convert_value(self, value):
+        """转换 NebulaGraph 值为 Python 原生值"""
+        if value.is_null():
+            return None
+        elif value.is_bool():
+            return value.as_bool()
+        elif value.is_int():
+            return value.as_int()
+        elif value.is_double():
+            return value.as_double()
+        elif value.is_string():
+            return value.as_string()
+        elif value.is_date():
+            # DateWrapper → pd.Timestamp，提取组件构造
+            dt = value.as_date()
+            return pd.Timestamp(year=dt.get_year(), month=dt.get_month(), day=dt.get_day())
+        elif value.is_time():
+            # TimeWrapper → 字符串，使用 getter 方法提取组件
+            t = value.as_time()
+            return f"{t.get_hour()}:{t.get_minute()}:{t.get_sec()}"
+        elif value.is_datetime():
+            # DateTimeWrapper → pd.Timestamp，提取组件构造
+            dt = value.as_datetime()
+            return pd.Timestamp(
+                year=dt.get_year(), month=dt.get_month(), day=dt.get_day(),
+                hour=dt.get_hour(), minute=dt.get_minute(), second=dt.get_sec(),
+                microsecond=dt.get_microsec()
+            )
+        else:
+            return str(value)
+
+    def split_by_time_dimension(
+        self,
+        df: pd.DataFrame,
+        start_time_field: str,
+        end_time_field: str,
+        time_interval: str,
+        quantity_fields: List[str]
+    ) -> pd.DataFrame:
+        """根据时间维度拆分数据（使用内置的拆分逻辑）
+
+        Args:
+            df: 数据 DataFrame
+            start_time_field: 开始时间字段名
+            end_time_field: 结束时间字段名
+            time_interval: 时间拆分粒度（Y/Q/M/W/D）
+            quantity_fields: 需要按时间拆分的数量字段列表
+
+        Returns:
+            拆分后的 DataFrame，包含 time_period 和 allocated_<field> 列
+        """
+        logger.info(f"按时间维度拆分数据: interval={time_interval}, quantity_fields={quantity_fields}")
+
+        # 将 time_interval 映射为 pandas offset
+        interval_offset = TIME_INTERVAL_MAP.get(time_interval)
+        if not interval_offset:
+            raise ValueError(f"不支持的时间粒度: {time_interval}，支持: {list(TIME_INTERVAL_MAP.keys())}")
+
+        # 调用内置的拆分函数
+        result_df = split_by_time_granularity(
+            df=df,
+            start_time_col=start_time_field,
+            end_time_col=end_time_field,
+            total_col=quantity_fields,
+            interval=interval_offset,
+            distribution_method="proportional",
+            endpoint_strategy="auto"
+        )
+
+        logger.info(f"  ✓ 拆分后记录数: {len(result_df)}")
+
+        return result_df
+
+    def _save_split_df(self, split_df: pd.DataFrame, table_name: str, start_time_field: str = None, end_time_field: str = None, quantity_fields: List[str] = None) -> int:
+        """将拆分后的 DataFrame 写入 MySQL
+
+        写入目标为 DDL 定义的拆分结果表（discretized_{table_name}）。
+        仅保存 DataFrame 中存在的字段。
+
+        Args:
+            split_df: 拆分后的 DataFrame
+            table_name: 目标表名（与 discretized_schema.sql 中的表名一致）
+            start_time_field: 开始时间字段名（写入时排除）
+            end_time_field: 结束时间字段名（写入时排除）
+            quantity_fields: 量值原始字段列表（写入时排除）
+
+        Returns:
+            写入行数
+        """
+        from sqlalchemy import text
+
+        # 排除时间范围字段和量值原始字段，以及 NebulaGraph 内部标识列
+        exclude_cols = set()
+        if start_time_field:
+            exclude_cols.add(start_time_field)
+        if end_time_field:
+            exclude_cols.add(end_time_field)
+        if quantity_fields:
+            exclude_cols.update(quantity_fields)
+        # NebulaGraph 查询引入的内部列
+        exclude_cols.update(['vid', 'vid_original', 'src_vid', 'dst_vid', 'src_vid_original', 'dst_vid_original'])
+        # 主键字段（由 DDL 的 AUTO_INCREMENT 自动生成，不应从拆分数据写入）
+        exclude_cols.add('id')
+
+        df_to_write = split_df.drop(columns=list(exclude_cols), errors='ignore')
+
+        # 将时间列转为字符串，避免 MySQL 类型兼容问题
+        for col in df_to_write.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_to_write[col]):
+                df_to_write[col] = df_to_write[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+            elif df_to_write[col].apply(lambda x: isinstance(x, pd.Timestamp)).any():
+                df_to_write[col] = df_to_write[col].apply(
+                    lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x
+                )
+
+        with self.mysql_engine.begin() as conn:
+            # 删除同版本旧数据
+            if self.version:
+                try:
+                    conn.execute(text(f"DELETE FROM `{table_name}` WHERE `{{ version_column }}` = :v"), {"v": self.version})
+                    logger.info(f"  已清除表 {table_name} 中 {{ version_column }}={self.version} 的旧数据")
+                except Exception:
+                    # 表不存在时忽略，to_sql 会自动建表
+                    pass
+
+        # 写入数据（如果表不存在则自动创建）
+        df_to_write.to_sql(
+            name=table_name,
+            con=self.mysql_engine,
+            if_exists='append',
+            index=False,
+            chunksize=1000
+        )
+        logger.info(f"  ✓ 写入 MySQL 表 {table_name}，共 {len(df_to_write)} 条记录")
+        return len(df_to_write)
+
+    def process_all_splits(self) -> Dict[str, Any]:
+        """处理所有配置的时间拆分
+
+        从 time_discretization_config.json 中读取拆分配置。
+
+        Returns:
+            拆分统计信息
+        """
+        results = {}
+
+        time_discretizations = self.time_config.get('objects', [])
+        logger.info(f"共有 {len(time_discretizations)} 个时间拆分配置")
+
+        for discretization in time_discretizations:
+            object_name = discretization['object_name']
+            object_category = discretization['object_category']
+            start_time_field = discretization['start_time_field']
+            end_time_field = discretization['end_time_field']
+            time_interval = discretization['time_interval']
+            quantity_fields = discretization['quantity_fields']
+            target_table = discretization['discretized_table']
+
+            if not start_time_field or not end_time_field or not time_interval:
+                logger.warning(f"{object_category} {object_name} 时间拆分配置不完整，跳过")
+                continue
+
+            # 查询数据
+            if object_category == 'node':
+                df = self.query_tag_data(discretization['table_name'])
+            elif object_category == 'edge':
+                df = self.query_edge_data(discretization['table_name'])
+            else:
+                logger.warning(f"未知的 object_category: {object_category}，跳过")
+                continue
+
+            if len(df) == 0:
+                logger.warning(f"{object_category} {object_name} 无数据，跳过")
+                continue
+
+            # 拆分数据
+            try:
+                split_df = self.split_by_time_dimension(
+                    df=df,
+                    start_time_field=start_time_field,
+                    end_time_field=end_time_field,
+                    time_interval=time_interval,
+                    quantity_fields=quantity_fields
+                )
+            except Exception as e:
+                logger.error(f"  ✗ {object_category} {object_name} 拆分失败: {str(e)}")
+                results[f"{object_category}:{object_name}"] = {
+                    "status": "failed",
+                    "error": str(e)
+                }
+                continue
+
+            # 保存拆分后的数据到 MySQL
+            # 将 allocated_ 前缀改为 discretized_ 前缀，与 DDL 定义一致
+            for col in split_df.columns:
+                if col.startswith("allocated_"):
+                    new_col = "discretized_" + col[len("allocated_"):]
+                    split_df = split_df.rename(columns={col: new_col})
+
+            written_count = self._save_split_df(
+                split_df, target_table,
+                start_time_field=start_time_field,
+                end_time_field=end_time_field,
+                quantity_fields=quantity_fields
+            )
+            results[f"{object_category}:{object_name}"] = {
+                "total_records": len(df),
+                "split_records": len(split_df),
+                "written_records": written_count,
+                "table_name": target_table
+            }
+
+            logger.info(f"  ✓ {object_category} {object_name} 拆分完成")
+            logger.info(f"    - 原始记录数: {len(df)}")
+            logger.info(f"    - 拆分后记录数: {len(split_df)}")
+
+        return results
+
+
+def main():
+    """主函数"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description='从 NebulaGraph 查询数据并按时间拆分')
+    parser.add_argument('--config', default='{{ nebula_config_path }}', help='NebulaGraph 配置文件路径（默认: {{ nebula_config_path }}）')
+    parser.add_argument('--time-config', default='{{ time_config_path }}', help='时间拆分配置文件路径（默认: {{ time_config_path }}）')
+    parser.add_argument('--mysql-config', help='MySQL 配置文件路径（用于存储拆分结果到MySQL）')
+    parser.add_argument('--version', required=True, help='版本号（必填，用于过滤特定版本的数据）')
+    parser.add_argument('--log-level', default='INFO',
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                        help='日志级别（默认: INFO）')
+
+    args = parser.parse_args()
+
+    # 配置日志
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    splitter = None
+    try:
+        # 创建拆分器
+        splitter = DataSplitter(args.config, args.time_config, args.version, args.mysql_config)
+
+        # 连接数据库
+        splitter.connect()
+
+        # 处理拆分
+        logger.info("=" * 80)
+        logger.info("开始数据拆分")
+        if args.version:
+            logger.info(f"版本号: {args.version}")
+        logger.info("=" * 80)
+
+        results = splitter.process_all_splits()
+
+        logger.info("=" * 80)
+        logger.info("拆分完成")
+        logger.info("=" * 80)
+
+        for name, stats in results.items():
+            if stats.get('status') == 'failed':
+                logger.error(f"✗ {name}: {stats.get('error')}")
+            else:
+                logger.info(f"{name}:")
+                logger.info(f"  - 原始记录数: {stats['total_records']}")
+                logger.info(f"  - 拆分后记录数: {stats['split_records']}")
+                logger.info(f"  - 写入记录数: {stats['written_records']}")
+                logger.info(f"  - 表名: {stats['table_name']}")
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"拆分失败: {str(e)}", exc_info=True)
+        return 1
+
+    finally:
+        if splitter:
+            splitter.disconnect()
+
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(main())

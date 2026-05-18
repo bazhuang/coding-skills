@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "main_agent_manifest.schema.json",
+  "title": "OR Main Agent Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "run_id",
+    "status",
+    "runtime_entry",
+    "state_plan",
+    "artifacts_metadata"
+  ],
+  "properties": {
+    "run_id": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["initialized", "running", "planned", "completed", "failed"]
+    },
+    "main_agent_skill": { "type": "string" },
+    "runtime_entry": { "const": "version_id" },
+    "state_plan": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/stateRecord" }
+    },
+    "reverse_dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "artifacts_metadata": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    }
+  },
+  "$defs": {
+    "stateRecord": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "enabled", "status", "requires", "produces"],
+      "properties": {
+        "id": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "planned",
+            "completed",
+            "failed",
+            "skipped",
+            "not_selected"
+          ]
+        },
+        "skip_reason": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "optional": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "produces": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

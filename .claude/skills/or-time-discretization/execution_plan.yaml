@@ -1,0 +1,92 @@
+substeps:
+  - id: generate_time_config
+    type: llm
+    purpose: |
+      从 or_ontology 中筛选出包含 time_dimension 的 node/edge 对象，
+      生成 time_discretization_config.json 时间离散配置。
+      生成后需按 time_discretization_config.schema.json 校验结构完整性，
+      并结合 or_ontology 校验字段存在性（时间范围字段和量值字段在 table_schema.fields 中定义）、
+      表名唯一性（结果表名不与 ontology 中现有表名冲突）、
+      时间粒度为枚举值之一。
+      校验不通过时重新生成配置，附带具体错误信息。
+    include_inputs:
+      - or_ontology
+    output_artifacts:
+      - name: time_discretization_config
+        type: json
+
+  - id: render_templates
+    type: action
+    purpose: |
+      使用 Jinja2 模板渲染生成 mysql_query.py、nebula_import.py、
+      data_split.py、data_pipeline.py。
+      模板位于 assets/templates/，使用 map_to_nebula 过滤器将
+      数据库类型文本（varchar/decimal/datetime）映射为 NebulaGraph 类型。
+    action: subprocess
+    command:
+      - "python3"
+      - "utils/render_time_discretization.py"
+      - "--ontology"
+      - "demo/input/or_ontology.json"
+      - "--mysql-config"
+      - "db/config/mysql_config.json"
+      - "--nebula-config"
+      - "db/config/nebula_config.json"
+      - "--time-config"
+      - "{step_dir}/time_discretization_config.json"
+      - "--output-dir"
+      - "{step_dir}"
+    depends_on:
+      - generate_time_config
+    on_failure: abort
+
+  - id: generate_discretized_schema
+    type: llm
+    purpose: |
+      基于校验通过的时间离散配置，生成 discretized_schema.sql。
+      从 or_ontology 中读取对应对象的 table_schema.fields 完整定义，
+      按 DDL 生成规则逐项映射字段。
+      字段名和 COMMENT 必须与源定义完全一致，
+      必须为本体中的唯一索引生成对应唯一索引，索引字段组合为：
+      本体唯一索引字段 + time_period。
+    include_artifacts:
+      - generate_time_config.time_discretization_config
+    include_inputs:
+      - or_ontology
+    include_references:
+      - references/data-pipeline-rules.md
+    output_artifacts:
+      - name: discretized_schema
+        type: sql
+
+  - id: generate_ddl_executor
+    type: llm
+    purpose: |
+      生成 discretized_ddl_executor.py，接受 --ddl-path 和 --config-path
+      命令行参数，从 DDL 文件读取语句，从 JSON 配置读取 MySQL 连接信息，
+      逐条执行 DDL 并输出结果。
+    include_artifacts:
+      - generate_time_config.time_discretization_config
+    include_inputs:
+      - mysql_config
+    include_references:
+      - references/data-pipeline-rules.md
+    output_artifacts:
+      - name: discretized_ddl_executor
+        type: python
+
+  - id: execute_discretized_ddl
+    type: action
+    purpose: 将 discretized_schema.sql 中的 DDL 执行到 MySQL
+    action: subprocess
+    command:
+      - "python3"
+      - "{step_dir}/substeps/discretized_ddl_executor.py"
+      - "--ddl-path"
+      - "{step_dir}/substeps/discretized_schema.sql"
+      - "--config-path"
+      - "db/config/mysql_config.json"
+    depends_on:
+      - generate_discretized_schema
+      - generate_ddl_executor
+    on_failure: abort

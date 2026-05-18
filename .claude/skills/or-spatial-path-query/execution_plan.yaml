@@ -1,0 +1,51 @@
+skill: or-spatial-path-query
+
+input_contract:
+  graph_modeling_sql:
+    semantic_role: 图数据库建模 SQL，必须自带图构件语义角色
+    expected_content:
+      - 节点标签定义
+      - 边类型定义
+      - 节点属性映射
+      - 边属性映射
+      - version_id 字段承载方式
+      - supply_node 到 demand_node 的可达关系证据
+      - table_type:supply_node / demand_node / transport / link 等角色注释
+
+substeps:
+  - id: analyze_graph_path_query
+    purpose: 从图建模 SQL 中提取路径查询构件
+    include_inputs:
+      - graph_modeling_sql
+    include_references:
+      - references/spatial-path-query-rules.md
+      - references/graph_path_query_analysis.schema.json
+    task_appendix: |
+      本阶段只做路径查询构件分析，不输出最终 graph_path_queries。
+      只允许基于 graph_modeling_sql 判断节点标签、边类型、属性表名和 version_id 过滤字段。
+      graph_modeling_sql 必须自带 table_type 语义角色；若 comment 缺失或角色不完整，只能使用 SQL 中的 tag、edge 名称和注释做辅助判断，并将无法稳定识别的内容写入 unresolved_gaps。
+      不得访问图数据库、执行业务数据查询或执行路径搜索。
+    output_artifacts:
+      - name: graph_path_query_analysis
+        type: json
+        schema_path: references/graph_path_query_analysis.schema.json
+
+  - id: define_path_queries
+    purpose: 基于分析结果形成独立路径查询定义
+    include_artifacts:
+      - analyze_graph_path_query.graph_path_query_analysis
+    include_references:
+      - references/spatial-path-query-rules.md
+      - references/graph_path_queries.schema.json
+    task_appendix: |
+      本阶段输出独立 graph_path_queries artifact。
+      查询语句中的版本条件必须使用 {version_id} 占位符，不得写入具体版本值。
+      路径查询语句中的表名、标签名和属性路径遵循 graph_modeling_sql。
+      最终 path_queries 的核心参数必须用 path_parameters.start_nodes、path_parameters.end_nodes、path_parameters.path_edges 三个并列参数表达，不要把起点/终点写成对象详情而把边写成裸数组。
+      默认跳数范围为 1..10，直接体现在 query_template 中；输入明确给出跳数范围时才覆盖。不要单独输出 confidence、hop_range、hop_parameter 或 hop_limit。
+      中间推理过程、table_type 证据清单、derivation_basis 和详细 SQL 解析说明只保留在 analyze_graph_path_query.graph_path_query_analysis 中；最终 graph_path_queries 只保留关键参数、最终查询模板和必要注解。
+      不得访问图数据库、执行查询或产出路径结果。
+    output_artifacts:
+      - name: graph_path_queries
+        type: json
+        schema_path: references/graph_path_queries.schema.json
