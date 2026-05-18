@@ -47,9 +47,9 @@ business input -> supply-demand or_ontology -> discretized or_ontology -> or_dsl
 ## Workflow
 
 1. 读取 `business_ontology` 和 `simulation_schema`，形成 `scenario_profile`。
-2. 根据 `scenario_profile` 解析状态机，跳过不适用的时间或空间阶段。
+2. 根据 `scenario_profile` 和已产出的 artifact 解析状态机；时间离散、本体时间适配、空间图建模、路径查询、DSL 非线性优化与可行域保障阶段必须执行，必要时产出 pass-through artifact。
 3. 按 contract registry 检查每个状态的 required artifact。
-4. 触发对应专业 skill，并将其输出写入 `memory/facts` 或 `files`。
+4. 触发对应专业 skill，并将其输出写入 `memory/facts` 或 `files`；若状态按规则跳过，在 `manifest` 中记录 skipped reason、证据和下游使用的源 artifact。
 5. 每个状态后刷新 artifact metadata、hash、消费者和 stale 状态。
 6. 对关键状态执行 gate：`ontology_discretized`、`dsl_safeguarded`、`runtime_packaged`。
 7. 若出现失败，按 artifact 反向依赖生成恢复计划；不得在主 agent 内修补专业 skill 输出。
