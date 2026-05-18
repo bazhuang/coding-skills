@@ -22,7 +22,7 @@ business input -> supply-demand or_ontology -> discretized or_ontology -> or_dsl
 3. 可选 `main_agent_flow`：状态机、artifact、skill contract 和 gate 配置
 4. 可选历史 `manifest`：用于恢复、stale 判断和局部重跑
 
-若用户未显式提供 `business_ontology` 文件，优先在当前项目的 `docs/` 目录查找业务本体模型相关文件；若 `docs/` 中无法稳定确定唯一业务本体模型，再使用用户显式路径。
+若用户未显式提供 `business_ontology` 文件，优先在当前项目的 `docs/` 目录查找业务本体模型相关文件；若 `docs/` 中无法稳定确定唯一业务本体模型，再要求用户提供。
 
 ## 内置参考
 
