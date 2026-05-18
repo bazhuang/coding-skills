@@ -29,6 +29,8 @@ If multiple docs candidates are plausible, prefer files whose names or headings 
 
 ## Canonical State Order
 
+This is the required state order. Specialized stages are mandatory validation/generation passes and must not be skipped due to scenario-profile flags. When a pass has no structural work to perform, it must still produce a completed pass-through or identity artifact with evidence.
+
 ```text
 initialized
 -> input_profiled
@@ -48,9 +50,26 @@ initialized
 
 Skip rules:
 
-- `has_time_dimension=false`: skip time pipeline and ontology time adaptation.
-- `has_spatial_network=false`: skip graph modeling and path query.
-- `requires_path_query=false`: downstream DSL and loaders must not require path query artifacts.
+- No canonical specialized state may be skipped solely because `has_time_dimension=false`, `has_spatial_network=false`, or `requires_path_query=false`.
+- If an explicit user-provided `main_agent_flow` disables a state, record the override reason, evidence, and downstream source artifact in `manifest`.
+
+Mandatory time passes:
+
+- `or-time-discretization` must run after `ontology_ready`. If the scenario has no native time dimension or no structural time split is required, it must still produce `time_pipeline_ready` artifacts as a pass-through or identity discretization with evidence that no temporal split was required.
+- `or-ontology-time-discretization-adaptation` must run after the time pipeline. If the time pipeline is pass-through or identity, it must still produce `ontology_discretized` as the canonical downstream ontology aligned to the produced discretized schema.
+
+Mandatory graph/path passes:
+
+- `directed-graph-modeling` must run after `time_pipeline_ready`. If the scenario has no native spatial network, it must still produce `graph_schema_ready` artifacts as a pass-through or identity graph contract with evidence that no structural graph expansion was required.
+- `or-spatial-path-query` must run after `graph_schema_ready`. If the scenario has no route enumeration requirement, it must still produce `path_query_ready` artifacts as a pass-through or empty path-query contract with evidence that no path enumeration was required.
+- Downstream DSL and data-loader stages must consume the canonical path-query artifact, including pass-through or empty path-query artifacts, rather than assuming the path-query stage was absent.
+
+Mandatory DSL passes:
+
+- `or-dsl-nonlinear-optimization` must run after `dsl_ready`. If the DSL is already linear and contains no nonlinear expressions, nonlinear functions, powers, ratios, products of decision variables, or other reformulation needs, it must still produce `dsl_optimized` as a pass-through artifact with evidence that no nonlinear rewrite was required.
+- `or-dsl-feasibility-safeguard` must run after `dsl_optimized`. If the DSL has no declared or identified softenable boundary constraints, feasibility-recovery requirement, or relaxation/slack-variable requirement, it must still produce `dsl_safeguarded` as a pass-through artifact with evidence that no feasibility rewrite was required.
+
+Mandatory time, graph/path, and DSL rewrite states should be recorded as completed, even when they make no structural changes.
 
 ## Specialized Skills
 
