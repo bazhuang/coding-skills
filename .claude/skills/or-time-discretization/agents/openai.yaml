@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $or-time-discretization to generate data pipeline code that queries simulation tables by version_id, imports into NebulaGraph, and splits by time dimension."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

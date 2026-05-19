@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $or-dsl-nonlinear-optimization to analyze an operations-research DSL, identify nonlinear elements, reformulate them into a solver-friendly equivalent DSL, and return the complete optimized DSL JSON."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

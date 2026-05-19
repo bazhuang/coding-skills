@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $or-spatial-path-query to derive graph database feasible path queries from graph modeling SQL."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

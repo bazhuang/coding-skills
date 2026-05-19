@@ -1,6 +1,6 @@
 ---
 name: or-main-agent
-description: "Default entrypoint for 运筹算法打造, 运筹算法生成, 运筹建模代码生成, 需供运筹算法, 供需匹配优化, 资源调度优化, 路径流/网络流优化, and end-to-end operations-research runtime generation. Use when Codex needs to coordinate the full build-time OR skill chain from business ontology and simulation schema through or_ontology, mandatory time discretization, graph modeling, path queries, DSL generation, nonlinear optimization, feasibility safeguard, core code, runtime assembly, gates, memory, and recovery while never processing runtime instance data."
+description: "Entrypoint for explicit end-to-end operations-research algorithm/runtime generation, such as 运筹算法打造, 运筹算法生成, 运筹建模代码生成, or requests to generate a runnable OR package from business ontology and simulation schema. Use when Codex needs to coordinate the full build-time OR skill chain from or_ontology, mandatory time discretization, graph modeling, path queries, DSL generation, nonlinear optimization, feasibility safeguard, core code, runtime assembly, gates, memory, and recovery while never processing runtime instance data. For exploratory OR business requests that have not yet completed ontology modeling, use or-workflow-guide first."
 ---
 
 # OR Main Agent
@@ -15,7 +15,7 @@ business input -> or_ontology -> discretized or_ontology -> or_dsl -> runtime co
 
 ## 触发入口
 
-当用户提出“运筹算法打造”、“运筹算法生成”、“运筹建模代码生成”、“需供运筹”、“供需匹配优化”、“资源调度优化”、“路径流/网络流优化”或要求从业务本体/schema 端到端生成可运行运筹代码时，默认先触发本 skill 作为主编排入口，再由本 skill 顺序调用下游专业 skill。
+当用户明确提出“运筹算法打造”、“运筹算法生成”、“运筹建模代码生成”或要求从业务本体/schema 端到端生成可运行运筹代码时，触发本 skill 作为主编排入口，再由本 skill 顺序调用下游专业 skill。若用户只是描述需供运筹、供需匹配优化、资源调度优化、路径流/网络流优化等业务问题，且尚未完成本体建模，先使用 `or-workflow-guide`。
 
 ## 适用输入
 

@@ -1,7 +1,7 @@
 interface:
   display_name: "OR Main Agent"
   short_description: "运筹算法打造全流程编排与运行包生成"
-  default_prompt: "Use $or-main-agent as the default entrypoint for 运筹算法打造、运筹算法生成、需供运筹、供需匹配优化、资源调度优化、路径流/网络流优化, orchestrating the full build-time OR flow across ontology, mandatory time discretization, graph/path passes, DSL optimization and safeguard, core code, runtime assembly, gates, memory, and recovery without processing runtime instance data."
+  default_prompt: "Use $or-main-agent when the user explicitly asks for end-to-end OR algorithm/runtime generation, such as 运筹算法打造、运筹算法生成、运筹建模代码生成, or generating a runnable OR package from business ontology and simulation schema. For exploratory OR business requests that should begin with ontology modeling, use $or-workflow-guide first."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

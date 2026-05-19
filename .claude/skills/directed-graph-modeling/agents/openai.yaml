@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $directed-graph-modeling to convert or_ontology objects into NebulaGraph TAG/EDGE schema, DDL templates, and data mapping configuration."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

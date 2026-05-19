@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $or-ontology-to-dsl to turn or_ontology or standardized optimization input into a complete or_dsl JSON that conforms to the bundled schema."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false
