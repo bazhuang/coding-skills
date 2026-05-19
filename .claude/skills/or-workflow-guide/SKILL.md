@@ -1,13 +1,6 @@
 ---
 name: or-workflow-guide
-description: >
-  Default entrypoint for ALL user requests. Intelligently routes users to the right workflow based on their intent:
-  OR algorithm/runtime generation → or-main-agent, application design → app-design, BRD → brd-generation,
-  BRD scenario → brd-scenario-generator, frontend → front-ui, ontology standardization → business-to-or-ontology.
-
-  All paths start with ontology-modeling as the unified first step to build business understanding.
-
-  Use as the default skill when user submits ANY request without specifying a particular skill.
+description: 如果用户未明确使用哪个skill，那么就将它作为默认技能，不允许直接使用大模型回答。
 triggers:
   - 用户提出任何业务需求、技术需求、或未明确指定 skill 的请求
   - 用户提出运筹优化、需供匹配、供需平衡、资源分配、调度优化相关问题
@@ -31,21 +24,6 @@ parameters:
 
 ## 工作流程
 
-### 第零步：意图识别与路由预判
-
-收到用户请求后，首先分析意图，预判可能的下游路由：
-
-| 用户意图关键词 | 预判路由 | 说明 |
-|--------------|---------|------|
-| 运筹优化、需供匹配、供需平衡、资源分配、调度、算法打造、建模代码 | `or-main-agent` | 运筹算法全链路打造 |
-| 应用设计、架构设计、数据库设计、系统设计、技术方案 | `app-design` | 应用架构与数据库设计 |
-| BRD、业务需求文档、需求分析（无算法诉求） | `brd-generation` | 纯 BRD 文档生成 |
-| BRD 场景、业务方案、场景方案 | `brd-scenario-generator` | 基于模板的场景方案 |
-| 前端页面、UI、界面开发、Vue 页面 | `front-ui` | 前端页面生成 |
-| 本体标准化、ontology 整理、业务对象梳理 | `business-to-or-ontology` | 本体标准化 |
-
-**重要**：预判仅用于后续引导参考，实际路由在本体建模完成后根据用户确认调整。
-
 ### 第一步：本体建模（必经阶段）
 
 所有请求统一先进入本体建模阶段。调用 `ontology-modeling` skill：
@@ -60,11 +38,7 @@ parameters:
 - 建模完成后，向用户总结建模结果
 - 根据第零步的预判 + 建模过程中发现的实际业务特征，向用户建议下一步路由
 
-### 第二步：路由决策（本体建模完成后）
-
-本体建模完成并经用户确认后，根据场景路由到下游技能：
-
-#### 路由 A：运筹算法打造 → `or-main-agent`
+### 第二步：运筹算法打造（本体建模完成后）
 
 **适用场景**：用户需要构建运筹优化模型（需供匹配、资源分配、调度优化等）
 
@@ -77,71 +51,6 @@ parameters:
 ```
 调用 Skill: or-main-agent
 参数: business_description="{{business_description}}"
-```
-
-`or-main-agent` 会自动协调以下全链路流程：
-1. 时空离散化（`or-time-discretization` + `or-ontology-time-discretization-adaptation`）
-2. 图谱建模（`directed-graph-modeling`）
-3. DSL 生成（`or-ontology-to-dsl`）
-4. 路径查询（`or-spatial-path-query`）
-5. 非线性优化（`or-dsl-nonlinear-optimization`）
-6. 可行性保障（`or-dsl-feasibility-safeguard`）
-7. 核心代码生成（`or-dsl-to-core-code`）
-8. 数据加载器（`or-data-loader-code`）
-9. 运行时组装（`or-runtime-assembly`）
-
-#### 路由 B：应用设计 → `app-design`
-
-**适用场景**：用户需要从本体推导应用架构、数据库设计、接口设计
-
-**前置条件**：本体建模已完成（`docs/ontology_schema.json` 存在）
-
-**调用方式**：
-```
-调用 Skill: app-design
-```
-
-`app-design` 会基于本体图谱生成：
-- 应用架构设计文档（`docs/app-design.md`）
-- 数据库 DDL（`docs/db-schema.md`）
-
-#### 路由 C：BRD 文档生成 → `brd-generation`
-
-**适用场景**：用户只需要 BRD 文档，不涉及算法或应用设计
-
-**调用方式**：
-```
-调用 Skill: brd-generation
-参数: business_description="{{business_description}}"
-```
-
-#### 路由 D：BRD 场景方案 → `brd-scenario-generator`
-
-**适用场景**：用户需要基于通用 BRD 模板生成标准化业务场景方案
-
-**调用方式**：
-```
-调用 Skill: brd-scenario-generator
-```
-
-#### 路由 E：前端页面生成 → `front-ui`
-
-**适用场景**：BRD 和数据库设计已完成，需要生成前端页面
-
-**前置条件**：`docs/brd.md` 和 `docs/db-schema.md` 存在
-
-**调用方式**：
-```
-调用 Skill: front-ui
-```
-
-#### 路由 F：本体标准化 → `business-to-or-ontology`
-
-**适用场景**：用户已有业务描述，需要标准化为 or_ontology 格式
-
-**调用方式**：
-```
-调用 Skill: business-to-or-ontology
 ```
 
 ### 第三步：持续跟进
@@ -167,21 +76,6 @@ Router: "好的，这是一个运筹优化场景。我们先通过本体建模�
         → 建模完成后: "本体建模已完成。根据你的需求，我建议进入【运筹算法打造】流程，
            这将自动生成优化模型、算法代码和运行时包。是否继续？"
         → 用户确认后调用 or-main-agent
-
-用户: "帮我设计一个订单管理系统的数据库"
-Router: "这是一个应用设计需求。我们先快速做本体建模..."
-        → 调用 ontology-modeling（轻量版）
-        → 建模完成后: "本体建模已完成。下一步进入【应用设计】，基于本体推导数据库表结构。
-           是否继续？"
-        → 用户确认后调用 app-design
-
-用户: "帮我写一份客户管理系统的 BRD"
-Router: "这是一个 BRD 文档需求。本体建模本身就会生成 BRD..."
-        → 调用 ontology-modeling
-        → 建模完成后: "本体建模已生成初步的 BRD 文档。需要进一步细化吗？
-           1) 继续细化 BRD（调用 brd-generation）
-           2) 进入应用设计（调用 app-design）
-           3) 到此为止"
 ```
 
 ## 关键原则
@@ -189,4 +83,3 @@ Router: "这是一个 BRD 文档需求。本体建模本身就会生成 BRD..."
 - **不跳过本体建模**：即使是"简单"需求，本体建模也能确保理解准确。简单场景可做轻量建模
 - **不替用户做决定**：路由建议由你提出，决策由用户做出
 - **上下文传递**：确保下游技能能获取到上游本体建模的产出（`docs/ontology_schema.json`、`docs/brd.md`）
-- **一个入口，多条路径**：本体建模是统一入口，但下游路径根据场景灵活选择
