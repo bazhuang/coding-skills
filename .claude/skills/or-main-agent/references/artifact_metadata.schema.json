@@ -16,7 +16,11 @@
   ],
   "properties": {
     "name": { "type": "string" },
-    "path": { "type": "string" },
+    "path": {
+      "type": "string",
+      "description": "Project-root-relative artifact path, such as memory/facts/or_ontology.json or files/model_builder.py. Do not point into .claude/skills/.",
+      "pattern": "^(?!/)(?!\\.claude/skills/)(?!.*(^|/)\\.\\.(/|$)).+$"
+    },
     "status": { "enum": ["available", "missing"] },
     "content_hash": {
       "anyOf": [

@@ -89,7 +89,9 @@ The main agent coordinates these skills without absorbing their responsibilities
 
 ## Memory
 
-Use a run-local memory layout:
+Resolve all main-agent memory and file paths from the project root. The project root is the current workspace root that contains `.claude/skills/`, not any skill definition directory such as `.claude/skills/or-main-agent/`.
+
+Use this project-root-relative memory layout:
 
 ```text
 manifest.json
@@ -97,9 +99,56 @@ memory/facts/
 memory/decisions/
 memory/reviews/
 files/
+runtime/
 ```
 
-Facts are the only source of truth for downstream steps. Decisions record the main agent's route and recovery choices. Reviews record gates, unresolved gaps, and validation results.
+Directory responsibilities:
+
+| Path | Contents |
+| --- | --- |
+| `manifest.json` | Run manifest, state plan, artifact metadata, hashes, dependencies, and stale status. |
+| `memory/facts/` | Structured fact artifacts consumed by downstream steps. Facts are the only source of truth for downstream steps. |
+| `memory/decisions/` | Main-agent routing decisions, skip reasons, recovery plans, and orchestration choices. |
+| `memory/reviews/` | Gate results, unresolved gaps, validation reports, and review records. |
+| `files/` | Build-time file artifacts and intermediate generated files, such as code, SQL, and file bundles. |
+| `runtime/` | Final materialized runtime project produced by `or-runtime-assembly`. |
+
+Before writing outputs, create the project-root directories `memory/facts/`, `memory/decisions/`, `memory/reviews/`, `files/`, and `runtime/` when they do not exist. Never create or write `.claude/skills/files/`, `.claude/skills/memory/`, `.claude/skills/runtime/`, or other memory/output folders inside the skill definition tree.
+
+Artifact metadata paths must be project-root-relative paths such as `memory/facts/or_ontology.json` or `files/model_builder.py`. Do not record paths relative to `.claude/skills/`.
+
+Runtime package file paths remain relative to `runtime/` inside `runtime_files.files[*].path`; when materialized, write them to project-root `runtime/<path>`, not to `files/` and not to `.claude/skills/runtime/`.
+
+## Chain Artifact Placement
+
+Use this placement contract for the complete OR build chain:
+
+| State / producer | Artifact kind | Project-root location |
+| --- | --- | --- |
+| `input_profiled` | `scenario_profile` JSON | `memory/facts/scenario_profile.json` |
+| main agent planning | `main_agent_plan` JSON | `memory/decisions/main_agent_plan.json` |
+| main agent manifest | `manifest` JSON | `manifest.json` |
+| `business-to-or-ontology` | `or_signal_inventory`, `ontology_mapping`, `or_ontology` JSON | `memory/facts/` |
+| `or-time-discretization` | `time_discretization_config` JSON | `memory/facts/time_discretization_config.json` |
+| `or-time-discretization` | generated Python and SQL files such as `mysql_query.py`, `data_pipeline.py`, `discretized_schema.sql` | `files/` |
+| `directed-graph-modeling` | `nebula_schema_meta` JSON | `memory/facts/nebula_schema_meta.json` |
+| `directed-graph-modeling` | generated SQL and Python files such as `nebula_schema.sql`, `ddl_executor.py` | `files/` |
+| `or-spatial-path-query` | `graph_path_query_analysis`, `graph_path_queries` JSON | `memory/facts/` |
+| `or-ontology-time-discretization-adaptation` | `discretization_adaptation_notes`, `or_ontology_time_discretized` JSON | `memory/facts/` |
+| `or-data-loader-code` | `data_loader_generation_spec`, `data_loader_code_bundle` JSON | `memory/facts/` |
+| `or-data-loader-code` | generated loader files inside `data_loader_code_bundle.files[*]` | `files/` unless immediately assembled into `runtime/` |
+| `or-ontology-to-dsl` | `or_dsl` JSON | `memory/facts/or_dsl.json` |
+| `or-dsl-nonlinear-optimization` | nonlinear analysis and `dsl_optimized` JSON | `memory/facts/` |
+| `or-dsl-feasibility-safeguard` | feasibility analysis and `dsl_safeguarded` JSON | `memory/facts/` |
+| `or-dsl-to-core-code` | `core_code_bundle` JSON or `model_builder.py` file content | JSON in `memory/facts/`; materialized code in `files/` |
+| `or-runtime-assembly` | `runtime_package_manifest`, `runtime_files` JSON | `memory/facts/` |
+| `or-runtime-assembly` | materialized runtime files from `runtime_files.files[*]` | `runtime/<path>` |
+| main agent gates | `gate_results` JSON and reviews | `memory/reviews/` |
+| main agent recovery | `recovery_plan` JSON | `memory/decisions/recovery_plan.json` |
+
+Specialized skills should produce artifact content and relative file names only. The main agent owns persistence into `memory/facts/`, `memory/decisions/`, `memory/reviews/`, `files/`, and `runtime/` when running the full chain.
+
+If a specialized skill has an execution plan that mentions a temporary `step_dir`, treat it as an external runner workspace only. It must not be `.claude/skills/`, and outputs that survive the run must still be copied or materialized into the project-root locations above.
 
 ## Gates
 

@@ -33,6 +33,10 @@ description: Assemble a complete operations-research runtime package from genera
 
 最终运行级项目必须以 `runtime/` 作为项目根目录；`runtime_package_manifest.runtime_root` 与 `runtime_files.runtime_root` 必须为 `runtime`，且 `runtime_files.files[*].path` 均为相对 `runtime/` 的路径，不得带 `runtime/` 前缀。
 
+物化运行包时，必须写入项目根目录下的 `runtime/<path>`。例如 `runtime_files.files[*].path = "main.py"` 对应磁盘路径 `runtime/main.py`。
+
+`runtime_package_manifest` 与 `runtime_files` 这两个 JSON artifact 本身由主 agent 持久化到 `memory/facts/`；`runtime_files.files[*].content` 对应的实际运行项目文件才物化到 `runtime/`。不得把运行项目文件写入 `files/` 或 `.claude/skills/runtime/`。
+
 `runtime_files.files[*].content` 中必须包含完整文件内容。
 
 ## Workflow

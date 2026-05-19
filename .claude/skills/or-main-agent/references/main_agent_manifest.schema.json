@@ -32,7 +32,7 @@
     },
     "artifacts_metadata": {
       "type": "object",
-      "additionalProperties": { "type": "object" }
+      "additionalProperties": { "$ref": "artifact_metadata.schema.json" }
     }
   },
   "$defs": {

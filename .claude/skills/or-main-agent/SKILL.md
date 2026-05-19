@@ -48,12 +48,31 @@ business input -> or_ontology -> discretized or_ontology -> or_dsl -> runtime co
 
 若任务要求执行完整流程，必须持续更新 `manifest`，并把每个下游 skill 的产物写入记忆层。
 
+## 输出目录契约
+
+所有主 agent 输出目录必须相对项目根目录解析。项目根目录是包含 `.claude/skills/` 的当前 workspace 根目录，不是 `.claude/skills/` 或任一 skill 定义目录。
+
+主 agent 必须使用以下项目根目录相对位置：
+
+| 位置 | 内容 |
+| --- | --- |
+| `manifest.json` | 运行清单、状态计划、artifact metadata、hash、依赖和 stale 状态 |
+| `memory/facts/` | 下游步骤消费的结构化事实 artifact，是后续流程唯一事实源 |
+| `memory/decisions/` | 主 agent 编排决策、跳过原因、恢复计划和路线选择 |
+| `memory/reviews/` | gate/review 结果、未解决缺口和校验报告 |
+| `files/` | 构建过程中生成的文件型产物或中间文件，例如代码、SQL、bundle 文件 |
+| `runtime/` | `or-runtime-assembly` 物化后的最终运行级项目 |
+
+写入前必须创建缺失的 `memory/facts/`、`memory/decisions/`、`memory/reviews/`、`files/` 和 `runtime/` 目录。不得创建或写入 `.claude/skills/files/`、`.claude/skills/memory/`、`.claude/skills/runtime/`。
+
+完整链路中的 JSON 事实产物默认进入 `memory/facts/`；主 agent 的计划、跳过原因和恢复方案进入 `memory/decisions/`；gate 和 review 结果进入 `memory/reviews/`；代码、SQL、配置草案等构建期文件进入 `files/`；最终运行级项目只由 `or-runtime-assembly` 物化到 `runtime/`。若下游 skill 只返回 bundle JSON，主 agent 负责按 bundle 内相对文件名决定是否物化到 `files/` 或 `runtime/`。
+
 ## Workflow
 
 1. 读取 `business_ontology` 和 `simulation_schema`，形成 `scenario_profile`。
 2. 根据 `scenario_profile` 和已产出的 artifact 解析状态机；时间离散、本体时间适配、空间图建模、路径查询、DSL 非线性优化与可行域保障阶段必须执行，必要时产出 pass-through artifact。
 3. 按 contract registry 检查每个状态的 required artifact。
-4. 触发对应专业 skill，并将其输出写入 `memory/facts` 或 `files`；若状态按规则跳过，在 `manifest` 中记录 skipped reason、证据和下游使用的源 artifact。
+4. 触发对应专业 skill，并将其输出写入项目根目录下的 `memory/facts` 或 `files`；这些路径必须相对项目根目录解析，不得写入 `.claude/skills/files`；若状态按规则跳过，在 `manifest` 中记录 skipped reason、证据和下游使用的源 artifact。
 5. 每个状态后刷新 artifact metadata、hash、消费者和 stale 状态。
 6. 对关键状态执行 gate：`ontology_discretized`、`dsl_safeguarded`、`runtime_packaged`。
 7. 若出现失败，按 artifact 反向依赖生成恢复计划；不得在主 agent 内修补专业 skill 输出。
