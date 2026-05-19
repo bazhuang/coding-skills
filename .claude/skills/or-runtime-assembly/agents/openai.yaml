@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $or-runtime-assembly to assemble generated loader code, core model code, and final OR DSL into a runtime package with main.py, README.md, runtime_files, and runtime_package_manifest, without changing loader or model-builder business logic."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

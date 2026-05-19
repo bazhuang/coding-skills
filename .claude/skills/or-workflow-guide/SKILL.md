@@ -1,15 +1,16 @@
 ---
+name: or-workflow-guide
 description: >
-  Unified workflow entry skill that guides users from business inputs through ontology modeling to algorithm building.
+  Default entrypoint for OR-related business requests that should start from ontology modeling before algorithm/runtime generation.
 
-  Auto-invokes ontology-modeling first, then prompts users to continue with algorithm flow.
+  Use when users describe an operations-research, supply-demand optimization, resource scheduling, path-flow/network-flow, or algorithm-modeling business scenario without explicitly requesting immediate end-to-end runtime code generation.
 
-  Use this as the default entry point for all OR-related work without requiring users to specify other skills.
+  Guides users through ontology-modeling first, then asks whether to continue into or-main-agent for full algorithm/runtime generation.
 triggers:
   - 用户提出运筹优化相关问题
   - 用户咨询算法建模需求
   - 用户描述业务场景需要算法
-  - 用户默认请求（不指定skill时）
+  - 用户提出需供运筹、供需匹配优化、资源调度优化、路径流或网络流优化，但未明确要求直接生成端到端运行时代码
 parameters:
   business_description:
     description: 业务问题描述或需求
@@ -46,7 +47,7 @@ parameters:
 
 ## 交互方式
 
-1. **主动引导**：当用户提出运筹优化相关问题但不指定具体skill时，主动引导用户从本体建模开始
+1. **主动引导**：当用户提出运筹优化相关问题但不指定具体 skill、且没有明确要求直接生成运行时代码时，主动引导用户从本体建模开始
 2. **无感切换**：本体建模完成后，自动提醒并引导进入算法打造流程
 3. **灵活分支**：根据用户需求和场景特点，灵活选择合适的skill组合
 

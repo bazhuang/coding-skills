@@ -1,0 +1,7 @@
+interface:
+  display_name: "OR Workflow Guide"
+  short_description: "运筹业务问题的本体建模到算法打造引导入口"
+  default_prompt: "Use $or-workflow-guide as the default entrypoint for OR-related business requests that should start with ontology modeling, including 需供运筹、供需匹配优化、资源调度优化、路径流/网络流优化, when the user has not explicitly asked to generate end-to-end runtime code."
+
+policy:
+  allow_implicit_invocation: true

@@ -73,8 +73,6 @@ digraph process {
 - **保持灵活** — 当某个地方说不通时，回去澄清
 - **绝不跳过阶段** — 每个阶段必须完成才能进入下一个
 
----
-
 ## 阶段零：了解项目上下文
 
 **开始前声明：** "我正在使用 front-ui skill。开始阶段零：了解项目上下文。"
@@ -88,8 +86,6 @@ digraph process {
    - 了解已有的路由配置、状态管理方案
    - 了解已有的 API 调用方式和封装
 4. **评估范围** — 如果项目过大（涵盖多个独立模块），在开始任何设计前告知用户，建议拆分为多个子任务
-
----
 
 ## 阶段一：需求分析
 
@@ -120,8 +116,6 @@ digraph process {
 ### 输出
 
 将需求分析结果写入 `docs/frontend-requirements.md`
-
----
 
 ## 阶段二：页面结构设计
 
@@ -161,8 +155,6 @@ digraph process {
 ### 页面结构设计输出
 
 将页面结构设计写入 `docs/frontend-structure.md`
-
----
 
 ## 阶段三：组件选型
 
@@ -208,8 +200,6 @@ digraph process {
 
 将组件选型结果写入 `docs/component-selection.md`
 
----
-
 ## 阶段四：数据流设计
 
 **声明：** "开始阶段四：数据流设计。"
@@ -239,8 +229,6 @@ digraph process {
 ### 数据流设计输出
 
 将数据流设计写入 `docs/data-flow-design.md`
-
----
 
 ## 阶段五：代码生成
 
@@ -393,8 +381,6 @@ const userRoutes: RouteRecordRaw[] = [
 export default userRoutes
 ```
 
----
-
 ## 阶段六：用户审查
 
 **声明：** "代码生成完成。请审查生成的代码。"
@@ -428,8 +414,6 @@ export default userRoutes
 - 如果用户要求修改，根据反馈调整代码
 - 如果用户批准，提交代码到 git
 
----
-
 ## 常见错误
 
 | 错误 | 修复 |
@@ -454,8 +438,6 @@ export default userRoutes
 - **阶段四→五：** 数据流、API 接口、状态管理已设计
 - **阶段五→六：** 代码已生成，文件结构完整
 - **阶段六→完成：** 用户已审查并批准代码
-
----
 
 ## Ency Design 组件使用指南
 
@@ -526,8 +508,6 @@ export default userRoutes
    mcp__EncyDesignComponents__search-icons({ keyword: '编辑' })
    ```
 
----
-
 ## 参考文档
 
 执行各阶段时按需读取以下参考文档：
@@ -538,8 +518,6 @@ export default userRoutes
 | Vue 3 官方文档 | Composition API 使用时 |
 | TypeScript 官方文档 | 类型定义时 |
 | 项目前端规范文档 | 代码生成时（如果存在） |
-
----
 
 ## 开始使用
 
