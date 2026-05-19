@@ -31,6 +31,8 @@ description: Assemble a complete operations-research runtime package from genera
 1. `runtime_package_manifest`：运行态包清单，符合 `references/runtime_package_manifest.schema.json`
 2. `runtime_files`：运行态文件包，符合 `references/runtime_files.schema.json`
 
+最终运行级项目必须以 `runtime/` 作为项目根目录；`runtime_package_manifest.runtime_root` 与 `runtime_files.runtime_root` 必须为 `runtime`，且 `runtime_files.files[*].path` 均为相对 `runtime/` 的路径，不得带 `runtime/` 前缀。
+
 `runtime_files.files[*].content` 中必须包含完整文件内容。
 
 ## Workflow

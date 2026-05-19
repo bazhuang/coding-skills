@@ -21,6 +21,17 @@ Forbidden:
 - Changing loader/model-builder business logic
 - Hardcoding a concrete `version_id`
 
+## Output Directory Contract
+
+The final materialized runtime project root must be `runtime/`.
+
+- `runtime_package_manifest.runtime_root` must be `runtime`.
+- `runtime_files.runtime_root` must be `runtime`.
+- Paths in `runtime_files.files[*].path` and `runtime_package_manifest.files[*].path` are relative to `runtime/`.
+- Path values must not include a leading `runtime/`; the runtime directory is represented only by `runtime_root`.
+- When materialized on disk, every assembled runtime file must be written under `runtime/<path>`.
+- No assembled runtime file may be written outside `runtime/`.
+
 ## Required Runtime Shape
 
 The assembled package uses these paths:

@@ -78,6 +78,8 @@ business input -> or_ontology -> discretized or_ontology -> or_dsl -> runtime co
 | `runtime_packaged` | `or-runtime-assembly` | loader code, core code, final DSL | runtime package |
 | `verified` | 主 agent gate/review | `ontology_discretized`, `dsl_safeguarded`, `runtime_packaged` | `gate_results`, `manifest`, reviews |
 
+`runtime_packaged` 阶段必须遵循 `or-runtime-assembly` 的输出目录契约：最终运行级项目根目录为 `runtime/`，运行包内文件路径均相对 `runtime/` 且不得带 `runtime/` 前缀。
+
 完整调用链：
 
 ```text

@@ -8,6 +8,7 @@
     "entrypoint",
     "runtime_input",
     "run_command",
+    "runtime_root",
     "files",
     "config_paths",
     "source_artifacts",
@@ -17,6 +18,7 @@
     "entrypoint": { "const": "main.py" },
     "runtime_input": { "const": "version_id" },
     "run_command": { "const": "python main.py --version-id <version_id>" },
+    "runtime_root": { "const": "runtime" },
     "files": {
       "type": "array",
       "minItems": 5,
@@ -68,7 +70,11 @@
       "additionalProperties": false,
       "required": ["path", "responsibility", "public_interfaces", "depends_on"],
       "properties": {
-        "path": { "type": "string", "minLength": 1 },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!runtime/)(?!.*(^|/)\\.\\.(/|$)).+$"
+        },
         "responsibility": { "type": "string", "minLength": 1 },
         "public_interfaces": {
           "type": "array",

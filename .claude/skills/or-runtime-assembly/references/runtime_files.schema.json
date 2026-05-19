@@ -4,8 +4,9 @@
   "title": "OR Runtime Files Bundle",
   "type": "object",
   "additionalProperties": false,
-  "required": ["files"],
+  "required": ["runtime_root", "files"],
   "properties": {
+    "runtime_root": { "const": "runtime" },
     "files": {
       "type": "array",
       "minItems": 6,
@@ -52,7 +53,11 @@
         "additionalProperties": false,
         "required": ["path", "responsibility", "source", "content"],
         "properties": {
-          "path": { "type": "string", "minLength": 1 },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!runtime/)(?!.*(^|/)\\.\\.(/|$)).+$"
+          },
           "responsibility": { "type": "string", "minLength": 1 },
           "source": {
             "type": "string",
