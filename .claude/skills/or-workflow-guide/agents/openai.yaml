@@ -1,7 +1,7 @@
 interface:
   display_name: "OR Workflow Guide"
   short_description: "需供运筹业务输入的本体建模到算法打造主入口"
-  default_prompt: "Use $or-workflow-guide as the default entrypoint for supply-demand OR business inputs, including 需供运筹、需供匹配、供需匹配、供需平衡、月度需供计划、天然气需供匹配方案、资源分配、资源调度、路径流/网络流 scenarios, even when the user does not explicitly mention algorithms, optimization, or modeling."
+  default_prompt: "Use $or-workflow-guide as the default entrypoint for supply-demand OR business inputs, including 需供运筹、需供匹配、供需匹配、供需平衡、需供计划、资源分配、资源调度、路径流/网络流 scenarios, even when the user does not explicitly mention algorithms, optimization, or modeling."
 
 policy:
   allow_implicit_invocation: true
