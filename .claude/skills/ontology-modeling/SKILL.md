@@ -386,8 +386,6 @@ interface Ontology {
 ### 回复结构
 
 ```
-[对话内容：回应输入、分析业务、提出下一步问题]
-
 <artifact type="brd">
 [BRD 文档的完整 Markdown 内容，不带代码块包裹]
 </artifact>
@@ -395,6 +393,8 @@ interface Ontology {
 <artifact type="schema">
 [Ontology Schema 的完整 JSON 内容，不带代码块包裹]
 </artifact>
+
+[对话内容：回应输入、分析业务、提出下一步问题]
 ```
 
 ### 标签说明
