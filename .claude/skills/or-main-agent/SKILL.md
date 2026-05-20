@@ -63,7 +63,7 @@ business input -> or_ontology -> discretized or_ontology -> or_dsl -> runtime co
 | `files/` | 构建过程中生成的文件型产物或中间文件，例如代码、SQL、bundle 文件 |
 | `runtime/` | `or-runtime-assembly` 物化后的最终运行级项目 |
 
-写入前必须创建缺失的 `memory/facts/`、`memory/decisions/`、`memory/reviews/`、`files/` 和 `runtime/` 目录。不得创建或写入 `.claude/skills/files/`、`.claude/skills/memory/`、`.claude/skills/runtime/`。
+写入前必须创建缺失的 `memory/facts/`、`memory/decisions/`、`memory/reviews/`、`files/` 和 `runtime/` 目录。
 
 完整链路中的 JSON 事实产物默认进入 `memory/facts/`；主 agent 的计划、跳过原因和恢复方案进入 `memory/decisions/`；gate 和 review 结果进入 `memory/reviews/`；代码、SQL、配置草案等构建期文件进入 `files/`；最终运行级项目只由 `or-runtime-assembly` 物化到 `runtime/`。若下游 skill 只返回 bundle JSON，主 agent 负责按 bundle 内相对文件名决定是否物化到 `files/` 或 `runtime/`。
 
