@@ -33,6 +33,8 @@ substeps:
       按 `SKILL.md` 的“抽取运筹信号”和“标准化规则”执行。
       本阶段只产出中间信号，不产出最终标准对象或 `or_ontology`。
       输出重点包括相关片段、候选对象、候选目标、候选约束、schema 证据与信息不足问题。
+      必须抽取时间粒度证据，包括计划周期、排程周期、匹配周期、交付/库存/产能约束生效周期、结算周期或明确的年度/季度/月度/周度/日度/小时级口径。
+      若只能看到 date/datetime 字段、开始/结束时间或时间窗口重叠规则，不能据此推断时间粒度；应记录为信息不足问题。
       `relevant_fragments` 只保留后续标准化真正需要的高价值短证据，不要大段转录输入。
       对来自 `simulation_schema` 的证据，优先用 `table_name` 指向仿真表，并只列关键字段名；不要把 DDL 片段直接抄进 `text`。
       `schema_evidence` 必须逐表结构化保留 `table_name`、关键字段、`primary_key`、可稳定识别的 `unique_keys` 和 `foreign_keys`；不要只写成自由文本备注。
@@ -61,6 +63,8 @@ substeps:
       按 `SKILL.md` 的“标准化运筹本体”和“标准化规则”执行。
       本阶段以 `extract_signals.or_signal_inventory` 为主输入，同时把 `simulation_schema` 作为结构核对依据；不重新发明上游未出现的核心对象、目标或约束。
       输出重点包括映射依据、最终对象体系、目标系统、正式约束、schema 绑定与剩余 `open_questions`。
+      `problem_frame.time_granularity` 必须明确为单一可执行的规划/匹配粒度；若存在多层粒度，应明确主优化粒度及其与其他粒度的关系。
+      若时间粒度无法从业务口径或数据统计周期中稳定确定，或输入信息缺失/冲突，必须抛出阻断性问题。
       上游候选约束要逐条落入正式约束；无法稳定落入的原因必须显式说明，继续留在 `open_questions` 视为标准化不足。
       `open_questions` 只能暴露上游信号中已经出现但信息不足的疑点。
       对 `attached` 对象，要根据 `simulation_schema` 中对应主表逐表完整转录原始 schema，而不是输出字段摘要。

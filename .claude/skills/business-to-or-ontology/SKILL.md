@@ -44,6 +44,8 @@ description: Standardize business ontology inputs into a precise or_ontology. Us
 - `ontology_mapping`：阶段 2 映射过程与依据。
 - `or_ontology`：最终 `or_ontology`。
 
+特别要求：`or_ontology.problem_frame.time_granularity` 是阻断性字段，必须明确为一个可执行的规划/匹配时间粒度，例如年度、季度、月度、周度、日度、小时级，或输入中明确命名的业务粒度。若输入无法确定粒度、信息缺失或证据冲突，必须先抛出澄清问题；若流程必须保留草案输出，则在 `open_questions` 写入阻断性问题，并将 `time_granularity` 写为 `未确定（阻断问题：见 open_questions）`，不得猜测补齐。
+
 所有输出必须符合对应 schema。不要输出决策变量、索引集合、线性化、松弛、惩罚设计、求解器代码或 `or_dsl`。
 
 ## 工作流程
@@ -56,8 +58,10 @@ description: Standardize business ontology inputs into a precise or_ontology. Us
 
 - 从 `business_ontology` 抽业务对象语义、流动语义、目标语义、约束语义和规则口径。
 - 从 `simulation_schema` 抽表结构证据、字段证据、主键/唯一键/索引证据、关系证据和数据粒度证据。
+- 同步抽取时间粒度证据，例如计划周期、排程周期、匹配周期、交付/库存/产能约束生效周期、结算周期，或业务输入中明确给出的年度/季度/月度/周度/日度/小时级口径。
 - `simulation_schema` 的字段类型按原始数据库类型字符串抽取，不做 `varchar -> string`、`decimal -> float`、`tinyint -> boolean/int` 这类归一化。
 - 忽略 `business_ontology` 内嵌 schema、字段清单、字段说明和表样例；它们不能作为 `simulation_schema` 的替代来源，也不能参与字段集合、对象命名或关系结构判断。
+- `date`、`datetime`、`delivery_start_time`、`delivery_end_time` 等时间字段只能证明存在时间维度或时间窗口，不能单独证明时间粒度；若没有稳定周期口径，必须进入信息不足问题。
 
 第一阶段输出要尽量短，只保留后续标准化真正需要的证据：
 
@@ -91,6 +95,8 @@ description: Standardize business ontology inputs into a precise or_ontology. Us
 
 阶段 2 不重新大范围筛读原始业务输入，不引入上游信号中没有出现的核心业务对象、目标或约束。必须补充弱推理时，只能补高度确定的信息，并显式写出 `is_inferred` 与 `inference_basis`。`simulation_schema` 在这一阶段的职责是核对和完整转录表结构，而不是重新发明业务语义。
 
+阶段 2 必须先校验时间粒度是否已被明确识别。若只能确认存在时间窗口、日期字段或宽泛业务周期，不能把粒度留给 `or-time-discretization` 或下游代码生成阶段再确定；应抛出澄清问题，并在 `open_questions` 标记该问题对时间维度、决策粒度和约束匹配的影响。
+
 ## 标准化规则
 
 ### 运筹内核
@@ -99,6 +105,15 @@ description: Standardize business ontology inputs into a precise or_ontology. Us
 - 先判断内容是否属于运筹问题内核，再做标准化。
 - 数据结构、流程机制和方案管理逻辑只有在稳定支撑资源、节点、连接、目标或约束的抽象语义时才保留为证据。
 - 不确定内容写入 `open_questions`，不要用猜测补成建模事实。
+
+### 时间粒度
+
+- 时间粒度是 `problem_frame` 的核心口径，不是字段类型，也不是单纯的时间窗口存在性。
+- 最终 `time_granularity` 必须是单一、明确、可执行的规划/匹配粒度。若输入明确存在多层时间口径，必须说明主优化粒度以及其他粒度与主粒度的关系；无法区分主次时必须抛出问题。
+- 只有业务口径、计划/排程/匹配/结算周期、约束生效周期或明确的数据统计周期能作为时间粒度依据。`date`/`datetime` 字段、开始/结束时间字段、时间窗口重叠约束本身不足以推断日度、周度或月度。
+- 不得把“时间窗口”“按交付时间”“后续离散化确认”“日度/月度待确认”等含混表述写入最终明确粒度。
+- 若时间粒度缺失、无法确定或证据冲突，必须抛出阻断性问题。问题应直接询问本次优化/匹配按哪个时间粒度运行，并说明会影响 `time_dimension`、时间离散化配置、决策变量时间维度和时间约束匹配。
+- 下游 `or-time-discretization` 只消费已经明确的时间粒度，不负责替 `business-to-or-ontology` 决定粒度。
 
 ### 对象
 
@@ -210,3 +225,4 @@ schema 只提供数据承载与粒度证据，不替代业务语义。
 9. 上游候选目标和候选约束是否都已落入正式结果或 `open_questions`。
 10. 所有 schema 输出是否满足对应 JSON Schema。
 11. 是否错误地让 `business_ontology` 内嵌 schema 干扰了 `simulation_schema` 的字段集合、字段顺序、主键、唯一键或表选择。
+12. `problem_frame.time_granularity` 是否是明确粒度；若缺失、含混或冲突，是否已抛出阻断性问题，而不是留给下游阶段确认。
