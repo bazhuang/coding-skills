@@ -4,3 +4,7 @@
 /power
 __pycache__/
 .claude/settings.local.json
+/files
+/memory
+/runtime
+manifest.json
