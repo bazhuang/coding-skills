@@ -29,12 +29,23 @@ description: "当用户需要部署模型到算法仓库时使用。支持创建
 
 记录返回的模型 ID。
 
-### 2. 上传模型 zip
+### 2. 打包并上传模型 zip
+
+先打包 runtime 目录下的内容（注意不要打包 runtime 目录本身）：
+
+```bash
+# 正确做法：进入 runtime 目录，打包其内容
+cd runtime && zip -r ../model.zip . && cd ..
+```
+
+错误做法：`zip -r model.zip runtime/` —— 这会导致解压后多一层 `runtime/` 目录。
+
+然后上传：
 
 ```
 工具: upload_model_zip
 必填:
-  - filePath: 模型 zip 文件的本地路径
+  - filePath: zip 文件的本地路径（如 ../model.zip 或绝对路径）
 ```
 
 记录返回的 OSS 地址。
