@@ -21550,12 +21550,26 @@ function resolveEnnToken(envKey, appConfigKey) {
   const appConfig = loadAppConfig();
   return appConfig[appConfigKey] ?? "";
 }
+function resolveEnv() {
+  return resolveEnnToken("env", "env") || "fat";
+}
+function resolveModelBaseUrl(env) {
+  const urls = {
+    fat: "https://gm-auto-opt.fat.ennew.com",
+    uat: "https://gm-auto-opt.uat.ennew.com",
+    prod: "https://gm-auto-opt.ennew.com"
+  };
+  return urls[env] ?? urls.fat;
+}
 var config2 = {
   apiBaseUrl: resolveApiBaseUrl(),
   apiTimeoutMs: Number(process.env.ICOME_API_TIMEOUT_MS) || 1e4,
   logLevel: process.env.ICOME_MCP_LOG_LEVEL ?? "info",
+  apiToken: process.env.ICOME_API_TOKEN ?? "",
   ennAuthToken: resolveEnnToken("ICOME_API_ENN_AUTH_TOKEN", "ennunifiedauthorization"),
-  ennCsrfToken: resolveEnnToken("ICOME_API_ENN_CSRF_TOKEN", "ennunifiedcsrftoken")
+  ennCsrfToken: resolveEnnToken("ICOME_API_ENN_CSRF_TOKEN", "ennunifiedcsrftoken"),
+  env: resolveEnv(),
+  modelBaseUrl: resolveModelBaseUrl(resolveEnv())
 };
 
 // src/client/icomeApiClient.ts
@@ -21765,15 +21779,12 @@ var import_node_crypto = require("node:crypto");
 
 // src/schemas/modelDeploySchemas.ts
 var CreateModelSchema = {
-  modelCode: external_exports.string().max(100).optional().describe("\u6A21\u578B\u7F16\u7801\uFF0C\u4E0D\u4F20\u5219\u81EA\u52A8\u751F\u6210\uFF08modelName+\u65F6\u95F4\u6233\u7684 MD5\uFF09"),
-  modelName: external_exports.string().min(1).max(200).describe("\u6A21\u578B\u540D\u79F0"),
+  modelName: external_exports.string().min(1).max(200).describe("\u6A21\u578B\u540D\u79F0\uFF0C\u7531\u5927\u6A21\u578B\u751F\u6210"),
   sceneType: external_exports.number().int().optional().describe("\u573A\u666F\u7C7B\u578B\uFF0C\u5982 gas_match\uFF08\u5929\u7136\u6C14\u9700\u4F9B\u5339\u914D\uFF09"),
   version: external_exports.string().optional().describe("\u7248\u672C\u53F7\uFF0C\u9ED8\u8BA4 v1.0"),
-  url: external_exports.string().optional().describe("\u63A5\u53E3\u5BF9\u5916\u670D\u52A1\u5730\u5740"),
   feature: external_exports.string().optional().describe("\u6A21\u578B\u7279\u5F81\uFF08JSON \u5B57\u7B26\u4E32\uFF09"),
   enable: external_exports.number().int().optional().describe("\u542F\u7528\u5F00\u5173\uFF1A1-\u542F\u7528\uFF0C0-\u7981\u7528"),
   status: external_exports.string().optional().describe("\u6A21\u578B\u6784\u5EFA\u72B6\u6001"),
-  schemeMd5: external_exports.string().optional().describe("\u8868\u5355 MD5"),
   traceId: external_exports.string().optional().describe("\u8C03\u7528\u94FE\u8DEF\u8FFD\u8E2A ID\uFF0C\u4E0D\u4F20\u5219\u7531 MCP Server \u81EA\u52A8\u751F\u6210")
 };
 var UploadModelZipSchema = {
@@ -21840,6 +21851,10 @@ async function commitModel(traceId, params) {
   const url = `${config2.apiBaseUrl}/code/algorithmModel/commit`;
   return doPost(url, traceId, params);
 }
+async function updateModelNoAuth(traceId, params) {
+  const url = `${config2.apiBaseUrl}/api/modelMain/updateNoAuth`;
+  return doPost(url, traceId, params);
+}
 async function doPost(url, traceId, body) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config2.apiTimeoutMs);
@@ -21890,19 +21905,32 @@ var ApiError2 = class extends Error {
 function registerModelDeployTools(server2) {
   server2.tool(
     "create_model",
-    "\u521B\u5EFA\u65B0\u7684\u6A21\u578B\u4FE1\u606F\u3002\u8C03\u7528 POST /api/modelMain/createNoAuth\uFF08\u65E0\u9700\u9274\u6743\uFF09\uFF0C\u7CFB\u7EDF\u81EA\u52A8\u751F\u6210\u6A21\u578B ID \u5E76\u8FD4\u56DE\u3002\u8BE5\u5DE5\u5177\u4F1A\u4FEE\u6539\u4E1A\u52A1\u6570\u636E\u3002",
+    "\u521B\u5EFA\u65B0\u7684\u6A21\u578B\u4FE1\u606F\u3002\u8C03\u7528 POST /api/modelMain/createNoAuth\uFF08\u65E0\u9700\u9274\u6743\uFF09\uFF0C\u7CFB\u7EDF\u81EA\u52A8\u751F\u6210\u6A21\u578B ID\u3002\u7136\u540E\u81EA\u52A8\u56DE\u586B modelCode\uFF08model_{id} \u683C\u5F0F\uFF09\u3001url\uFF08\u73AF\u5883\u5BF9\u5E94\u7684\u670D\u52A1\u5730\u5740\uFF09\u3001schemeMd5\uFF08\u53C2\u6570\u5185\u5BB9\u7684 MD5\uFF09\u3002\u8BE5\u5DE5\u5177\u4F1A\u4FEE\u6539\u4E1A\u52A1\u6570\u636E\u3002",
     CreateModelSchema,
     async (params) => {
-      const { traceId, modelCode: inputCode, modelName, ...rest } = params;
+      const { traceId, modelName, feature, sceneType, version: version2, ...rest } = params;
       const currentTraceId = traceId ?? createTraceId();
-      const modelCode = inputCode ?? (0, import_node_crypto.createHash)("md5").update(`${modelName}${Date.now()}`).digest("hex");
+      const schemeContent = [feature ?? "", String(sceneType ?? ""), version2 ?? ""].join("|");
+      const schemeMd5 = (0, import_node_crypto.createHash)("md5").update(schemeContent).digest("hex");
       try {
-        const result = await createModel(currentTraceId, {
-          modelCode,
+        const createResult = await createModel(currentTraceId, {
+          modelCode: `model_placeholder_${Date.now()}`,
           modelName,
+          feature,
+          sceneType,
+          version: version2,
+          schemeMd5,
           ...rest
         });
-        const modelId = unwrapServiceResult(result);
+        const modelId = unwrapServiceResult(createResult);
+        const modelCode = `model_${modelId}`;
+        const url = `${config2.modelBaseUrl}/gas-opt/gas-match-auto-opt/${modelCode}`;
+        await updateModelNoAuth(currentTraceId, {
+          id: modelId,
+          modelCode,
+          url,
+          schemeMd5
+        });
         return {
           content: [
             {
@@ -21912,6 +21940,8 @@ function registerModelDeployTools(server2) {
                 `\u6A21\u578B ID: ${modelId}`,
                 `\u6A21\u578B\u7F16\u7801: ${modelCode}`,
                 `\u6A21\u578B\u540D\u79F0: ${modelName}`,
+                `\u670D\u52A1\u5730\u5740: ${url}`,
+                `schemeMd5: ${schemeMd5}`,
                 `\u5F53\u524D\u73AF\u5883: ${config2.env}`
               ].join("\n")
             }
