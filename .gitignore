@@ -4,5 +4,9 @@
 /power
 __pycache__/
 .claude/settings.local.json
+/files
+/memory
+/runtime
+manifest.json
 mcp/icome-mcp-server/.env
 node_modules/

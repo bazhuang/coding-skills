@@ -2,23 +2,17 @@ skill: business-to-or-ontology
 
 input_contract:
   business_ontology:
-    semantic_role: 业务本体，承载以对象、关系和规则组织的运筹业务应用全景表达
+    semantic_role: 业务本体，承载运筹业务应用全景表达
     expected_content:
-      - 对象语义
-      - 关系语义
-      - 流动语义
-      - 需求语义
-      - 规则边界
-      - 运行口径
-      - 数据承载线索
+      - 对象/关系/流动语义
+      - 目标/约束/规则口径
       - 非内核运行流程
   simulation_schema:
     semantic_role: 表 schema 或仿真表 schema
     expected_content:
-      - 结构粒度
-      - 字段语义
-      - 关系证据
-      - 数据承载证据
+      - 表结构与字段语义
+      - 主键/唯一键/引用关系
+      - 数据承载与粒度证据
 
 substeps:
   - id: extract_signals
@@ -32,16 +26,12 @@ substeps:
     task_appendix: |
       按 `SKILL.md` 的“抽取运筹信号”和“标准化规则”执行。
       本阶段只产出中间信号，不产出最终标准对象或 `or_ontology`。
-      输出重点包括相关片段、候选对象、候选目标、候选约束、schema 证据与信息不足问题。
-      `relevant_fragments` 只保留后续标准化真正需要的高价值短证据，不要大段转录输入。
-      对来自 `simulation_schema` 的证据，优先用 `table_name` 指向仿真表，并只列关键字段名；不要把 DDL 片段直接抄进 `text`。
-      `schema_evidence` 必须逐表结构化保留 `table_name`、关键字段、`primary_key`、可稳定识别的 `unique_keys` 和 `foreign_keys`；不要只写成自由文本备注。
-      所有候选约束必须逐条表达，并保留 `confidence`。
-      对服务优先级、最低履约、可达性、容量上限/下限等语义明确的约束字段，要进入候选约束，不得因为表很多而省略。
-      明确区分 `business_ontology` 内嵌 schema/字段描述 与 `simulation_schema` 的职责：
-      `business_ontology` 内嵌 schema、字段清单、字段说明和表样例一律忽略，不能作为 `table_schema`、字段全集、字段顺序、主键、唯一键、外键、对象命名或关系结构来源。
-      若 `business_ontology` 内嵌 schema 与 `simulation_schema` 对字段或表结构存在冲突，直接忽略前者，以 `simulation_schema` 为唯一结构真值；必要时可记录到 `open_questions` 或证据说明。
-      `simulation_schema.fields[*].type` 必须按原始数据库类型文本抽取，例如 `varchar(64)`、`decimal(20,4)`、`bigint(20) unsigned`、`date`；不要做通用类型归一化。
+      输出重点：高价值短证据、候选对象/目标/约束、结构化 `schema_evidence`、信息不足问题。
+      关键检查：
+      - 必须抽取时间粒度证据；仅有 date/datetime、开始/结束时间或时间窗口规则时，记录为信息不足。
+      - `schema_evidence` 用表名和关键字段引用仿真表，结构化保留 `primary_key`、`unique_keys`、`foreign_keys`。
+      - 候选约束逐条保留 `confidence`；语义明确的约束字段不得因表多而省略。
+      - `business_ontology` 内嵌 schema 一律忽略；字段类型按 `simulation_schema` 原始数据库类型文本抽取。
     output_artifacts:
       - name: or_signal_inventory
         type: json
@@ -59,18 +49,14 @@ substeps:
       - references/or_ontology.schema.json
     task_appendix: |
       按 `SKILL.md` 的“标准化运筹本体”和“标准化规则”执行。
-      本阶段以 `extract_signals.or_signal_inventory` 为主输入，同时把 `simulation_schema` 作为结构核对依据；不重新发明上游未出现的核心对象、目标或约束。
-      输出重点包括映射依据、最终对象体系、目标系统、正式约束、schema 绑定与剩余 `open_questions`。
-      上游候选约束要逐条落入正式约束；无法稳定落入的原因必须显式说明，继续留在 `open_questions` 视为标准化不足。
-      `open_questions` 只能暴露上游信号中已经出现但信息不足的疑点。
-      对 `attached` 对象，要根据 `simulation_schema` 中对应主表逐表完整转录原始 schema，而不是输出字段摘要。
-      字段顺序、原始字段类型文本、主键、可稳定识别的唯一键和外键信息都应保留。
-      若 `simulation_schema` 中存在具名 `UNIQUE KEY` 或唯一索引，必须写入 `table_schema.unique_keys`，并显式保留唯一键对应的字段列表；不要只保留主键而丢掉唯一键字段组合。
-      若当前表字段组合能够稳定匹配到其他表的唯一键字段组合，必须写入 `table_schema.foreign_keys`，其中本表字段放入 `fields`，被引用表字段放入 `ref_fields`。
-      若存在明显引用关系，但无法为被引用侧稳定识别唯一键字段组合，必须写入 `open_questions`，不得仅把 `foreign_keys` 留空。
-      `business_ontology` 内嵌 schema/字段描述不得覆盖、拼接、删改、重命名或重写 `simulation_schema` 原表结构；这些内容本身应被忽略。
-      若 `business_ontology` 内嵌 schema 与 `simulation_schema` 冲突，结构绑定一律以 `simulation_schema` 为准，必要时可进入 `open_questions`。
-      若 `attached` 对象输出的 `table_schema.fields` 少于原始主表字段数、只是 `supporting_fields` 的展开结果、混入仅存在于 `business_ontology` 内嵌 schema 的字段，或把 `varchar(64)`、`decimal(20,4)` 等原始类型改写为 `string`、`float` 等抽象类型，视为标准化不完整。
+      本阶段以 `extract_signals.or_signal_inventory` 为主输入，以 `simulation_schema` 为结构核对依据；不重新发明上游未出现的核心对象、目标或约束。
+      输出重点：映射依据、最终对象体系、目标系统、正式约束、schema 绑定与剩余 `open_questions`。
+      关键检查：
+      - `problem_frame.time_granularity` 必须明确；无法稳定确定时抛出阻断性问题。
+      - 上游候选目标/约束必须落入正式结果，或在 `open_questions` 显式说明原因。
+      - `attached.table_schema` 必须逐表完整转录原始 schema，保留字段顺序、原始类型、主键、唯一键和外键信息。
+      - 能稳定识别唯一键或引用关系时，必须写入 `unique_keys` / `foreign_keys`；明显引用但被引用侧不稳定时写入 `open_questions`。
+      - `business_ontology` 内嵌 schema 不得覆盖、拼接、删改、重命名或重写 `simulation_schema` 原表结构。
     output_artifacts:
       - name: ontology_mapping
         type: json

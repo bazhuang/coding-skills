@@ -30,7 +30,8 @@
           "type": "string"
         },
         "time_granularity": {
-          "type": "string"
+          "type": "string",
+          "description": "明确的规划/匹配时间粒度，例如年度、季度、月度、周度、日度、小时级或输入中明确命名的业务粒度。无法确定时应抛出阻断性 open_questions。"
         },
         "business_scope": {
           "type": "string"

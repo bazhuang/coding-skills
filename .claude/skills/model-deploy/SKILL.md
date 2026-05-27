@@ -1,0 +1,58 @@
+---
+name: model-deploy
+description: "当用户需要部署模型到算法仓库时使用。支持创建新模型、上传 zip 到 OSS、提交代码到 gas-match-auto-opt 仓库。"
+---
+
+# 模型部署
+
+通过 MCP 工具将优化模型部署到 `gas-match-auto-opt` 算法仓库。默认部署到 fat 环境，如需切换到 uat 或 prod，需要调整 MCP Server 的 `ICOME_ENV` 环境变量。
+
+## 可用 MCP 工具
+
+| 工具名 | 功能 | 是否修改数据 |
+| --- | --- | --- |
+| `create_model` | 创建新模型，返回模型 ID | 是 |
+| `upload_model_zip` | 上传本地 zip 文件到 OSS，返回 OSS 地址 | 是 |
+| `commit_model` | 将 OSS 上的模型代码提交到算法仓库 | 是 |
+
+## 部署流程
+
+按顺序执行以下三步，每一步的输出作为下一步的输入。
+
+### 1. 创建模型
+
+```
+工具: create_model
+必填:
+  - modelName: 模型名称
+选填:
+  - modelCode: 模型编码（不传则自动生成）
+```
+
+记录返回的模型 ID。
+
+### 2. 上传模型 zip
+
+```
+工具: upload_model_zip
+必填:
+  - filePath: 模型 zip 文件的本地路径
+```
+
+记录返回的 OSS 地址。
+
+### 3. 提交代码
+
+```
+工具: commit_model
+必填:
+  - modelId: 步骤 1 返回的模型 ID
+  - ossUrl: 步骤 2 返回的 OSS 地址
+```
+
+提交成功后会返回 Git 仓库地址。
+
+## 注意事项
+
+- `create_model` 和 `commit_model` 会修改数据，执行前应向用户确认
+- 生产环境部署需格外谨慎，确认无误后再执行
