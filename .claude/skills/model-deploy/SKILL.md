@@ -24,9 +24,7 @@ description: "当用户需要部署模型到算法仓库时使用。支持创建
 ```
 工具: create_model
 必填:
-  - modelName: 模型名称
-选填:
-  - modelCode: 模型编码（不传则自动生成）
+  - modelName: 模型名称（由大模型生成）
 ```
 
 记录返回的模型 ID。
