@@ -5,7 +5,7 @@ description: "当用户需要部署模型到算法仓库时使用。支持创建
 
 # 模型部署
 
-通过 MCP 工具将优化模型部署到 `gas-match-auto-opt` 算法仓库。默认部署到 fat 环境，如需切换到 uat 或 prod，需要调整 MCP Server 的 `ICOME_ENV` 环境变量。
+通过 MCP 工具将优化模型部署到 `gas-match-auto-opt` 算法仓库。
 
 ## 可用 MCP 工具
 
