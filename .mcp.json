@@ -13,6 +13,17 @@
       "args": [
         "./.claude/mcp/test.py"
       ]
+    },
+    "icome-mcp-server": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./mcp/icome-mcp-server/index.js"
+      ],
+      "env": {
+        "ICOME_API_BASE_URL": "https://icome-biz-manage.fat.ennew.com",
+        "ICOME_API_TOKEN": "eom"
+      }
     }
   }
 }
