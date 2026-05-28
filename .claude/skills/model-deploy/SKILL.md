@@ -58,9 +58,9 @@ cd runtime && zip -r ../model.zip . && cd ..
 
 提交成功后会返回 Git 仓库地址。
 
-### 4. 记录部署信息
+### 4. 记录中间信息
 
-将本次部署的关键信息（时间、环境、模型ID、模型编码、模型名称、服务地址、schemeMd5、OSS地址、Git地址、批次号等）追加写入项目根目录的 `deploy-records.json`，便于后续追溯。
+将每一步产生的中间结果追加记录到 `deploy-records.json`，便于后续追溯。
 
 ## 注意事项
 
