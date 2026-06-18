@@ -1,6 +1,5 @@
 /.app_config.json
 /.idea/
-/docs
 /power
 __pycache__/
 .claude/settings.local.json
