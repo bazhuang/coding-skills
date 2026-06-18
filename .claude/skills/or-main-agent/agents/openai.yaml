@@ -1,7 +1,0 @@
-interface:
-  display_name: "OR Main Agent"
-  short_description: "运筹算法打造全流程编排与运行包生成"
-  default_prompt: "Use $or-main-agent when the user explicitly asks for end-to-end OR algorithm/runtime generation, such as 运筹算法打造、运筹算法生成、运筹建模代码生成, or generating a runnable OR package from business ontology and simulation schema. For exploratory OR business requests that should begin with ontology modeling, use $or-workflow-guide first."
-
-policy:
-  allow_implicit_invocation: false

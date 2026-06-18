@@ -1,7 +1,0 @@
-interface:
-  display_name: "OR Data Loader Code"
-  short_description: "Generate runtime OR data loaders"
-  default_prompt: "Use $or-data-loader-code to generate runtime Python code for loading MySQL table data and NebulaGraph path data from or_ontology_time_discretized and graph path queries, with generated code reading database configs from db/config at runtime."
-
-policy:
-  allow_implicit_invocation: false

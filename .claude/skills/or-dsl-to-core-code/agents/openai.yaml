@@ -1,7 +1,0 @@
-interface:
-  display_name: "OR DSL To Core Code"
-  short_description: "Generate core OR model code"
-  default_prompt: "Use $or-dsl-to-core-code to transform a complete operations-research DSL into core Python optimization code with Pyomo, limited to model-building, solving, and result-parsing logic rather than full runtime scaffolding."
-
-policy:
-  allow_implicit_invocation: false

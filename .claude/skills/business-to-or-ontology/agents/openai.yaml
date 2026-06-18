@@ -1,7 +1,0 @@
-interface:
-  display_name: "Business to OR Ontology"
-  short_description: "Standardize business inputs into OR semantics"
-  default_prompt: "Use $business-to-or-ontology to standardize business_ontology and simulation_schema into an accurate or_ontology with shallow, natural-language objectives and constraints. Ignore any schema, field list, field description, or table example embedded inside business_ontology; all attached table_schema structure must come only from simulation_schema, field types must preserve the original database type text such as varchar(64) or decimal(20,4), UNIQUE KEY definitions must be captured in table_schema.unique_keys as field combinations from the source table, and any stable reference from one table's fields to another table's unique key must be captured in table_schema.foreign_keys using fields/ref_table/ref_fields; if the referenced unique key cannot be stably identified, surface it in open_questions."
-
-policy:
-  allow_implicit_invocation: false
