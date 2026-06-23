@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://coding-skills/app-design/app-contract.schema.json",
+  "title": "App Design Contract (app-contract.yaml)",
+  "description": "app-design 阶段的结构化机器可消费契约，是 code-generation 的确定性输入。由 ontology-mapping-rules.md 的三张映射规则物化而来。",
+  "type": "object",
+  "required": ["project", "objects", "rules", "sops"],
+  "additionalProperties": false,
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["basePackage", "modules"],
+      "additionalProperties": false,
+      "properties": {
+        "basePackage": { "type": "string", "minLength": 1, "description": "代码根包路径，如 com.enn.gas" },
+        "modules": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["web", "service", "dal", "client", "starter", "test"] },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/object" },
+      "minItems": 1
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/rule" }
+    },
+    "sops": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/sop" }
+    }
+  },
+  "definitions": {
+    "behaviorType": {
+      "type": "string",
+      "enum": ["CREATE", "UPDATE", "QUERY", "DELETE", "DERIVE"]
+    },
+    "object": {
+      "type": "object",
+      "required": ["code", "name", "table", "behaviors"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "本体对象 code，须与 ontology_schema.json 一致" },
+        "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*$", "description": "Java 类名 PascalCase" },
+        "table": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "表名 snake_case，与 db-schema.sql 一致" },
+        "behaviors": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/behavior" },
+          "minItems": 1
+        },
+        "requirements": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^F-\\d{3,}$" },
+          "description": "可选：关联的需求点 ID（来自 requirements-baseline.json）"
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "required": ["type", "controller", "biz", "service"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/definitions/behaviorType" },
+        "controller": { "type": "string", "pattern": "^/api/[a-z0-9-]+(/[a-z0-9-]+)*$", "description": "URL，小写连字符" },
+        "biz": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*$", "description": "Biz 方法名" },
+        "service": { "type": "string", "description": "Service 方法名或 source_select_then_target_insert（DERIVE 专用）" }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["code", "source", "type", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$", "description": "规则 code，须与 ontology_schema.json 一致" },
+        "source": { "type": "string", "enum": ["ontology", "design"] },
+        "type": { "type": "string", "enum": ["CALCULATION", "CONSTRAINT", "CROSS_ENTITY"] },
+        "location": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*\\.[A-Za-z][A-Za-z0-9]*\\(\\)$", "description": "层级类.方法()，如 GasContractService.calculateProfit()" }
+      }
+    },
+    "sop": {
+      "type": "object",
+      "required": ["code", "bizMethod", "calls"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "SOP code，须与 ontology_schema.json 一致" },
+        "bizMethod": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*\\.[A-Za-z][A-Za-z0-9]*$", "description": "Biz 类.方法" },
+        "calls": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*\\.[A-Za-z][A-Za-z0-9]*$" },
+          "minItems": 1,
+          "description": "按步骤顺序调用的 Service 方法"
+        }
+      }
+    }
+  }
+}

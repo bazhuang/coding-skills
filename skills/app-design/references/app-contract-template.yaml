@@ -1,0 +1,92 @@
+# =============================================================================
+# 应用设计契约模板（app-contract.yaml）
+# -----------------------------------------------------------------------------
+# 这是 app-design 阶段的【结构化机器可消费产物】，是 code-generation 的确定性输入。
+# 它由 references/ontology-mapping-rules.md 中的三张映射规则「物化」而来：
+#   - 行为→接口映射  → objects[].behaviors[]
+#   - 规则→代码映射  → rules[]
+#   - SOP→Biz 映射   → sops[]
+#
+# 权威关系：
+#   - 本文件 + docs/contracts/db-schema.sql 是 Design 阶段的权威产物。
+#   - docs/app-design.md（自由 Markdown）退化为本契约的「人类可读视图」。
+#   - 字段约束见同目录 app-contract.schema.json，可用 JSON Schema 校验。
+#
+# 准出门禁（B2）：objects/behaviors/rules/sops 的 code 必须与
+#   docs/ontology_schema.json 中的 objects/behaviors/rules/sop_flows 逐项对齐，
+#   覆盖率不达 100% 不放行（code-generation 禁止回读业务原文，这是最后补救点）。
+# =============================================================================
+
+# --- 项目级元信息 ---
+project:
+  basePackage: "com.enn.gas"        # 代码根包路径，骨架阶段据此生成全限定名
+  modules:                           # 实际启用的 Maven 模块
+    - web
+    - service
+    - dal
+    - client
+
+# --- 对象与行为（行为→接口映射的物化）---
+# 每个 object.code 必须与 ontology_schema.json 的 objects[].code 一致。
+# behaviors[].type ∈ { CREATE, UPDATE, QUERY, DELETE, DERIVE }。
+# controller / biz / service 命名遵循 ontology-mapping-rules.md 的映射模式。
+objects:
+  - code: gas_contract               # 本体对象 code（与 ontology_schema 对齐）
+    name: GasContract                # Java 类名（PascalCase）
+    table: biz_gas_contract          # 数据库表名（snake_case，与 db-schema.sql 一致）
+    behaviors:
+      - type: CREATE
+        controller: /api/gas-contract/create
+        biz: createGasContract
+        service: insertGasContract
+      - type: UPDATE
+        controller: /api/gas-contract/update
+        biz: updateGasContract
+        service: updateGasContract
+      - type: QUERY
+        controller: /api/gas-contract/query
+        biz: queryGasContract
+        service: selectGasContractList   # 查询可拆 List/ById，按需列多条
+      - type: DELETE
+        controller: /api/gas-contract/delete
+        biz: deleteGasContract
+        service: deleteGasContract
+      - type: DERIVE                  # 衍生行为：由源对象派生目标对象
+        controller: /api/gas-contract/derive-billing
+        biz: deriveBillingFromGasContract
+        service: source_select_then_target_insert
+    # 可选：该对象关联的需求点 ID（来自 requirements-baseline.json），供追溯
+    requirements:
+      - F-001
+      - F-002
+
+# --- 规则（规则→代码映射的物化）---
+# 每个 rule.code 必须与 ontology_schema.json 的 rules[].code 一致。
+# type ∈ { CALCULATION, CONSTRAINT, CROSS_ENTITY }：
+#   CALCULATION  → 落在 Service 层独立方法
+#   CONSTRAINT   → 落在 Biz 层校验方法
+#   CROSS_ENTITY → 落在 Biz 层事务内校验
+rules:
+  - code: profit_calc_rule
+    source: ontology                 # ontology=来自本体规则；design=设计阶段新增的技术规则
+    type: CALCULATION
+    location: GasContractService.calculateProfit()   # 层级类.方法()
+  - code: must_supply_rule
+    source: ontology
+    type: CONSTRAINT
+    location: GasPlanBizService.validateMustSupply()
+  - code: link_consistency_rule
+    source: ontology
+    type: CROSS_ENTITY
+    location: GasMatchBizService.validateLinkConsistency()
+
+# --- SOP 流程（SOP→Biz 编排方法的物化）---
+# 每个 sop.code 必须与 ontology_schema.json 的 sop_flows[].code 一致。
+# 一个 SOP 流程 = 一个 Biz 方法；calls 按步骤顺序列出调用的 Service 方法。
+sops:
+  - code: contract_approval_flow
+    bizMethod: GasContractBizService.executeApprovalFlow
+    calls:
+      - GasContractService.submitContract
+      - GasContractService.approveContract
+      - GasContractService.activateContract

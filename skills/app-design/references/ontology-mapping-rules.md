@@ -96,8 +96,28 @@ public ServiceResult<Void> executeApprovalFlow(Long contractId) {
 
 ## 设计文档中的映射表达
 
-在 `docs/app-design.md` 的接口设计部分，必须包含以下三张映射表，确保下游 code-generation skill 可以直接从设计文档推导出完整的代码骨架：
+映射规则有两种产出形态，二者必须保持一致——**结构化契约是权威源，Markdown 表格是其人类可读视图**。
+
+### 形态一：结构化契约 `docs/contracts/app-contract.yaml`（权威、机器可消费）
+
+三张映射规则物化为契约字段，供下游 `code-generation` **确定性解析**（而非读 Markdown 自由推导）：
+
+| 映射规则 | 契约字段 |
+|---------|---------|
+| 行为→接口映射（上文） | `objects[].behaviors[]`：`type`(CREATE/UPDATE/QUERY/DELETE/DERIVE) / `controller` / `biz` / `service` |
+| 规则→代码逻辑映射（上文） | `rules[]`：`code` / `source`(ontology/design) / `type`(CALCULATION/CONSTRAINT/CROSS_ENTITY) / `location`(类.方法()) |
+| SOP→Biz 编排映射（上文） | `sops[]`：`code` / `bizMethod`(类.方法) / `calls`[](按步骤顺序的 Service 方法) |
+
+契约模板与字段约束见同目录 `app-contract-template.yaml` 与 `app-contract.schema.json`。
+
+### 形态二：Markdown 三张映射表（人读视图，写入 `docs/app-design.md`）
+
+在 `docs/app-design.md` 的接口设计部分，必须包含以下三张映射表（与契约字段一一对应，便于人工评审）：
 
 1. **行为→接口映射表**：每个对象的每个行为对应哪个 Controller 接口、Biz 方法、Service 方法
 2. **规则→代码位置映射表**：每条规则对应哪个层级、哪个方法名
 3. **SOP→Biz 编排方法映射表**：每个 SOP 流程对应哪个 Biz 方法，内部调用哪些 Service 方法
+
+### 准出门禁
+
+`app-contract.yaml` 中 `objects` / `rules` / `sops` 的 `code` 必须与 `docs/ontology_schema.json` 的 `objects` / `rules` / `sop_flows` 的 `code` **逐项对齐**，覆盖率不达 100% 不得进入下游（详见 app-design SKILL.md「规范自审」第 7 项）。

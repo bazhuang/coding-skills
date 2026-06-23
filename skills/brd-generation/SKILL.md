@@ -1,9 +1,15 @@
 ---
 name: brd-generation
-description: Generate BRD (Business Requirements Document) by combining ontology methodology with LLM reasoning. Use when users need to create business requirement documents, analyze business needs, or formalize business descriptions into structured deliverables.
+description: Generate BRD (Business Requirements Document) by combining ontology methodology with LLM reasoning. 【轻量 BRD / 纯文档入口】本 skill 仅产出 docs/brd.md，不产出 ontology schema，其产出不能直接进入 app-design / code-generation。如需完整 SDD 流水线，请改用 ontology-modeling（产出 schema + brd + 需求基线）。Use when users only need a BRD document and do not need downstream design/code generation.
 ---
 
 # BRD 业务需求文档生成
+
+> **入口定位（重要）**：本 skill 是**轻量 BRD / 纯文档入口**。
+> - 仅产出 `docs/brd.md`，**不产出 `ontology_schema.json`**，也不产出需求基线/验收契约。
+> - 因此其产出**不能直接进入 `app-design` / `code-generation`**——后者依赖本体 schema 与结构化契约。
+> - 若用户后续要做应用设计或代码生成，必须**补跑 `ontology-modeling`**（它会基于已有 brd.md 反推并补齐 schema + 基线 + 验收契约）。
+> - 若用户一开始就打算走完整 SDD（建模→设计→代码），应直接从 `ontology-modeling` 进入，而非本 skill。
 
 结合**本体方法论(Object-Behavior-Rules)**与大模型推理能力，通过交互式引导，将用户的业务描述转化为结构化的 BRD 文档。
 

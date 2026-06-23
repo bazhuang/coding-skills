@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://coding-skills/ontology-modeling/ontology_schema.schema.json",
+  "title": "Ontology Schema (ontology_schema.json)",
+  "description": "ontology-modeling 产出的本体图谱结构契约。本 Schema 仅覆盖结构/类型/格式；code 唯一性、edge 引用完整性、rule code 唯一性等跨元素约束由 references/script/validate_ontology.py 做更强校验。",
+  "type": "object",
+  "required": ["domain", "objects"],
+  "properties": {
+    "metaPaperId": { "type": "string", "description": "元模型编号（如需供运筹为 13991）" },
+    "biz_logic": { "type": "string", "description": "业务逻辑，完整记录用户对话原文" },
+    "domain": { "type": "string", "minLength": 1, "description": "业务场景归属领域" },
+    "objects": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/oyObject" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/oyEdge" }
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/rule" }
+    },
+    "sop_flows": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/sopFlow" }
+    }
+  },
+  "definitions": {
+    "oyObject": {
+      "type": "object",
+      "required": ["code", "name", "comment", "properties"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "对象 code，英文+下划线，≤32 字符" },
+        "name": { "type": "string", "minLength": 1 },
+        "comment": { "type": "string" },
+        "properties": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/oyProperty" }
+        }
+      }
+    },
+    "oyProperty": {
+      "type": "object",
+      "required": ["code", "name", "comment", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "属性 code，英文+下划线，≤32 字符" },
+        "name": { "type": "string", "minLength": 1 },
+        "comment": { "type": "string" },
+        "type": { "type": "string", "enum": ["String", "Integer", "Double"], "description": "仅允许 String/Integer/Double" }
+      }
+    },
+    "oyEdge": {
+      "type": "object",
+      "required": ["code", "name", "comment", "source_code", "target_code", "constraint"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "关系 code，英文+下划线，≤32 字符" },
+        "name": { "type": "string", "minLength": 1 },
+        "comment": { "type": "string" },
+        "source_code": { "type": "string", "description": "来源对象 code，必须指向已定义的 object" },
+        "target_code": { "type": "string", "description": "去向对象 code，必须指向已定义的 object" },
+        "constraint": { "type": "string", "description": "关系约束（如 1:1 / 1:N / N:M）" }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["code", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$", "description": "规则 code，确保唯一，≤64 字符" },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sopFlow": {
+      "type": "object",
+      "required": ["code", "title", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "SOP 流程 code" },
+        "title": { "type": "string", "minLength": 1 },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/sopStep" }
+        }
+      }
+    },
+    "sopStep": {
+      "type": "object",
+      "required": ["code", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$" },
+        "title": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

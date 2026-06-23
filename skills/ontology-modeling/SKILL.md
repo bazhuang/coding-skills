@@ -17,8 +17,10 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 | 产出物 | 文件路径 | 格式 |
 |--------|---------|------|
-| Ontology Schema | `docs/ontology_schema.json` | JSON（符合 `Ontology` 接口定义） |
+| Ontology Schema | `docs/ontology_schema.json` | JSON（符合 `Ontology` 接口定义，且须通过 `references/script/validate_ontology.py` 校验） |
 | BRD 文档 | `docs/brd.md` | Markdown（符合 BRD 模板结构） |
+| 需求基线 | `docs/requirements-baseline.json` | JSON（需求 ID / 优先级 / 验收标准 / 来源 code，作为下游确定性验收依据） |
+| 验收测试契约 | `docs/contracts/acceptance-tests.yaml` | YAML（由 BRD §4 验收标准派生，供 code-verification 确定性校验） |
 
 ### 读写规则
 
@@ -378,6 +380,69 @@ interface Ontology {
   sop_flows: SopFlow[]; // 业务逻辑SOP执行流程列表
 }
 ```
+
+### 阶段准出门禁（Requirements Gate）
+
+建模过程可以增量、边聊边产出，但**标记 Requirements 阶段「完成」之前，必须通过以下门禁**。门禁不通过不得进入下游 app-design。
+
+**G1. Schema 合法性校验（硬门禁）**
+
+运行校验脚本（自包含、无需额外依赖）：
+
+```bash
+python skills/ontology-modeling/references/script/validate_ontology.py docs/ontology_schema.json
+```
+
+- 校验内容：结构完整性、各层级 `code` 唯一性、edge 的 `source_code`/`target_code` 引用完整性（无悬空指向）、属性 `type` 枚举（仅 String/Integer/Double）、`code` 格式与长度。
+- **退出码非 0（存在 ERROR）即未通过**：必须修复后重跑，禁止带着已知错误放行。
+- 字段约束详见 `references/ontology_schema.schema.json`（若环境装了 `jsonschema` 会自动附加结构校验）。
+
+**G2. 稳定需求 ID（硬门禁）**
+
+BRD §4 中的每个 **Must Have（必须有）** 功能必须同时具备：
+
+1. **稳定 ID**：形如 `F-001`，编号一旦分配不再变更（后续追溯、验收测试、变更影响分析都以此 ID 为锚点）；
+2. **可测试的验收标准**：能用「给定…当…则…」描述、可被验证的具体条件，而非「支持合同管理」这类模糊话术；
+3. **来源 code**：标注其对应的本体 `object` / `behavior` / `rule` code（至少一项），实现需求↔本体↔代码的双向可追溯。
+
+Should Have / Nice to Have 也建议补齐，但 Must Have 缺任一项视为门禁未过。
+
+**G3. 需求基线 + 验收测试契约（产出物）**
+
+通过 G1/G2 后，额外产出两份确定性制品（供下游 code-verification 做确定性验收，而非靠读 Markdown 自由发挥）：
+
+- `docs/requirements-baseline.json` —— 需求基线：
+
+  ```json
+  {
+    "baseline_version": "v1.0",
+    "approved": false,
+    "requirements": [
+      {
+        "id": "F-001",
+        "title": "创建燃气合同",
+        "priority": "MUST",
+        "acceptance_criteria": ["创建后合同状态为草稿", "生成唯一合同号"],
+        "source": { "object": "gas_contract", "behavior": "CREATE", "rules": ["profit_calc_rule"] }
+      }
+    ]
+  }
+  ```
+
+- `docs/contracts/acceptance-tests.yaml` —— 由 BRD §4 验收标准派生的验收测试契约：
+
+  ```yaml
+  acceptance_tests:
+    - requirement_id: F-001
+      title: 创建燃气合同
+      priority: MUST
+      given: 一个合法的合同录入请求
+      when: 调用 /api/gas-contract/create
+      then: 返回成功且合同状态为草稿、生成唯一合同号
+      source: { object: gas_contract, behavior: CREATE }
+  ```
+
+`approved` 字段在用户确认基线后置为 `true`，形成「已批准需求基线」，作为后续变更影响分析的比对起点。
 
 ## 输出格式规范
 

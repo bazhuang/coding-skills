@@ -27,7 +27,7 @@ description: "当用户要求应用设计、架构设计、数据库设计，或
 4. **提供可视化伴侣**（如果主题将涉及可视化问题）— 这是独立的消息，不与澄清问题合并。见下方的可视化伴侣部分。
 5. **逐步澄清问题** — 一次问一个关键问题，理解目的/约束/成功标准/应用范围，通过自然对话逐步明确需求；**澄清问题总数不超过 3 个**，优先问最关键的问题，其余信息从上下文推断或在设计阶段确认
 6. **提出 2-3 种应用设计方案** — 附带权衡和你的建议
-7. **边设计边写文档** — 基于本体图谱展示应用架构设计、数据库表设计、接口设计，**同时将每个部分写入设计文档**。数据库设计部分：将数据库表结构完整 DDL 写入独立的 schema 文件 `docs/db-schema.md`，在设计文档 `docs/app-design.md` 中引用该文件。按复杂度缩放展示各个部分，在每个部分完成后获得用户批准并更新文档
+7. **边设计边写文档 + 生成结构化契约** — 基于本体图谱展示应用架构设计、数据库表设计、接口设计，**同时将每个部分写入设计文档**。数据库设计部分：将完整 DDL 写入**权威可执行**文件 `docs/contracts/db-schema.sql`（可直接 `mysql <` 执行），`docs/db-schema.md` 退化为引用说明文档（指向 `.sql` 为权威源）。**接口与映射**部分：按 `references/ontology-mapping-rules.md` 的三张映射规则，物化生成结构化契约 `docs/contracts/app-contract.yaml`（模板见 `references/app-contract-template.yaml`）。按复杂度缩放展示各个部分，在每个部分完成后获得用户批准并更新文档与契约
 8. **规范自审** — 快速内联检查占位符、矛盾、歧义、范围（见下方）
 9. **用户审查完整规范** — 在继续之前请用户审查完整的规范文件并提交
 10. **准备进入实现** — 确认设计文档已完成，可据此拆解实现任务
@@ -44,9 +44,9 @@ digraph brainstorming {
     "逐步澄清问题\n（一次一个）" [shape=box];
     "还有未明确的问题？" [shape=diamond];
     "提出 2-3 种应用设计方案" [shape=box];
-    "边设计边写文档\n（展示+同步写入文档）" [shape=box];
+    "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" [shape=box];
     "用户批准当前部分？" [shape=diamond];
-    "规范自审\n（内联修复）" [shape=box];
+    "规范自审+契约覆盖率门禁\n（覆盖率100%才放行）" [shape=box];
     "用户审查完整规范？" [shape=diamond];
     "提交设计文档" [shape=box];
     "设计文档完成" [shape=doublecircle];
@@ -60,12 +60,12 @@ digraph brainstorming {
     "逐步澄清问题\n（一次一个）" -> "还有未明确的问题？";
     "还有未明确的问题？" -> "逐步澄清问题\n（一次一个）" [label="是"];
     "还有未明确的问题？" -> "提出 2-3 种应用设计方案" [label="否"];
-    "提出 2-3 种应用设计方案" -> "边设计边写文档\n（展示+同步写入文档）";
-    "边设计边写文档\n（展示+同步写入文档）" -> "用户批准当前部分？";
-    "用户批准当前部分？" -> "边设计边写文档\n（展示+同步写入文档）" [label="否，修改并更新文档"];
-    "用户批准当前部分？" -> "规范自审\n（内联修复）" [label="所有部分完成"];
-    "规范自审\n（内联修复）" -> "用户审查完整规范？";
-    "用户审查完整规范？" -> "边设计边写文档\n（展示+同步写入文档）" [label="要求更改"];
+    "提出 2-3 种应用设计方案" -> "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）";
+    "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" -> "用户批准当前部分？";
+    "用户批准当前部分？" -> "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" [label="否，修改并更新文档"];
+    "用户批准当前部分？" -> "规范自审+契约覆盖率门禁\n（覆盖率100%才放行）" [label="所有部分完成"];
+    "规范自审+契约覆盖率门禁\n（覆盖率100%才放行）" -> "用户审查完整规范？";
+    "用户审查完整规范？" -> "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" [label="要求更改"];
     "用户审查完整规范？" -> "提交设计文档" [label="批准"];
     "提交设计文档" -> "设计文档完成";
 }
@@ -129,7 +129,7 @@ digraph brainstorming {
 
 **数据库设计（从本体推导，见下方规则）：**
 
-基于已读取的本体图谱,按照以下映射规则设计数据库表，将完整表定义的 DDL 写入独立文件 `docs/db-schema.md`，并在 `docs/app-design.md` 的数据库设计部分引用该文件。
+基于已读取的本体图谱,按照以下映射规则设计数据库表，将完整表定义的 DDL 写入**权威可执行文件** `docs/contracts/db-schema.sql`（可直接 `mysql < docs/contracts/db-schema.sql` 执行）。`docs/db-schema.md` 退化为引用说明文档：在其中引用 `.sql` 为权威源，仅保留必要的文字说明，**不再内嵌 DDL 作为权威**。`app-contract.yaml` 中每个 `object.table` 必须与 `db-schema.sql` 中的表名一致。
 
 **隔离和清晰度的应用设计：**
 
@@ -190,6 +190,8 @@ digraph brainstorming {
 
 ### DDL 示例格式
 
+DDL 写入 `docs/contracts/db-schema.sql`（权威源），格式如下：
+
 ```sql
 CREATE TABLE `biz_order_info` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -213,12 +215,20 @@ CREATE TABLE `biz_order_info` (
 
 设计时**必须严格遵循** `references/ontology-mapping-rules.md` 中的映射规则，确保每个本体行为都有对应的接口设计，每条规则都有对应的代码位置，每个 SOP 流程都有对应的 Biz 编排方法。
 
-在 `docs/app-design.md` 的接口设计部分，必须包含三张映射表：
+在 `docs/app-design.md` 的接口设计部分，必须包含三张映射表（人类可读视图）：
 1. 每个对象的行为到接口的完整映射表
 2. 每条规则到代码位置（层级+方法名）的映射表
 3. 每个 SOP 流程到 Biz 编排方法的映射表
 
-这确保下游 `code-generation` skill 可以直接从设计文档推导出完整的代码骨架，不丢失任何行为和规则信息。
+**这三张映射表的权威、机器可消费形态是结构化契约 `docs/contracts/app-contract.yaml`**（模板见 `references/app-contract-template.yaml`，字段约束见 `references/app-contract.schema.json`）：
+
+| 映射表（Markdown 人读视图） | 契约字段（app-contract.yaml 机器可消费） |
+|---|---|
+| 行为→接口映射 | `objects[].behaviors[]`（type/controller/biz/service） |
+| 规则→代码位置映射 | `rules[]`（code/source/type/location） |
+| SOP→Biz 编排映射 | `sops[]`（code/bizMethod/calls） |
+
+下游 `code-generation` **直接解析 `app-contract.yaml` 确定性生成代码骨架**，不再靠读 Markdown 表格自由推导。Markdown 三张表与 yaml 必须保持一致——yaml 是权威源，Markdown 是其人读视图。
 
 ## 设计之后
 
@@ -231,14 +241,20 @@ CREATE TABLE `biz_order_info` (
 4. **歧义检查：** 任何需求是否可以有两种不同的解释？如果是，选择一个并使其明确。
 5. **数据库规范检查：** 每张表是否有自增主键、完整审计字段？是否有外键约束（不允许）？关联表是否从本体边正确推导？
 6. **接口完整性检查：** API接口定义是否完整？输入输出是否明确？UI界面设计是否清晰？
-7. **映射完整性检查：** 每个本体行为是否都有对应的接口设计？每条规则是否都有对应的代码位置？每个 SOP 流程是否都有对应的 Biz 编排方法？
+7. **映射完整性检查（可执行准出门禁）：** 对照 `docs/ontology_schema.json` 的 `objects` / `edges` / `rules` / `sop_flows` 的 `code`，逐项核对 `docs/contracts/app-contract.yaml` 是否覆盖，并输出覆盖率：
+
+   ```
+   契约覆盖率：对象 8/8 ✅  行为 40/40 ✅  规则 5/5 ✅  SOP 3/3 ✅
+   ```
+   - **覆盖率不达 100% 不得放行**：缺失项必须补入 `app-contract.yaml` 后才能进入下游。
+   - 这是 code-generation 禁止回读业务原文（不读 ontology_schema/brd）的**最后补救点**，任何遗漏在这里之后将永久丢失。
 
 内联修复任何问题。无需重新审查——只需修复并继续。
 
 **用户审查关卡：**
 规范审查循环通过后，在继续之前请用户审查完整的书面规范：
 
-> "设计文档已完成并保存到 `docs/app-design.md`，数据库 schema 已保存到 `docs/db-schema.md`。请审查完整的规范，在进入实现前告诉我你是否想做任何更改。"
+> "设计文档已完成并保存到 `docs/app-design.md`。结构化契约已生成：DDL 在 `docs/contracts/db-schema.sql`、接口/规则/SOP 映射在 `docs/contracts/app-contract.yaml`（契约覆盖率已核对达 100%）。请审查完整的规范与契约，在进入实现前告诉我你是否想做任何更改。"
 
 等待用户响应。如果他们要求更改，进行更改、更新文档并重新运行规范审查循环。只有在用户批准后才提交文档并继续。
 
