@@ -37,6 +37,11 @@ parameters:
 
 检查目标项目路径，确定生成模式；同时读取设计契约：
 
+**上游完整性 preflight（C4 豁免降级）**：先检查 `docs/workflow-progress.md` 中应用设计阶段状态与契约文件是否齐全：
+
+- 若应用设计为 `waived`，或 `docs/contracts/app-contract.yaml` / `docs/contracts/db-schema.sql` 缺失 → **降级告警**「非完整 SDD 输入：上游被豁免/契约缺失，追溯完整性与覆盖率无保障」，退化为基于 `docs/app-design.md`（人读视图）+ 已有代码推断生成，并在最终 `traceability.json` 标注 `confidence=degraded`；不得假装完整 SDD 输入。
+- 若应用设计 `complete`（gate=passed）且契约齐全 → 进入正常确定性生成。
+
 **检测项**：
 - 项目目录是否存在 Maven 模块结构（pom.xml）
 - 是否存在已有的 src/main/java 目录
@@ -44,18 +49,25 @@ parameters:
 - 已有的 pom.xml 中的依赖版本
 - 已有的 base package 路径
 
-**两种模式**：
+**三种模式**：
 
 | 模式 | 判断条件 | 行为 |
 |------|---------|------|
 | **全新项目** | 目标路径为空或无 Maven 结构 | 生成完整项目骨架：模块结构、启动类、配置文件、pom.xml |
-| **增量开发** | 目标路径存在 Maven 项目 | 在已有结构上追加，不覆盖已有文件 |
+| **增量开发** | 目标路径存在 Maven 项目（契约未变） | 在已有结构上追加，不覆盖已有文件 |
+| **规格变更增量** | `docs/spec-versions.json` 检测到上游契约/DDL 指纹已变，或收到「规格变更处理」分支传入的 spec-diff | **只重生成受影响的类/方法**：按 `docs/traceability.json` 把变化的 object/rule/SOP/behavior code 映射到具体代码位置，仅改这些位置；增量更新 `impl-plan.md` 与 `traceability.json`，不整体重写 |
 
 **增量开发注意事项**：
 - 新增的文件不与已有文件冲突
 - 新增的 Mapper XML 追加而非覆盖已有 XML
 - 新增的接口路径不与已有路径重复
 - import 路径基于已有的 base package 推断
+
+**规格变更增量注意事项**（上游规格变更、走「规格变更增量」模式时）：
+- spec-diff 来自 or-workflow-guide「规格变更处理」分支——按稳定 code 分类的新增/删除/修改项（object/rule/SOP/F-xxx/behavior）。
+- 仅重生成 `traceability.json` 命中的受影响类/方法；删除的规格对应代码按删除/隔离处理，不遗留悬空引用。
+- **增量更新**（而非整体重写）`impl-plan.md` 的覆盖计数与 `traceability.json` 的 code→位置映射。
+- 重生成完成后，由 or-workflow-guide 更新 `docs/spec-versions.json` 指纹，标记代码已对齐新规格。
 
 **读取设计契约**：探测完成后，读取 `docs/contracts/app-contract.yaml`（对象/行为/规则/SOP 结构化契约）与 `docs/contracts/db-schema.sql`（权威 DDL）。后续所有步骤都以这两份契约为确定性输入，不再回头读 `app-design.md` 的 Markdown 表格。
 

@@ -4,7 +4,7 @@
 Ontology Schema 校验器（自包含，无第三方依赖）。
 
 用法：
-    python validate_ontology.py [ontology_schema.json]
+    python3 validate_ontology.py [ontology_schema.json]
     默认路径 docs/ontology_schema.json
 
 校验内容（覆盖 sdd-four-phase-analysis.md 问题13）：
@@ -35,7 +35,7 @@ ALLOWED_PROP_TYPES = {"String", "Integer", "Double"}
 def load_schema(path):
     with open(path, "r", encoding="utf-8") as f:
         raw = f.read().strip()
-    # 容忍 <artifact type="schema">...</artifact> 包裹（对话产物直接落盘时可能出现）
+    # 兼容旧版对话产物误落盘时的 <artifact type="schema">...</artifact> 包裹。
     if raw.startswith("<"):
         start = raw.find(">")
         end = raw.rfind("</")

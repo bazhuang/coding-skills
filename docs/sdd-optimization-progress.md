@@ -2,13 +2,15 @@
 
 > 本文件记录 skills/ 体系按 SDD（Spec-Driven Development）四阶段迭代的**实施进展**，供后续接续。
 > 设计依据：[[sdd-four-phase-analysis.md]]（13 个问题的纵深诊断）、[[sdd-adjustment-analysis.md]]（文件级调整方案）、[[skills-optimization-plan.md]]（第一轮，已落地）。
-> 更新日期：2026-06-23。
+> 更新日期：2026-06-24。
 
 ---
 
 ## 0. 一句话现状
 
-第二轮优化（第一波 + 第二波）**已完成并自测通过**：流水线从「文档驱动」升级为「结构化契约驱动 + 代码级可追溯 + 阶段门禁 + 缺陷回流闭环」。**第三波（迭代治理）暂缓未做**。
+第二轮优化（第一波 + 第二波，commit `dbcd259`）**已完成并自测通过**：流水线从「文档驱动」升级为「结构化契约驱动 + 代码级可追溯 + 阶段门禁 + 缺陷回流闭环」。
+
+第三波（迭代治理）**部分完成**：✅ C1 变更影响分析（迭代重生成）、✅ C4 跳阶段 waiver 机制、✅ C3 运行时文档（安全子集，含 schema 读取路径已统一）；⏸️ C2 删除 brd-generation（用户未选）；⏸️ C3-code 剩余项（`finish_ontology.py` 的 `common/` 依赖、`openai.yaml` 编排）。
 
 ---
 
@@ -67,6 +69,24 @@ or-workflow-guide ──→ 进度账本扩展 gate/质量字段 + 各阶段准�
 | `skills/brd-generation/references/brd-template.md` | 问题8 | 重写为统一规范（与 ontology-modeling 版**完全一致**） |
 | `skills/ontology-modeling/references/brd-template.md` | 问题8 | 重写为统一规范（§1–§10 + RACI + 数据生命周期 + 审批流程 + 变更记录 + 编写人/审核人） |
 
+### 第三波（迭代治理）· 文件清单
+
+**新增文件（2）**
+
+| 文件 | 解决项 | 作用 |
+|------|--------|------|
+| `skills/or-workflow-guide/references/spec-versions.example.json` | C1 | 规格版本指纹账本格式示例（sha256，运行时真制品在 `docs/spec-versions.json`） |
+| `skills/or-workflow-guide/references/runtime-assumptions.md` | C3 | 运行时假设与路径约定（`finish_ontology.py` 外部运行时事实、跨运行时状态真相源、C3-code 暂缓说明） |
+
+**修改文件（4）**
+
+| 文件 | 解决项 | 关键改动 |
+|------|--------|---------|
+| `skills/or-workflow-guide/SKILL.md` | C1/C4/C3 | C4：账本 `waived` 状态 + 结构化字段 + 准出门禁注解改写 + 交互规范升级；C1：进度账本记录规格版本 + 新增「规格变更处理」节（传播表 + 4 步流程）+ 工作流图补变更支线；C3：补一行指向 `runtime-assumptions.md` |
+| `skills/code-generation/SKILL.md` | C1/C4 | 步骤0「两种模式」→「三种模式」新增「规格变更增量」+ 增量注意事项；C4：上游完整性 preflight（waived/契约缺失时降级告警） |
+| `skills/code-verification/SKILL.md` | C1/C4 | 步骤6 衔接 C1 增量重生成分支；输入注解与关键原则的降级条件扩展到「上游 waived」 |
+| `skills/ontology-modeling/SKILL.md` | C1 | G3 门禁末尾补「基线批准即冻结 `docs/spec-versions.json` 变更锚点」 |
+
 ---
 
 ## 4. 已执行的校验（全部通过）
@@ -82,43 +102,42 @@ or-workflow-guide ──→ 进度账本扩展 gate/质量字段 + 各阶段准�
 
 ---
 
-## 5. 改动尚未提交
+## 5. 提交状态
 
-所有改动停留在工作区（未 commit）。`git status` 可见 9 个修改 + 4 个新增。提交前需用户确认（或按团队流程处理）。
+- **第二轮（第一波+第二波）**：已提交（commit `dbcd259`）。
+- **第三波（C1/C4/C3-文档）**：本日志此前误记为「尚未提交」，现已更正。第三波改动停留在工作区（未 commit）；`git status` 可见本轮修改 + 新增。按惯例，提交留给用户确认（或按团队流程处理）。
+- **无关改动**：工作区另有 `skills/app-design/references/backend-tech-guidelines.md` 的一处未提交编辑（架构层由 `Controller → Biz → Service → DAL` 调整为 `Starter → Controller → Biz → Service → DAL`、移除 auth SDK 模块），**与本轮 SDD 第三波无关**，不纳入本轮、不触碰。
+- **工作区既有脚本改动（非本轮 SDD 文档工作产生，已据实纳入文档）**：`skills/ontology-modeling/references/script/finish_ontology.py`（schema 读取路径统一为 `docs/ontology_schema.json`，已纳入 C3-code 文档）与 `validate_ontology.py`（`python`→`python3` 注释等小改）。二者本会话期间发现、**非我所编辑**；是否提交由用户决定。
 
 ---
 
-## 6. 未完成：第三波（迭代治理）· 接续指南
+## 6. 第三波状态
 
-### C1 — 变更影响分析（支持迭代重生成）
-**当前缺口**：流水线是一次性线性的。上游 schema/brd/契约改一处，下游不自动跟着改，第二版起靠人脑同步。
-**接续入口**：`skills/or-workflow-guide/SKILL.md`
-**待做**：
-- 新增「规格变更处理」分支：上游产物变化 → 计算 diff → 生成「受影响产物清单」→ 仅重生成受影响部分。
-- 进度账本记录「代码对应的规格版本（hash/序号）」，使「代码是否落后于规格」可判定。
-- 配合 code-generation 的增量模式（当前只解决文件冲突，不解决规格 diff→代码 diff）。
+| 项 | 状态 | 落点 |
+|----|------|------|
+| C1 变更影响分析（迭代重生成） | ✅ 已完成 | §3 第三波清单；`or-workflow-guide`「规格变更处理」节 + `code-generation`「规格变更增量」模式 + `spec-versions.example.json` |
+| C4 跳阶段 waiver 机制 | ✅ 已完成 | §3 第三波清单；`or-workflow-guide` 账本 `waived` + 准出门禁 + 交互规范；`code-generation`/`code-verification` 降级联动 |
+| C3 运行时文档（安全子集） | ✅ 已完成 | `references/runtime-assumptions.md`（不改任何代码） |
+| C2 删除 brd-generation 单一化入口 | ⏸️ 暂缓 | 见下「C2」（用户本轮未选） |
+| C3-code schema 读取路径统一 | 🟡 部分落地 | `finish_ontology.py` 工作区已改为读 `docs/ontology_schema.json`（见下「C3-code」） |
 
-### C2 — 完整 SDD 入口单一化（本轮仅做了一半）
-**当前状态**：brd-generation 已降级标注、模板已统一，但 skill 仍保留（未删除）。
-**若决定彻底单一化**：删除 `skills/brd-generation/` 整个目录（无 skill manifest 需更新，删目录即可），所有 BRD 需求统一走 ontology-modeling；可在 ontology-modeling 增加「轻量模式」标志跳过 schema 持久化。**需产品定位确认后再动**。
+### 仍暂缓：C2 — 完整 SDD 入口单一化
+**当前状态**：brd-generation 已降级标注、模板已统一，但 skill 仍保留（未删除）。**本轮用户未选择删除，保持不动。**
+**若决定彻底单一化**：删除 `skills/brd-generation/` 整个目录（无 skill manifest 需更新，删目录即可），所有 BRD 需求统一走 ontology-modeling；可在 ontology-modeling 增加「轻量模式」标志跳过 schema 持久化。**需产品定位确认后再动。**
 
-### C3 — 运行时与产物路径统一（本轮明确未动）
-**已知不一致点**：
-- `skills/ontology-modeling/references/script/finish_ontology.py` 第 17 行读取 `output/ontology_schema.json` 并回调本地代理 `http://127.0.0.1:8080/.../skill/complete`，**与主流程约定的 `docs/ontology_schema.json` 路径不一致**。
-- 该脚本还 `from common import ...`（`common/` 目录在**本仓库不存在**，属更大系统的一部分）——修改前需先搞清楚外部运行时结构。
-- `skills/or-workflow-guide/agents/openai.yaml` 表明 skill 可能被 OpenAI agent 入口隐式调用，其运行时假设（进度状态权威、产物路径、阶段触发）未与本地 skill 文件对齐。
-**接续要点**：先评估 OpenAI agent 回调是否参与阶段流转；选定 `docs/workflow-progress.md` 为跨运行时唯一状态真相源；统一所有产物路径；在 skill 文档写明运行时假设。**风险较高，建议单独评估后再做**。
-
-### C4 — 跳阶段 waiver 机制
-**当前缺口**：or-workflow-guide 允许跳过阶段，但进度账本无法表达「带风险豁免的非完整 SDD 流程」。
-**接续入口**：`skills/or-workflow-guide/SKILL.md`（准出标准表里已预留 `waived` 占位说明）。
-**待做**：跳过阶段时记录 `waived` 状态 + 跳过原因 + 缺失产物 + 风险 + 补齐建议；下游读取到 `waived` 后降低自动化承诺（如 code-generation 提示「非完整 SDD 输入，追溯完整无保障」）。
+### 部分落地：C3-code — 运行时与产物路径**代码**统一
+**已文档化（C3 文档子集已完成）**：`references/runtime-assumptions.md` 写明 `finish_ontology.py` 为外部运行时脚本（依赖 `common/`、POST `127.0.0.1:8080`；仓内不可独立运行）、`openai.yaml` 隐式调用、跨运行时状态真相源为 `docs/workflow-progress.md`。
+**已落地的代码项**：`finish_ontology.py` 的 schema 读取路径已从 `<repo>/../output/ontology_schema.json` 统一为 `<repo>/docs/ontology_schema.json`（本会话工作区改动，**非本轮 SDD 文档工作产生**；文档已同步）。
+**仍暂缓的代码级改动**：
+- 移除 `finish_ontology.py` 的 `common/` 依赖（`from config/http_proxy import ...`）——仓内 `common/` 不存在，脚本仍无法独立运行。
+- 修改 `agents/openai.yaml` 隐式调用策略或编排假设。
+**接续要点**：先评估 OpenAI agent 回调是否参与阶段流转；确认外部运行时结构后再处理 `common/` 依赖。**风险较高，建议单独评估后再做。**
 
 ---
 
 ## 7. 接续时的快速恢复步骤
 
-1. 读本文件 §2（产物链）+ §6（未完成项）。
-2. 若继续第三波：从 §6 对应小节的「接续入口」文件开始；C3 务必先评估外部运行时（`common/` 模块、OpenAI agent 回调）。
+1. 读本文件 §2（产物链）+ §6（第三波状态/暂缓项）。
+2. 若继续推进暂缓项：从 §6 的 C2 / C3-code 小节开始；C3-code 务必先评估外部运行时（`common/` 模块、OpenAI agent 回调）。
 3. 若要验证当前状态：重跑 §4 的校验命令（validator 路径 `skills/ontology-modeling/references/script/validate_ontology.py`）。
 4. 若要端到端走查：以 `skills/ontology-modeling/examples.md` 的天然气场景为输入，按 §2 产物链逐步检查交接闭环。

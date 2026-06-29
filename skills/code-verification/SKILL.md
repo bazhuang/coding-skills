@@ -28,7 +28,7 @@ parameters:
 | `docs/contracts/acceptance-tests.yaml` | 验收测试契约，确定性验收依据（BRD §4 作为补充） |
 | `docs/brd.md` | 功能完整性对照的补充验收清单 |
 
-> 若 `traceability.json` / `requirements-baseline.json` 缺失（非完整 SDD 输入），需在报告中明确「追溯置信度受限」，并降级为方法名模糊匹配。
+> 若 `traceability.json` / `requirements-baseline.json` 缺失，或上游阶段为 `waived`（非完整 SDD 输入），需在报告中明确「追溯置信度受限 / 上游被豁免」，并降级为方法名模糊匹配。
 
 ## 验证流程
 
@@ -188,6 +188,8 @@ parameters:
 
 **输出**：将分类结果写回报告「待处理事项」（每条带 `[spec-gap]`/`[impl-gap]`/`[scope]` 标签与建议修订位置），并提示用户：`[spec-gap]` 项需先改契约再重生成代码，`[impl-gap]` 项可直接重生成代码。这样实现「缺陷 → 定位根因 → 修订对应层 → 重新生成」的反馈闭环。
 
+**与 C1 变更分支衔接**：当 `[spec-gap]`/`[impl-gap]` 项修订后需重生成代码时，走 or-workflow-guide 的「规格变更处理」分支做**增量重生成**（仅改受影响类/方法 + 增量更新 `traceability.json` / `spec-versions.json`），而非整条流水线重跑——缺陷回流天然就是一次规格变更，复用变更分支避免全量返工。
+
 ## 技术规范参照
 
 验证时必须对照 `../app-design/references/backend-tech-guidelines.md` 中的全部技术规范，不可妥协。
@@ -199,5 +201,5 @@ parameters:
 - **代码质量审查由子代理执行**：提供没有上下文包袱的"新鲜视角"，避免自己看不到自己的问题
 - **分级处理**：Critical 自动修复、Important 报告用户、Minor 记录备查——不过度打断，也不放任问题
 - **环境不强求**：逐步引导，有环境就验，没有就跳过，明确告知跳过了什么
-- **功能对照确定性优先**：以 `traceability.json` + `requirements-baseline.json` + `acceptance-tests.yaml` 做确定性匹配，制品缺失时降级为模糊匹配并明确标注置信度受限
+- **功能对照确定性优先**：以 `traceability.json` + `requirements-baseline.json` + `acceptance-tests.yaml` 做确定性匹配，制品缺失或上游 `waived` 时降级为模糊匹配并明确标注置信度受限
 - **缺陷回流有方向**：`[spec-gap]` 回 app-design 改契约、`[impl-gap]` 回 code-generation 改代码——让验证驱动迭代而非止于报告

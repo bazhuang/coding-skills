@@ -5,13 +5,15 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 # 本体论建模与 BRD 生成
 
-使用**对象(Object)、行为(Behavior)、规则(Rules)**三要素方法论，通过业务访谈同时产出：
+使用**对象(Object)、行为(Behavior)、规则(Rules)**三要素方法论，通过业务访谈同时产出两份可直接打开、跨 coding agent 通用的文件：
 1. **本体图谱 Schema** — 结构化的业务领域模型（JSON）
 2. **BRD 文档** — 结构化的业务需求文档（Markdown）
 
 ## 数据输出
 
-每次生成的 Ontology Schema 和 BRD 文档默认写入本地 `docs/` 目录，后续交互在已有数据基础上进行增量修改。对话输出使用 `<artifact>` 标签区分内容类型（`type="brd"` 用于 BRD 文档，`type="schema"` 用于 Ontology Schema），供下游渲染系统分块解析。详见"输出格式规范"章节。
+每次生成的 Ontology Schema 和 BRD 文档默认写入本地 `docs/` 目录，后续交互在已有数据基础上进行增量修改。**文件是唯一权威产物**：Codex、ZCode、Claude Code 等 agent 只需要读写这些标准文件即可继续工作或交给下游 skill。
+
+对话回复只输出摘要、下一步问题和文件路径，不在回复里内嵌完整 JSON/Markdown。只有当用户或特定平台明确要求时，才额外输出平台专用的 artifact/card 标记；这些标记不得作为跨 agent 的主契约。
 
 ### 文件路径约定
 
@@ -19,8 +21,8 @@ description: Guide business teams through ontology modeling and BRD generation u
 |--------|---------|------|
 | Ontology Schema | `docs/ontology_schema.json` | JSON（符合 `Ontology` 接口定义，且须通过 `references/script/validate_ontology.py` 校验） |
 | BRD 文档 | `docs/brd.md` | Markdown（符合 BRD 模板结构） |
-| 需求基线 | `docs/requirements-baseline.json` | JSON（需求 ID / 优先级 / 验收标准 / 来源 code，作为下游确定性验收依据） |
-| 验收测试契约 | `docs/contracts/acceptance-tests.yaml` | YAML（由 BRD §4 验收标准派生，供 code-verification 确定性校验） |
+
+> Requirements 阶段准备进入下游 app-design / code-verification 时，可按“阶段准出门禁”额外生成 `docs/requirements-baseline.json` 与 `docs/contracts/acceptance-tests.yaml`。建模交互过程中的通用默认产物仍只要求上述两份文件。
 
 ### 读写规则
 
@@ -34,7 +36,7 @@ description: Guide business teams through ontology modeling and BRD generation u
    - 每次覆盖写入完整内容（非增量），确保文件始终是最新状态
    - 只有当用户明确要求使用 MCP 持久化，或当前运行环境必须通过 MCP 服务写文件时，才改用 `mcp__graph__data_write`
 
-3. **跨会话延续**：不同 Claude Code 会话可以通过读取本地文件恢复建模进度
+3. **跨会话延续**：不同 coding agent 会话可以通过读取本地文件恢复建模进度
    - 用户可以说"继续上次的本体建模"，skill 读取文件后从中断处继续
    - 用户也可以提供新的业务场景文件（如 `db.schema`、`business_scenario.md`），skill 读取后与现有 schema/BRD 合并更新
 
@@ -75,7 +77,7 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 ## 领域元模型定义
 - 领域元模型里面主要是定义了领域内的概念对象以及通用约束，本体建模需要结合用户的实际使用场景生成实际业务对象以及业务约束等
-- 如果用户的意图是属于需供运筹或者运筹方面的，需要读取 `references/opt.md`，领域元模型编号是13991，辅助用户更好的进行业务本体建模
+- 如果用户的意图是属于需供运筹或者运筹方面的，需要读取 `references/opt.md`，辅助用户更好的进行业务本体建模
 
 ## BRD 文档结构
 
@@ -302,32 +304,31 @@ description: Guide business teams through ontology modeling and BRD generation u
 - 本体 Schema：schema 完整性验证
 - BRD：§8 约束与假设 + §9 风险分析 + §10 术语表
 
-### 步骤6：生成建模 schema 与完整 BRD
+### 步骤6：生成建模 Schema 与完整 BRD
 
 **重要原则：schema 和 BRD 应在整个建模过程中持续生成和更新，而非仅在最后一步生成。**
 
 从步骤1（需求理解与领域分析）开始，每次回复用户时都必须：
 1. 回应用户的输入，提出下一步问题
-2. 在回复末尾使用 `<artifact>` 标签附带当前最新的**双产出**：
-   - **BRD 文档**：包裹在 `<artifact type="brd">` 中，Markdown 格式
-   - **Ontology Schema**：包裹在 `<artifact type="schema">` 中，JSON 格式
-3. 随着用户补充信息，动态调整和丰富两部分产出
-4. **每次回复结束后，将最新的 Schema 和 BRD 默认直接写入本地文件**：
+2. 随着用户补充信息，动态调整和丰富两部分产出
+3. **每次回复结束前，将最新的 Schema 和 BRD 默认直接写入本地文件**：
    - 将完整 JSON 字符串写入 `docs/ontology_schema.json`
    - 将完整 Markdown 内容写入 `docs/brd.md`
    - 只有当用户明确要求使用 MCP 持久化，或当前运行环境必须通过 MCP 服务写文件时，才改用 `mcp__graph__data_write`
+4. 在回复末尾给出产物摘要和文件路径，例如：
+   - `已更新 docs/ontology_schema.json（objects=3, edges=2, rules=1）`
+   - `已更新 docs/brd.md（已补充 §4 业务需求、§6 数据需求）`
 
 这意味着：
 - 识别出第一个核心对象时，就应生成包含该对象的初始 schema 和 BRD 数据需求章节
 - 用户补充属性后，更新 schema 中该对象的 properties 和 BRD 中的实体属性表
 - 识别出关系后，更新 schema 的 edges 和 BRD 的实体关系描述
 - 识别出规则后，更新 schema 的 rules 和 BRD 的业务规则章节
-- 每次交互都输出完整的、最新的 schema 和 BRD，而非增量片段
 - 每次交互都同步更新本地文件，确保文件内容与对话中的最新产出一致
 
 **本体 Schema 输出格式**：
 
-Schema JSON 必须放在 `<artifact type="schema">` 标签内，内容为纯 JSON（不带 ````json` 代码块包裹），严格遵循以下 `Ontology` 接口定义：
+Schema JSON 必须写入 `docs/ontology_schema.json`，内容为纯 JSON（不带 Markdown 代码块、XML 标签或平台专用 wrapper），严格遵循以下 `Ontology` 接口定义：
 
 ```ts
 interface OyObject {
@@ -371,7 +372,6 @@ interface SopFlow {
 }
 
 interface Ontology {
-    metaPaperId:string;
   biz_logic: string; // 业务逻辑，将用户的对话内容完整记录，后续会作为智能能力打造的需求描述
   domain: string; // 业务场景归属的领域
   objects: OyObject[];  // 实体对象列表
@@ -390,7 +390,7 @@ interface Ontology {
 运行校验脚本（自包含、无需额外依赖）：
 
 ```bash
-python skills/ontology-modeling/references/script/validate_ontology.py docs/ontology_schema.json
+python3 skills/ontology-modeling/references/script/validate_ontology.py docs/ontology_schema.json
 ```
 
 - 校验内容：结构完整性、各层级 `code` 唯一性、edge 的 `source_code`/`target_code` 引用完整性（无悬空指向）、属性 `type` 枚举（仅 String/Integer/Double）、`code` 格式与长度。
@@ -444,50 +444,50 @@ Should Have / Nice to Have 也建议补齐，但 Must Have 缺任一项视为门
 
 `approved` 字段在用户确认基线后置为 `true`，形成「已批准需求基线」，作为后续变更影响分析的比对起点。
 
-## 输出格式规范
+> **冻结变更锚点（为 C1 服务）**：基线批准（`approved=true`）的同时，由 or-workflow-guide 把当前所有 `docs/` 规格制品指纹写入 `docs/spec-versions.json`（其 `baseline_version` 与本基线版本一致）。这是「规格变更处理」分支的比对起点——后续任何上游规格变更都以此版本为起点计算 diff 并仅重生成受影响下游。
 
-每次回复由三部分组成，使用 `<artifact>` 标签区分内容类型，供下游渲染系统分块解析：
+## 通用输出规范
+
+### 文件优先
+
+本 skill 的跨平台契约是文件，而不是对话消息格式：
+
+| 内容 | 权威位置 | 格式 | 打开方式 |
+|------|---------|------|----------|
+| BRD 文档 | `docs/brd.md` | Markdown | 任意编辑器、Markdown 预览、代码仓库文件视图 |
+| Ontology Schema | `docs/ontology_schema.json` | JSON | 任意编辑器、JSON viewer、下游自动化脚本 |
 
 ### 回复结构
 
-```
-<artifact type="brd">
-[BRD 文档的完整 Markdown 内容，不带代码块包裹]
-</artifact>
+每次回复应包含：
 
-<artifact type="schema">
-[Ontology Schema 的完整 JSON 内容，不带代码块包裹]
-</artifact>
+1. 对用户输入的回应和建模判断
+2. 下一步需要用户确认的问题
+3. 已更新文件的路径和摘要统计
 
-[对话内容：回应输入、分析业务、提出下一步问题]
-```
+除非用户明确要求，不要在聊天回复里粘贴完整 BRD 或完整 Schema，避免让不同 agent 依赖私有消息解析。
 
-### 标签说明
+### 平台专用渲染的兼容规则
 
-| 内容 | 标签 | type 值 | 格式 | 下游渲染方式 |
-|------|------|---------|------|------------|
-| 对话内容 | 无标签 | — | 纯文本 | 对话气泡展示 |
-| BRD 文档 | `<artifact>` | `brd` | Markdown | Word 文档形式展示 |
-| Schema | `<artifact>` | `schema` | JSON | 画布/可视化渲染 |
+如果某个运行环境明确要求 artifact/card 渲染，可以在写入标准文件后额外输出该平台需要的标记。但必须遵守：
 
-### 输出规则
-
-1. 对话内容始终在最前面，无标签包裹
-2. `<artifact>` 标签必须正确闭合（`</artifact>`）
-3. artifact 标签内的内容**不带** Markdown 代码块包裹（不要写 ````json` 或 ````markdown`）
-4. 每次回复都包含完整的双产出（非增量片段），即使部分内容未变化也要完整输出
+1. 标准文件仍是唯一权威产物，artifact/card 只是展示层副本
+2. artifact/card 内容不得与 `docs/ontology_schema.json`、`docs/brd.md` 不一致
+3. 不要把 `<artifact>`、HTML、自定义 XML 或卡片协议写入 `docs/ontology_schema.json` / `docs/brd.md`
+4. 给用户说明这些标记是当前平台的可选展示适配，不是 skill 的通用契约
 
 
 ## 交互指导
 
-### 持续输出 Schema + BRD（核心要求）
+### 持续更新 Schema + BRD（核心要求）
 - **建模开始时，先读取 `docs/ontology_schema.json` 和 `docs/brd.md`（如果存在），在已有内容基础上继续建模**
-- **从识别出第一个对象开始，每次回复都必须使用 `<artifact>` 标签附带完整的当前 Schema 和 BRD**
+- **从识别出第一个对象开始，每次回复都必须更新本地 `docs/ontology_schema.json` 和 `docs/brd.md`**
 - 不要等到所有信息收集完毕才生成 schema 和 BRD，而是边建模边输出
-- 每次用户补充信息后，基于最新信息更新并输出完整的双产出
+- 每次用户补充信息后，基于最新信息更新完整的双产出文件
 - schema 的 biz_logic 字段应持续记录用户的对话输入
 - 对于尚未确定的字段或章节，可以使用合理的初始值或标注"待确认"，后续交互中再更新
 - **每次回复结束后，默认直接将最新的 Schema 和 BRD 写入本地文件 `docs/ontology_schema.json` 和 `docs/brd.md`；只有用户明确要求 MCP 持久化或当前环境必须通过 MCP 写文件时，才使用 `mcp__graph__data_write`**
+- 回复中只展示摘要和文件路径；用户要求查看全文时，再读取文件并展示相关片段
 
 ### 循序渐进
 - 不要一次性抛出所有问题
@@ -558,9 +558,9 @@ Should Have / Nice to Have 也建议补齐，但 Must Have 缺任一项视为门
 
 然后按照上述工作流程逐步引导用户完成建模。
 
-**关键要求：从识别出第一个对象开始，每次回复都必须在末尾使用 `<artifact>` 标签附带完整的当前 Schema 和 BRD。**
+**关键要求：从识别出第一个对象开始，每次回复都必须确保本地文件中有完整的当前 Schema 和 BRD。**
 - 即使信息不完整，也要基于已知信息生成初始 schema 和 BRD
-- 用户每次补充信息后，立即更新并输出完整双产出
+- 用户每次补充信息后，立即更新完整双产出文件
 - 不要等到最后才一次性生成 schema 和 BRD
 - **每次回复结束后，默认直接将最新的 Schema 和 BRD 持久化到本地文件 `docs/ontology_schema.json` 和 `docs/brd.md`；只有用户明确要求 MCP 持久化或当前环境必须通过 MCP 写文件时，才使用 `mcp__graph__data_write`**
 - **每次新会话开始时，先读取本地文件，在已有基础上继续建模**

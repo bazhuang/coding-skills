@@ -1,0 +1,21 @@
+{
+  "$comment": "规格版本指纹账本（示例/格式参考）。运行时真制品位于 docs/spec-versions.json，由 or-workflow-guide 在每个阶段完成后维护。指纹用 `shasum -a 256 docs/<artifact>` 计算（取首段十六进制即可）。判定「代码是否落后于规格」：比较 fingerprints[<上游制品>] 当前值 vs generated_against[<本阶段>][<上游制品>] 记录值，不一致即下游落后于规格，需走「规格变更处理」分支。",
+  "baseline_version": "v1.0",
+  "fingerprints": {
+    "ontology_schema.json": "a1b2c3d4e5f6a7b8",
+    "requirements-baseline.json": "1122334455667788",
+    "contracts/acceptance-tests.yaml": "99aabbccddeeff00",
+    "contracts/app-contract.yaml": "ccddeeff00112233",
+    "contracts/db-schema.sql": "445566778899aabb"
+  },
+  "generated_against": {
+    "app-design": {
+      "ontology_schema.json": "a1b2c3d4e5f6a7b8",
+      "requirements-baseline.json": "1122334455667788"
+    },
+    "code-generation": {
+      "contracts/app-contract.yaml": "ccddeeff00112233",
+      "contracts/db-schema.sql": "445566778899aabb"
+    }
+  }
+}

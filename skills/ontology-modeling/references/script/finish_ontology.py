@@ -12,9 +12,8 @@ from http_proxy import http_proxy
 
 if __name__ == "__main__":
     fingerprint = get_auth_tokens()
-#     file_name = f"ontology-{fingerprint[SKILL_AUTH_FINGERPRINT]}.json"
-#     file_path = Path(__file__).resolve().parent.parent.parent.parent.parent.parent / file_name
-    file_path = Path(__file__).resolve().parent.parent.parent.parent.parent.parent/output/ontology_schema.json
+    repo_root = Path(__file__).resolve().parents[4]
+    file_path = repo_root / "docs" / "ontology_schema.json"
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"文件不存在: {file_path}")
     try:

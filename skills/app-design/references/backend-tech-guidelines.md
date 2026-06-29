@@ -20,7 +20,6 @@
 ├── {project}-dal        # 数据访问层 (Mapper + PO)
 ├── {project}-client     # 客户端 VO 定义
 ├── {project}-test       # 测试模块
-└── rdfa-auth-spring-mvc  # 认证 SDK 适配
 ```
 
 **约束**：仅在上述 Maven 管理的模块和测试模块中编写代码。
@@ -107,6 +106,12 @@ import javax.servlet.*;
 
 ## 配置和环境
 
+### 多环境支持
+支持区分不同的环境，目前有3套不同的环境，
+- FAT(开发测试环境)
+- UAT(预生产环境)
+- PROD(生产环境
+
 ### 数据库配置
 配置位置: `{project}-starter/src/main/resources/application.properties`
 
@@ -122,7 +127,7 @@ mybatis.mapper-locations=classpath:mapper/*.xml
 
 ### 外部依赖 SDK
 
-**认证 SDK**：
+**登录认证 SDK**：
 ```xml
 <dependency>
     <groupId>top.rdfa.auth</groupId>
@@ -131,22 +136,19 @@ mybatis.mapper-locations=classpath:mapper/*.xml
 </dependency>
 ```
 
-### AI 集成
-项目集成 LangChain4j，支持智能规划和分析功能。模板位于 `{project}-service/src/main/resources/ai/template/`
-
 ## 对应用设计的影响
 
 在制定应用设计时，以下决策已被技术栈固定，**不需要**再作为可选方案提出：
 
-| 设计维度 | 已确定方案 |
-|---------|-----------|
-| 框架 | Spring Boot 3.4.5，不可替换 |
-| ORM | MyBatis，不可替换 |
-| 数据库 | MySQL 5.7，不可替换 |
-| 分层架构 | Controller → Biz → Service → DAL，不可替换 |
-| 接口风格 | REST POST 为主，使用 `ServiceResult<VO>` 包装 |
-| 消息队列 | RocketMQ（如需异步，优先考虑） |
-| 配置管理 | Apollo 配置中心 |
-| 认证 | RDFA 认证 SDK，`@Authorize` 注解 |
+| 设计维度 | 已确定方案                                         |
+|---------|-----------------------------------------------|
+| 框架 | Spring Boot 3.4.5，不可替换                        |
+| ORM | MyBatis，不可替换                                  |
+| 数据库 | MySQL 5.7，不可替换                                |
+| 分层架构 | Starter → Controller → Biz → Service → DAL，不可替换 |
+| 接口风格 | REST POST 为主，使用 `ServiceResult<VO>` 包装        |
+| 消息队列 | RocketMQ（如需异步，优先考虑）                           |
+| 配置管理 | Apollo 配置中心                                   |
+| 认证 | RDFA 认证 SDK，`@Authorize` 注解                   |
 
 因此，应用设计的 2-3 种方案应聚焦于**业务逻辑的分解方式、模块划分、数据流设计**等层面，而非技术选型层面。

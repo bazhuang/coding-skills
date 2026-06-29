@@ -28,7 +28,7 @@ parameters:
 
 **文件位置**：`docs/workflow-progress.md`
 
-**格式**：每个阶段一行，记录完成状态、**门禁质量（gate）**和产出。`gate` 字段记录该阶段准出门禁是否通过，使账本表达「达没达标」而非仅「做没做」。
+**格式**：每个阶段一行，记录完成状态、**门禁质量（gate）**和产出。`gate` 字段记录该阶段准出门禁是否通过，使账本表达「达没达标」而非仅「做没做」。状态取值：`complete`（完成且门禁通过）/ `in progress` / `pending` / `waived`（**带风险豁免跳过**，见下方）。
 
 ```
 本体建模: complete (gate=passed, objects=8 rules=5, 产物=ontology_schema.json+brd.md+requirements-baseline.json+contracts/acceptance-tests.yaml)
@@ -38,6 +38,18 @@ parameters:
 ```
 
 > 旧格式（只有 complete/in progress/pending）仍可被读取恢复；新格式向后兼容，gate/产物 字段缺失时按「未记录」处理。
+
+**`waived` 状态（跳阶段风险豁免）**：当用户明确选择跳过某阶段（如「直接做应用设计，不做本体建模」「跳过设计，基于已有代码增量」）时，记录 `waived` 而非裸 `complete`/`pending`，并补 4 个结构化字段，使下游能据此降低承诺：
+
+```
+本体建模: waived (reason=用户已有遗留库表与接口仅做增量适配; missing=ontology_schema.json,requirements-baseline.json; risk=高: 契约覆盖率/代码追溯无保障; remediation=后续补建模或手写契约后回到 complete)
+应用设计: complete (gate=passed, 覆盖率=对象8/8 行为40/40 规则5/5 SOP3/3, 产物=app-design.md+contracts/{db-schema.sql,app-contract.yaml})
+代码生成: pending
+```
+
+`waived` 字段含义：`reason`（跳过原因）/ `missing`（因此缺失的产物）/ `risk`（风险等级与说明）/ `remediation`（补齐建议）。下游阶段（app-design / code-generation / code-verification）启动时若读到上游为 `waived`，必须**降低自动化承诺**（如 code-generation 提示「非完整 SDD 输入，追溯完整无保障」），不得假装完整 SDD 输入。
+
+**规格版本记录（迭代重生成依据）**：每阶段完成时，或-workflow-guide 同步把当时 `docs/` 下所有规格制品的 sha256 指纹写入 `docs/spec-versions.json`（格式见 `references/spec-versions.example.json`）。这是判定「代码是否落后于规格」、支持「变更仅重生成受影响部分」的锚点（详见下方「规格变更处理」）。
 
 **规则**：
 - **由 or-workflow-guide 统一管理**：各个 skill 只负责执行自己的流程，不知道账本的存在。or-workflow-guide 在每个 skill 执行完毕或中断时，负责写入和更新账本
@@ -56,7 +68,7 @@ parameters:
 | 代码生成 | `impl-plan.md` 已获用户审查批准；代码方法带 `@ontology/@brd/@rule` 标注；产出 `traceability.json` | 不得进入 code-verification |
 | 代码验证 | Critical 问题清零（自动修复后重检）；Important 问题已分类为 `[spec-gap]`/`[impl-gap]` 并给出回流建议 | 不阻断交付，但待处理事项须回流对应阶段 |
 
-> 跳过阶段（灵活分支）当前以普通 `complete`/`pending` 记录；带风险豁免的 `waived` 机制属第三波，暂未实现。下游若读取到某阶段 gate 未通过或缺失，应降低自动化承诺并提示用户。
+> **跳过阶段（灵活分支）**用 `waived` 状态记录（见进度账本说明）：必须带 `reason`/`missing`/`risk`/`remediation` 四字段。下游若读取到上游为 `waived`，或某阶段 `gate` 未通过/缺失，必须**降低自动化承诺并提示用户**（如追溯完整无保障、覆盖率无法核对）。`waived` 不等于 `complete`——它明确表达「这一环的保障被豁免了」。
 
 ## 完整工作流
 
@@ -79,7 +91,34 @@ parameters:
 第四步：code-verification（确定性验证 + 缺陷回流）
    ↓ 产出：验证报告（规范合规 + 代码质量 + 基于 traceability.json 的功能对照 + 运行验证）
    ↓ 闭环：Important 缺陷分类为 [spec-gap]/[impl-gap]，回流到对应阶段修订
+   ↓ 迭代：上游规格变更 → 走「规格变更处理」分支（指纹比对 → 受影响清单 → 仅重生成受影响部分）
 ```
+
+## 规格变更处理（迭代重生成）
+
+前述流水线是「一次性线性」的——上游规格改一处，下游不会自动跟着改。本节定义**规格变更分支**：上游产物变化时，计算 diff → 生成受影响产物清单 → 仅重生成受影响部分，而非整条流水线重跑。
+
+### 触发条件
+
+- **用户声明变更**：如「给本体加一个对象」「合同规则改了」「需求 F-003 改为 Should Have」。
+- **恢复时检测漂移**：会话恢复时重新计算各规格制品指纹，若与 `docs/spec-versions.json` 中 `generated_against` 记录的不一致，判定对应下游已落后于规格，主动提示用户。
+
+### 变更处理 4 步
+
+1. **确认变更**：对声明变更的规格制品重算 sha256 指纹（`shasum -a 256 docs/<artifact>`），与 `docs/spec-versions.json` 比对，确认确实变化并定位到具体制品。
+2. **分类 diff**：按稳定 code 分类变更——新增/删除/修改的 `object` code、`rule` code、`SopFlow` code、需求 `F-xxx`、对象 `behavior`。稳定 code 是变更影响的锚点。
+3. **生成受影响产物清单**：用下方传播表定位受影响的下游阶段，再以 `docs/traceability.json` 把 spec code 映射到具体类/方法，得到精确到文件/方法的重生成清单。
+4. **增量重生成 + 更新账本**：仅对受影响阶段触发重生成（code-generation 走「规格变更增量」模式），完成后更新 `docs/spec-versions.json` 指纹与账本。
+
+### 受影响产物传播表
+
+| 上游变更的制品 | 受影响、需重生成的下游 |
+|---|---|
+| `docs/ontology_schema.json` / `docs/requirements-baseline.json` | app-design（重生成契约 + DDL）→ code-generation（增量）→ code-verification |
+| `docs/contracts/app-contract.yaml` / `docs/contracts/db-schema.sql` | code-generation（增量）→ code-verification |
+| 代码 / `docs/traceability.json` | code-verification |
+
+> 上游规格若回退（如删除某对象），同样走本分支：受影响代码按删除/隔离处理，并更新 `traceability.json` 与 `spec-versions.json`。`docs/spec-versions.json` 格式见 `references/spec-versions.example.json`。
 
 ## 工作流程
 
@@ -152,7 +191,7 @@ app-design 执行完成后，建议用户进入代码生成阶段。
 1. **启动检查**：收到用户请求后，先检查 `docs/workflow-progress.md` 是否存在。如果存在，读取账本，告知用户上次进度并建议从断点恢复；如果不存在，从本体建模开始
 2. **状态透明**：每进入一个新阶段，清楚告知用户当前阶段和预计后续步骤
 3. **路由确认**：每个阶段完成后，以选择题方式让用户确认下一步路由，同时给出推荐选项
-4. **灵活跳转**：用户可随时说"跳过本体建模，直接做应用设计"等指令
+4. **灵活跳转（waived 记录）**：用户可随时说"跳过本体建模，直接做应用设计"等指令。跳过时**必须**：① 询问并记录跳过 `reason`；② 推断 `missing`（缺失产物）/ `risk`（风险等级）/ `remediation`（补齐建议）；③ 在账本写 `waived` 条目（而非裸 `complete`/`pending`）。下游据此降低自动化承诺
 5. **进度同步**：每个阶段完成或中断时，同步更新 `docs/workflow-progress.md`
 
 ## 示例对话流程
@@ -181,3 +220,4 @@ Router: "好的，我们先通过本体建模来理解业务..."
   - ontology-modeling → app-design：docs/ontology_schema.json、docs/brd.md、docs/requirements-baseline.json
   - app-design → code-generation：docs/contracts/app-contract.yaml、docs/contracts/db-schema.sql、docs/app-design.md（人读视图）
   - code-generation → code-verification：代码 + docs/traceability.json、docs/requirements-baseline.json、docs/contracts/acceptance-tests.yaml
+- **运行时假设**：本 skill 及下游均以 `docs/` 为制品根目录、`docs/workflow-progress.md` 为跨运行时状态唯一真相源。`finish_ontology.py` 与 `agents/openai.yaml` 涉及外部 agent 运行时，其假设与路径约定详见 `references/runtime-assumptions.md`（这些文件的**代码级改动属高风险，未经外部运行时评估勿动**）
