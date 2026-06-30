@@ -1,6 +1,6 @@
 ---
 name: code-generation
-description: "基于应用设计契约（app-contract.yaml + db-schema.sql）生成可运行的 Spring Boot 项目代码：先产出实现计划供审查，再骨架+并行填充，并生成追溯清单。当用户要求代码生成、实现功能、生成项目代码时使用。"
+description: "基于应用设计契约（app-contract.yaml + db-schema.sql）生成可运行的后端项目代码（Java/Spring Boot 或 Python/FastAPI）：先产出实现计划供审查，再骨架+并行填充，并生成追溯清单。当用户要求代码生成、实现功能、生成项目代码时使用。"
 triggers:
   - 用户要求生成代码、实现功能、创建项目
   - app-design 完成后用户要求进入实现阶段
@@ -13,11 +13,16 @@ parameters:
 
 # 代码生成
 
-基于 `app-design` 产出的技术文档，生成可运行的 Spring Boot 项目代码。
+基于 `app-design` 产出的技术文档，按契约中的后端语言生成可运行的 Java/Spring Boot 或 Python/FastAPI 项目代码。
 
 ## 技术规范约束
 
-生成代码时**必须严格遵循** `../app-design/references/backend-tech-guidelines.md` 中的全部技术规范，不可妥协。无论本地环境配置如何，都不允许因"编译不通过"或"运行报错"而省略规范中的任何要求。
+生成代码时先读取 `docs/contracts/app-contract.yaml` 的 `project.backend.language`，再读取 `../app-design/references/backend-tech-guidelines.md` 和对应语言规范：
+
+- `java` -> `../app-design/references/backend-java-tech-guidelines.md`
+- `python` -> `../app-design/references/backend-python-tech-guidelines.md`
+
+必须严格遵循所选语言规范，不可妥协。无论本地环境配置如何，都不允许因"编译不通过"或"运行报错"而省略规范中的任何要求。
 
 如果因环境问题导致编译/运行失败，应该生成环境配置说明文档指导用户配置，**而不是删除或降级代码中的规范要求**。
 
@@ -43,23 +48,23 @@ parameters:
 - 若应用设计 `complete`（gate=passed）且契约齐全 → 进入正常确定性生成。
 
 **检测项**：
-- 项目目录是否存在 Maven 模块结构（pom.xml）
-- 是否存在已有的 src/main/java 目录
-- 已有的 Mapper、Service、Controller 文件
-- 已有的 pom.xml 中的依赖版本
-- 已有的 base package 路径
+- 项目目录是否存在所选语言的项目结构（Java: Maven/pom.xml；Python: app/、pyproject.toml 或 requirements.txt）
+- 是否存在已有源码目录（Java: src/main/java；Python: app/）
+- 已有的接口层、业务层、服务层、数据访问层文件
+- 已有依赖配置（Java: pom.xml；Python: pyproject.toml/requirements.txt）
+- 已有根包路径（Java package 或 Python package）
 
 **三种模式**：
 
 | 模式 | 判断条件 | 行为 |
 |------|---------|------|
-| **全新项目** | 目标路径为空或无 Maven 结构 | 生成完整项目骨架：模块结构、启动类、配置文件、pom.xml |
-| **增量开发** | 目标路径存在 Maven 项目（契约未变） | 在已有结构上追加，不覆盖已有文件 |
+| **全新项目** | 目标路径为空或无所选语言项目结构 | 生成完整项目骨架：模块/目录结构、启动入口、配置文件、依赖文件 |
+| **增量开发** | 目标路径存在所选语言项目（契约未变） | 在已有结构上追加，不覆盖已有文件 |
 | **规格变更增量** | `docs/spec-versions.json` 检测到上游契约/DDL 指纹已变，或收到「规格变更处理」分支传入的 spec-diff | **只重生成受影响的类/方法**：按 `docs/traceability.json` 把变化的 object/rule/SOP/behavior code 映射到具体代码位置，仅改这些位置；增量更新 `impl-plan.md` 与 `traceability.json`，不整体重写 |
 
 **增量开发注意事项**：
 - 新增的文件不与已有文件冲突
-- 新增的 Mapper XML 追加而非覆盖已有 XML
+- 新增的数据访问文件追加而非覆盖已有文件（Java: Mapper XML；Python: Repository/Model/Alembic 迁移）
 - 新增的接口路径不与已有路径重复
 - import 路径基于已有的 base package 推断
 
@@ -77,8 +82,8 @@ parameters:
 
 **产出**：`docs/impl-plan.md`，内容包含：
 
-1. **分组与依赖顺序**（被依赖的对象先生成）：基础设施（PO/VO/Mapper）→ 数据访问（Service）→ 业务编排（Biz）→ 接口（Controller）
-2. **每个文件**的全限定类名、所在模块/包路径、方法签名（来自 `app-contract.yaml` 的 behaviors/rules/sops）
+1. **分组与依赖顺序**（被依赖的对象先生成）：基础设施（Java: PO/VO/Mapper；Python: Model/Schema/Repository）→ 领域服务（Service）→ 业务编排（Biz）→ 接口层（Java Controller / Python API Router）
+2. **每个文件**的全限定类名或模块名、所在模块/包路径、方法签名（来自 `app-contract.yaml` 的 behaviors/rules/sops）
 3. **import 清单**与跨对象引用关系
 4. **映射完整性校验**（与契约核对覆盖计数）：
 
@@ -104,6 +109,10 @@ parameters:
 
 **生成内容**：
 
+按 `project.backend.language` 选择骨架形态。
+
+Java/Spring Boot：
+
 ```
 1. 项目骨架（仅全新项目）
    ├── {project}-parent/pom.xml
@@ -125,7 +134,32 @@ parameters:
 8. 所有 Mapper XML 骨架（namespace + resultMap，无 SQL）
 ```
 
-**追溯标注（强制）**：骨架阶段生成的每个 Controller/Biz/Service 方法，其 Javadoc 必须标注来源 ID，建立代码↔规格的双向可追溯链（供下游 code-verification 确定性匹配，不再靠方法名模糊匹配）：
+Python/FastAPI：
+
+```
+1. 项目骨架（仅全新项目）
+   ├── app/main.py
+   ├── app/api/
+   ├── app/biz/
+   ├── app/service/
+   ├── app/repository/
+   ├── app/schemas/
+   ├── app/models/
+   ├── app/core/
+   ├── app/db/
+   ├── migrations/
+   └── tests/
+
+2. 所有 SQLAlchemy Model（字段定义、审计字段）
+3. 所有 Pydantic Schema（请求、响应、内部 DTO）
+4. 所有 API Router 方法签名（空实现，鉴权依赖和 Result 包装就位）
+5. 所有 Biz 方法签名（空实现）
+6. 所有 Service 方法签名（空实现）
+7. 所有 Repository 方法签名（空实现）
+8. Alembic 迁移骨架或迁移说明（以 db-schema.sql 为权威）
+```
+
+**追溯标注（强制）**：骨架阶段生成的每个接口/Biz/Service 方法，必须标注来源 ID，建立代码↔规格的双向可追溯链（供下游 code-verification 确定性匹配，不再靠方法名模糊匹配）。Java 使用 Javadoc，Python 使用函数 docstring 或紧邻注释。
 
 ```java
 /**
@@ -135,6 +169,15 @@ parameters:
  * @rule profit_calc_rule
  */
 public ServiceResult<GasContractVO> createGasContract(GasContractCreateVO vo) {
+```
+
+```python
+def create_gas_contract(vo: GasContractCreateSchema) -> Result[GasContractResponseSchema]:
+    """
+    @ontology object=gas_contract behavior=CREATE
+    @brd req=F-001
+    @rule profit_calc_rule
+    """
 ```
 
 标注来源：`app-contract.yaml` 的 `objects[].requirements`（需求 ID）、`behaviors[]`（对象+行为）、`rules[]`（规则 code）、`sops[]`（SOP code）。来源 ID 来自 `requirements-baseline.json`。
@@ -151,19 +194,18 @@ public ServiceResult<GasContractVO> createGasContract(GasContractCreateVO vo) {
 你负责实现 [对象名] 的完整代码。骨架已在步骤2生成，你只需填充方法体。
 
 必须遵循的骨架文件：
-- PO: [文件路径]
-- Mapper: [文件路径]
-- Mapper XML: [文件路径]
+- 数据模型: [文件路径]
+- 数据访问: [文件路径]
 - Service: [文件路径]
-- BizService: [文件路径]
-- Controller: [文件路径]
-- VO: [文件路径]
+- Biz: [文件路径]
+- 接口层: [文件路径]
+- 请求/响应 Schema: [文件路径]
 
 填充内容：
-1. Mapper XML：补充所有 CRUD SQL（insert、selectById、selectList、updateById、deleteById）
+1. 数据访问层：补充所有 CRUD 查询（insert、selectById/select_by_id、selectList/select_list、updateById/update_by_id、deleteById/delete_by_id）
 2. Service：补充业务逻辑方法实现
-3. BizService：补充编排逻辑、事务管理、约束校验
-4. Controller：补充接口实现（调用 BizService，转换 VO）
+3. Biz：补充编排逻辑、事务管理、约束校验
+4. 接口层：补充接口实现（调用 Biz，转换响应对象）
 
 铁律：不可修改方法签名、不可修改 import、不可修改类名、不可删除骨架中的 @ontology/@brd/@rule 追溯标注。
 ```
@@ -196,9 +238,9 @@ public ServiceResult<GasContractVO> createGasContract(GasContractCreateVO vo) {
 
 默认不生成单元测试代码。如果用户要求，可同步生成测试类骨架：
 
-- 测试类放在 `{project}-test/src/test/java` 下，继承 `BaseTest`
-- 类名 = 被测类名 + `Test`
-- 方法签名和 `@Transactional` 注解就位，方法体留空或只写基本断言
+- Java 测试类放在 `{project}-test/src/test/java` 下，继承 `BaseTest`
+- Python 测试放在 `tests/` 下，文件名 `test_{module}.py`
+- 方法签名和事务回滚机制就位，方法体留空或只写基本断言
 - 用户可自行补充业务场景测试
 
 测试代码为可选项，不影响后续 code-verification 的验证结论。
@@ -208,7 +250,7 @@ public ServiceResult<GasContractVO> createGasContract(GasContractCreateVO vo) {
 | 产出物 | 说明 |
 |--------|------|
 | 实现计划 | `docs/impl-plan.md`——任务分解（步骤1），用户审查门禁 |
-| Spring Boot 项目代码 | 完整项目（全新）或增量代码（增量开发），所有文件已写入磁盘，方法带 `@ontology/@brd/@rule` 追溯标注 |
+| 后端项目代码 | 完整项目（全新）或增量代码（增量开发），所有文件已写入磁盘，方法带 `@ontology/@brd/@rule` 追溯标注 |
 | 追溯清单 | `docs/traceability.json`——本体/规则/SOP/需求 code → 代码位置的确定性映射 |
 | 测试代码（可选） | 仅在用户要求时生成，测试类骨架 |
 

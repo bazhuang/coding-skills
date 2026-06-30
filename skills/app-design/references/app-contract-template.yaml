@@ -19,8 +19,12 @@
 
 # --- 项目级元信息 ---
 project:
-  basePackage: "com.enn.gas"        # 代码根包路径，骨架阶段据此生成全限定名
-  modules:                           # 实际启用的 Maven 模块
+  backend:
+    language: java                  # java 或 python；由设计阶段用户选择/确认
+    framework: Spring Boot 3.4.5    # Java: Spring Boot 3.4.5；Python: FastAPI
+    guideline: backend-java-tech-guidelines.md
+  basePackage: "com.enn.gas"        # Java 根包或 Python 根包（如 app）
+  modules:                           # 实际启用的模块/目录；Java 见 web/service/dal，Python 见 api/biz/repository 等
     - web
     - service
     - dal
@@ -32,7 +36,7 @@ project:
 # controller / biz / service 命名遵循 ontology-mapping-rules.md 的映射模式。
 objects:
   - code: gas_contract               # 本体对象 code（与 ontology_schema 对齐）
-    name: GasContract                # Java 类名（PascalCase）
+    name: GasContract                # 代码类型名（PascalCase）
     table: biz_gas_contract          # 数据库表名（snake_case，与 db-schema.sql 一致）
     behaviors:
       - type: CREATE

@@ -4,7 +4,7 @@
 
 ## 行为到接口映射
 
-每个核心对象的 5 类行为分别映射为 Controller 接口：
+每个核心对象的 5 类行为分别映射为接口层端点。接口层在 Java 中是 Controller，在 Python 中是 API Router。
 
 | 行为类型 | HTTP 方法 | URL 模式 | Biz 方法模式 | Service 方法模式 |
 |---------|----------|---------|-------------|-----------------|
@@ -17,7 +17,8 @@
 **说明**：
 - 所有接口统一使用 POST 方法（遵循技术规范）
 - URL 使用小写+连字符的对象名（如 `/api/gas-contract/create`）
-- 每个 Controller 方法必须有 `@Authorize` 注解，返回 `ServiceResult<VO>`
+- Java 选择下：每个 Controller 方法必须有 `@Authorize` 注解，返回 `ServiceResult<VO>`，方法名使用 camelCase
+- Python 选择下：每个 API Router 必须声明鉴权依赖，响应使用统一 Result 包装，方法名使用 snake_case
 
 ## 规则到代码逻辑映射
 
@@ -30,6 +31,8 @@
 ### Biz 层的典型编排模式
 
 约束校验（约束规则）→ 调用 Service 计算（计算规则）→ 执行操作
+
+Java 示例：
 
 ```java
 public ServiceResult<ContractVO> createContract(ContractCreateVO vo) {
@@ -44,6 +47,16 @@ public ServiceResult<ContractVO> createContract(ContractCreateVO vo) {
 
     return ServiceResult.success(convertToVO(po));
 }
+```
+
+Python 示例：
+
+```python
+def create_contract(vo: ContractCreateSchema) -> Result[ContractResponseSchema]:
+    validate_contract_constraints(vo)
+    profit = contract_service.calculate_profit(vo)
+    contract = contract_service.create_contract(vo, profit)
+    return Result.success(ContractResponseSchema.model_validate(contract))
 ```
 
 ## SOP 流程到 Biz 编排方法映射
@@ -65,7 +78,9 @@ SOP: 合同审批流程
 
 ### 条件分支
 
-如果 SOP 有条件分支（如"审批不通过则退回"），在 Biz 方法中用 if-else 实现：
+如果 SOP 有条件分支（如"审批不通过则退回"），在 Biz 方法中用 if-else 实现。
+
+Java 示例：
 
 ```java
 public ServiceResult<Void> executeApprovalFlow(Long contractId) {
@@ -86,6 +101,21 @@ public ServiceResult<Void> executeApprovalFlow(Long contractId) {
 
     return ServiceResult.success(null);
 }
+```
+
+Python 示例：
+
+```python
+def execute_approval_flow(contract_id: int) -> Result[None]:
+    contract_service.submit_contract(contract_id)
+    result = contract_service.approve_contract(contract_id)
+
+    if result.is_approved:
+        contract_service.activate_contract(contract_id)
+    else:
+        contract_service.reject_contract(contract_id)
+
+    return Result.success(None)
 ```
 
 ### 说明
@@ -109,6 +139,8 @@ public ServiceResult<Void> executeApprovalFlow(Long contractId) {
 | SOP→Biz 编排映射（上文） | `sops[]`：`code` / `bizMethod`(类.方法) / `calls`[](按步骤顺序的 Service 方法) |
 
 契约模板与字段约束见同目录 `app-contract-template.yaml` 与 `app-contract.schema.json`。
+
+命名必须与 `project.backend.language` 一致：Java 使用 PascalCase 类名和 camelCase 方法名；Python 使用 PascalCase schema/model 名和 snake_case 函数名。契约字段名保持 `controller` / `biz` / `service` 不变，用于表达逻辑角色，不要求 Python 代码中存在 Controller 类。
 
 ### 形态二：Markdown 三张映射表（人读视图，写入 `docs/app-design.md`）
 

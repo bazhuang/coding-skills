@@ -2,11 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://coding-skills/ontology-modeling/ontology_schema.schema.json",
   "title": "Ontology Schema (ontology_schema.json)",
-  "description": "ontology-modeling 产出的本体图谱结构契约。本 Schema 仅覆盖结构/类型/格式；code 唯一性、edge 引用完整性、rule code 唯一性等跨元素约束由 references/script/validate_ontology.py 做更强校验。",
+  "description": "ontology-modeling 产出的本体图谱结构契约。本 Schema 仅覆盖结构/类型/格式；code 唯一性、edge 引用完整性、rule code 唯一性等跨元素约束由 scripts/validate_ontology.py 做更强校验。",
   "type": "object",
   "required": ["domain", "objects"],
   "properties": {
-    "metaPaperId": { "type": "string", "description": "元模型编号（如需供运筹为 13991）" },
     "biz_logic": { "type": "string", "description": "业务逻辑，完整记录用户对话原文" },
     "domain": { "type": "string", "minLength": 1, "description": "业务场景归属领域" },
     "objects": {

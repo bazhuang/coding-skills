@@ -85,7 +85,7 @@ parameters:
    ↓ 门禁：契约覆盖对象/行为/规则/SOP 达 100%（gate=passed）
    ↓
 第三步：code-generation（实现计划 → 骨架 → 填充）
-   ↓ 产出：docs/impl-plan.md（任务分解门禁）→ Spring Boot 代码 + docs/traceability.json
+   ↓ 产出：docs/impl-plan.md（任务分解门禁）→ 所选后端语言代码 + docs/traceability.json
    ↓ 门禁：impl-plan 经用户审查批准（gate=impl-plan-approved）
    ↓
 第四步：code-verification（确定性验证 + 缺陷回流）
@@ -204,7 +204,7 @@ Router: "好的，我们先通过本体建模来理解业务..."
            将业务模型转化为数据库设计和接口设计。是否继续？"
         → 用户确认后调用 app-design
         → 设计完成后: "应用设计已完成。接下来建议进入【代码生成】，
-           将设计文档转化为可运行的 Spring Boot 项目。是否继续？"
+           将设计文档转化为可运行的后端项目。是否继续？"
         → 用户确认后调用 code-generation
         → 代码生成完成后: "代码已生成。接下来建议进入【代码验证】，
            检查技术规范合规性和功能完整性。是否继续？"

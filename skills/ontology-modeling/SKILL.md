@@ -1,566 +1,175 @@
 ---
 name: ontology-modeling
-description: Guide business teams through ontology modeling and BRD generation using Object-Behavior-Rules methodology. Use when users need to model business domains, design system architecture, create entity-relationship definitions, or generate business requirement documents.
+description: Guide business teams through ontology modeling and BRD generation using Object-Behavior-Rules methodology. Use when users need to model business domains, design system architecture, create entity-relationship definitions, continue an existing ontology/BRD, extract a domain model from business materials, or generate business requirement documents.
 ---
 
 # 本体论建模与 BRD 生成
 
-使用**对象(Object)、行为(Behavior)、规则(Rules)**三要素方法论，通过业务访谈同时产出两份可直接打开、跨 coding agent 通用的文件：
-1. **本体图谱 Schema** — 结构化的业务领域模型（JSON）
-2. **BRD 文档** — 结构化的业务需求文档（Markdown）
+使用**对象(Object)、行为(Behavior)、规则(Rules)**三要素方法论，通过业务访谈持续产出两份跨 coding agent 通用的权威文件：
 
-## 数据输出
+1. `docs/ontology_schema.json` — 结构化业务领域模型
+2. `docs/brd.md` — 结构化业务需求文档
 
-每次生成的 Ontology Schema 和 BRD 文档默认写入本地 `docs/` 目录，后续交互在已有数据基础上进行增量修改。**文件是唯一权威产物**：Codex、ZCode、Claude Code 等 agent 只需要读写这些标准文件即可继续工作或交给下游 skill。
+建模交互必须边聊边写文件。回复只输出摘要、下一步问题和文件路径；除非用户明确要求，不要在回复里粘贴完整 JSON 或完整 BRD。
 
-对话回复只输出摘要、下一步问题和文件路径，不在回复里内嵌完整 JSON/Markdown。只有当用户或特定平台明确要求时，才额外输出平台专用的 artifact/card 标记；这些标记不得作为跨 agent 的主契约。
+## 必读与按需参考
 
-### 文件路径约定
+先读本文件，按场景再读取 references：
 
-| 产出物 | 文件路径 | 格式 |
-|--------|---------|------|
-| Ontology Schema | `docs/ontology_schema.json` | JSON（符合 `Ontology` 接口定义，且须通过 `references/script/validate_ontology.py` 校验） |
-| BRD 文档 | `docs/brd.md` | Markdown（符合 BRD 模板结构） |
+| 场景 | 读取 |
+|---|---|
+| 需要确认文件路径、读写规则、回复格式、平台 artifact 兼容规则 | `references/output-contract.md` |
+| 需要细化对象/行为/规则/SOP 建模方法、提问策略、常见误区 | `references/modeling-methodology.md` |
+| 需要写入或校验 `docs/ontology_schema.json` 结构 | `references/schema-contract.md`，必要时查看 `references/ontology_schema.schema.json` |
+| 准备标记 Requirements 阶段完成、进入 app-design/code-verification | `references/requirements-gate.md` |
+| 需要示例辅助理解，但当前任务信息不足 | `examples.md` |
 
-> Requirements 阶段准备进入下游 app-design / code-verification 时，可按“阶段准出门禁”额外生成 `docs/requirements-baseline.json` 与 `docs/contracts/acceptance-tests.yaml`。建模交互过程中的通用默认产物仍只要求上述两份文件。
+脚本：
 
-### 读写规则
+- 校验 schema：`python3 skills/ontology-modeling/scripts/validate_ontology.py docs/ontology_schema.json`
 
-1. **建模开始前**：检查 `docs/` 目录下是否已存在 `ontology_schema.json` 和 `brd.md`
-   - 如果存在：读取现有文件内容，作为当前建模的基础，在对话中告知用户"已加载上次的建模进度"
-   - 如果不存在：从零开始生成
+## 核心原则
 
-2. **每次交互结束时**：将最新的 Schema 和 BRD 默认直接写入本地对应文件
-   - 将完整的 Ontology Schema JSON 字符串写入 `docs/ontology_schema.json`
-   - 将完整的 BRD Markdown 内容写入 `docs/brd.md`
-   - 每次覆盖写入完整内容（非增量），确保文件始终是最新状态
-   - 只有当用户明确要求使用 MCP 持久化，或当前运行环境必须通过 MCP 服务写文件时，才改用 `mcp__graph__data_write`
+1. **文件优先**：`docs/ontology_schema.json` 和 `docs/brd.md` 是唯一权威产物。
+2. **持续更新**：从识别出第一个对象开始，每次回复前都要写入完整当前版本，非增量片段。
+3. **对象优先**：先定义存在什么对象，再定义行为和规则。
+4. **行为改变状态**：每个行为应导致至少一个对象的属性或状态变化；查询行为除外，但要明确其读取目的。
+5. **规则只保留高价值**：只提取后续代码无法自然推断、会影响算法/流程/跨实体一致性的领域规则。
+6. **渐进访谈**：不要一次性抛出所有问题；每次问最能推进建模的一组问题。
 
-3. **跨会话延续**：不同 coding agent 会话可以通过读取本地文件恢复建模进度
-   - 用户可以说"继续上次的本体建模"，skill 读取文件后从中断处继续
-   - 用户也可以提供新的业务场景文件（如 `db.schema`、`business_scenario.md`），skill 读取后与现有 schema/BRD 合并更新
+## 权威产物
 
-### 与已有业务材料的整合
+| 产物 | 文件路径 | 默认时机 |
+|---|---|---|
+| Ontology Schema | `docs/ontology_schema.json` | 每次交互结束前更新 |
+| BRD 文档 | `docs/brd.md` | 每次交互结束前更新 |
+| 需求基线 | `docs/requirements-baseline.json` | Requirements Gate 通过后生成 |
+| 验收测试契约 | `docs/contracts/acceptance-tests.yaml` | Requirements Gate 通过后生成 |
 
-当用户提供已有的业务材料（如数据库 DDL、业务场景文档等）时：
-- 读取材料内容，提取其中的对象、属性、关系信息
-- 与现有的 `docs/ontology_schema.json` 和 `docs/brd.md` 进行合并
-- 新发现的对象、属性、规则补充到现有文件中，不覆盖已有内容
-- 如果存在冲突（如同名对象但定义不同），向用户确认后决定保留哪个版本
+建模交互过程中的通用默认产物只要求前两份。只有在准备进入下游阶段时，才生成需求基线和验收测试契约。
 
-## 核心方法论
+## 启动流程
 
-### 本体三要素
+当用户提出建模、BRD、领域模型、业务对象梳理、继续上次建模等需求时，按以下顺序执行。
 
-| 要素 | 定义 | 问题 |
-|------|------|------|
-| **对象(Object)** | 系统中真实存在的业务实体 | What exists? |
-| **行为(Behavior)** | 对象能够执行或承受的动作 | What can be done? |
-| **规则(Rules)** | 约束对象状态转换和行为执行的不变式 | What must hold? |
+### 0. 恢复上下文
 
-### 双产出映射
+1. 检查 `docs/ontology_schema.json` 是否存在。
+   - 存在：读取文件，告知用户已加载上次建模进度，并摘要展示已有对象、关系、规则、SOP。
+   - 不存在：准备从零开始。
+2. 检查 `docs/brd.md` 是否存在。
+   - 存在：读取文件，摘要展示已完成章节。
+   - 不存在：准备从零开始。
+3. 检查当前目录下是否有业务材料文件，如 `db.schema`、`business_scenario.md`、`requirements.md`、DDL、流程说明等。
+   - 存在：读取材料，提取对象、属性、关系、流程、规则，并与现有产物合并。
+   - 冲突：不要覆盖已有内容，向用户确认保留或合并方式。
 
-本体三要素同时驱动两种产出：
+### 1. 需求理解
 
-| 本体要素 | 本体 Schema 映射 | BRD 文档映射 |
-|----------|-----------------|-------------|
-| **对象** | objects[] + edges[] | §3 利益相关方 + §6 数据需求 |
-| **行为** | biz_logic 中记录 + sop_flows | §5 业务流程 + §4 功能需求 |
-| **规则** | rules[] | §7 业务规则 + §4.2 非功能需求 |
+如果业务领域仍不清楚，先问：
 
-### 核心原则
-
-1. **对象是第一性的**：先定义存在什么对象，再定义行为
-2. **行为改变对象状态**：每个行为必然导致至少一个对象的状态变化
-3. **规则是不变式**：无论何时何地，规则永远成立（Invariant）
-4. **对象链即流程**：对象之间的引用关系自然形成业务流转路径
-
-## 领域元模型定义
-- 领域元模型里面主要是定义了领域内的概念对象以及通用约束，本体建模需要结合用户的实际使用场景生成实际业务对象以及业务约束等
-- 如果用户的意图是属于需供运筹或者运筹方面的，需要读取 `references/opt.md`，辅助用户更好的进行业务本体建模
-
-## BRD 文档结构
-
-在访谈过程中同步生成的 BRD 文档包含以下章节，各章节与建模步骤的对应关系如下：
-
-| BRD 章节 | 对应建模步骤 | 内容说明 |
-|---------|------------|---------|
-| §1 项目概述 | 步骤1 | 项目背景、目标、预期收益 |
-| §2 业务范围 | 步骤1 | 包含/不包含范围、系统边界 |
-| §3 利益相关方 | 步骤2 | 参与角色、部门、职责 |
-| §4 业务需求 | 步骤3 | 功能需求（必须有/应该有/可选）+ 非功能需求 |
-| §5 业务流程 | 步骤3 | 主流程、异常流程、审批流程 |
-| §6 数据需求 | 步骤2 | 核心实体、属性、关系、数据生命周期 |
-| §7 业务规则 | 步骤4 | 数据校验、流程流转、权限、计算规则 |
-| §8 约束与假设 | 步骤5 | 技术约束、业务约束、前置假设 |
-| §9 风险分析 | 步骤5 | 业务风险、技术风险、应对策略 |
-| §10 术语表 | 步骤5 | 业务术语定义、缩写对照 |
-
-详细的 BRD 模板参见 `references/brd-template.md`。
-
-## 建模流程
-
-### 步骤1：需求理解与领域分析
-
-询问用户：
 - 要建模的业务领域或功能模块是什么？
 - 主要解决什么业务问题？
-- 涉及哪些主要的业务实体？
+- 涉及哪些主要业务实体、角色或流程？
 
-**同时推理补充**：
-- 从业务描述中提取初步的业务实体（对象）
-- 识别可能涉及的业务流程（行为）
-- 发现隐含的业务约束（规则）
+同时从用户描述中推理初步对象、行为、规则，并明确哪些是用户确认的信息、哪些是建议补充的信息。
 
-**产出**：
-- 本体 Schema：初始 schema（domain, biz_logic）
-- BRD：§1 项目概述 + §2 业务范围
+产出更新：
 
-### 步骤2：对象层(Object Layer)建模
+- `docs/ontology_schema.json`：初始化 `domain`、`biz_logic`、初步 `objects`
+- `docs/brd.md`：更新 §1 项目概述、§2 业务范围
 
-按照优先级识别4类对象：
+### 2. 对象建模
 
-#### 核心对象(Core Object)
-- **定义**：业务领域的中心实体，具有独立生命周期
-- **特征**：可被创建、查询、更新、删除(CRUD)
-- **表现**：实心圆角矩形，主题色
-- **示例**：合同、订单、用户
+识别核心对象、实体对象、引用对象和对象关系。详细分类、提问方式和常见误区见 `references/modeling-methodology.md`。
 
-**提问**：
-- 这个业务领域中有哪些具有独立生命周期的中心实体？
-- 它们有哪些关键属性？
-- 它们有哪些状态？
+产出更新：
 
-#### 实体对象(Entity Object)
-- **定义**：有唯一标识但依赖于核心对象的实体
-- **特征**：有ID，有生命周期，但必须属于某个核心对象
-- **表现**：细边框圆角矩形
-- **示例**：订单明细(属于订单)、合同条款(属于合同)
+- `docs/ontology_schema.json`：更新 `objects[]`、`edges[]`
+- `docs/brd.md`：更新 §3 利益相关方、§6 数据需求
 
-**提问**：
-- 哪些实体有唯一标识但必须依附于核心对象？
+### 3. 行为与 SOP 建模
 
-#### 引用对象(Reference Object)
-- **定义**：被多个对象引用的主数据/基础数据
-- **特征**：生命周期独立，变更频率低，多处引用
-- **表现**：椭圆形
-- **示例**：产品目录、客户档案、部门信息
+围绕核心对象识别 Create、Update、Query、Delete、Derive 五类行为，并把关键业务路径组织为 `sop_flows[]`。
 
-**提问**：
-- 哪些是被多个对象引用的主数据/基础数据？
+产出更新：
 
-#### 关系(Value Object)
-- **定义**：表达对象之前的依赖关系
-- **特征**：有主对象和附属对象
-- **表现**：左右三角形，方向代表依赖关系，一对一或者一对多
-- **示例**：订单中对应的商品，一个订单可以包括多个商品
+- `docs/ontology_schema.json`：在 `biz_logic` 中记录行为信息，更新 `sop_flows[]`
+- `docs/brd.md`：更新 §4.1 功能需求、§5 业务流程
 
-**提问**：
-- 这些关系，有哪些是允许一对多？
+### 4. 高价值规则建模
 
-**产出**：
-- 本体 Schema：objects[] + edges[]
-- BRD：§3 利益相关方 + §6 数据需求
+只提取对后续应用代码有直接影响的规则。不要把字段必填、正数校验、枚举范围、标准外键存在性这类基础校验塞进 `rules[]`。
 
-### 步骤3：行为层(Behavior Layer)建模
+优先提取：
 
-为每个核心对象识别5类行为：
+- 业务计算公式
+- 跨对象约束
+- 跨实体一致性
+- 影响流程分支或算法优先级的领域决策
 
-#### 创建行为(Create) [C]
-- **语义**：使对象从无到有
-- **颜色**：绿色系(#4CAF50)
-- **前置条件**：无对象实例存在
-- **后置条件**：对象实例被创建，状态=初始态
+产出更新：
 
-**提问**：
-- 如何使这个对象从无到有？
+- `docs/ontology_schema.json`：更新 `rules[]`
+- `docs/brd.md`：更新 §7 业务规则、§4.2 非功能需求
 
-#### 更新行为(Update) [U]
-- **语义**：改变对象的属性值或状态
-- **颜色**：蓝色系(#2196F3)
-- **前置条件**：对象必须存在
-- **后置条件**：对象属性已变更
+详细过滤标准和示例见 `references/modeling-methodology.md`。
 
-**提问**：
-- 如何改变对象的属性值或状态？
+### 5. 自检与补全
 
-#### 查询行为(Query) [Q]
-- **语义**：读取对象但不改变状态
-- **颜色**：灰色系(#9E9E9E)
-- **前置条件**：对象可能存在或不存在
-- **后置条件**：返回对象数据，状态不变
+在用户准备结束建模、或你判断产物已基本完整时，做快速自检：
 
-**提问**：
-- 需要查询这个对象的哪些信息？
+- 所有核心对象是否都有必要行为？
+- 对象关系是否有明确方向和约束？
+- 高价值规则是否排除了基础校验噪音？
+- BRD 目标、范围、流程、数据、规则、术语是否一致？
+- `biz_logic` 是否保留了足够的业务上下文，方便下游理解？
 
-#### 删除行为(Delete) [D]
-- **语义**：使对象失效(物理删除或逻辑删除)
-- **颜色**：红色系(#F44336)
-- **前置条件**：对象必须存在
-- **后置条件**：对象不可再访问(或状态=已删除)
+产出更新：
 
-**提问**：
-- 如何使这个对象失效？
+- `docs/brd.md`：补齐 §8 约束与假设、§9 风险分析、§10 术语表
+- `docs/ontology_schema.json`：确保结构完整、code 稳定
 
-#### 衍生行为(Derive) [->]
-- **语义**：基于一个对象创建另一个关联对象
-- **颜色**：橙色系(#FF9800)
-- **示例**：基于合同创建开票、基于订单创建发货单
+### 6. Requirements Gate
 
-**提问**：
-- 基于这个对象可以创建哪些关联对象？
+只有当用户要求进入下游 app-design/code-generation/code-verification，或要把 Requirements 阶段标记为完成时，执行 Requirements Gate。
 
-#### SOP 执行流程
-在识别完所有核心对象的行为后，将行为按业务执行顺序组织为 SOP 流程：
-- 每条 SOP 流程（SopFlow）代表一个完整的业务执行路径，包含 code 和 title
-- 流程中的步骤（SopStep）按实际执行顺序排列，每个步骤包含 code 和 title
-- 一个 SOP 流程可能跨越多个对象的行为
-- 根据业务复杂度，可以定义多条 SOP 流程（如正常流程、异常流程）
+此时必须读取 `references/requirements-gate.md`，并至少完成：
 
-**产出**：
-- 本体 Schema：schema 更新（biz_logic 中记录行为信息，sop_flows 中记录执行流程）
-- BRD：§5 业务流程 + §4.1 功能需求
+1. 运行 `validate_ontology.py`，修复所有 ERROR。
+2. 确保 BRD §4 的每个 Must Have 功能有稳定 ID、可测试验收标准、来源 ontology code。
+3. 生成 `docs/requirements-baseline.json` 和 `docs/contracts/acceptance-tests.yaml`。
+4. 用户确认后，将 `requirements-baseline.json` 中 `approved` 置为 `true`。
 
-### 步骤4：规则层(Rules Layer)建模
+Gate 不通过不得进入下游 app-design。
 
-#### 规则提取过滤原则（核心）
+## 每轮回复要求
 
-**只提取对后续应用代码逻辑有直接影响的规则**，判断标准：
+每次回复用户前，先把最新完整产物写入本地文件。回复包含：
 
-| 需要提取 | 不需要提取 |
-|---------|-----------|
-| 涉及多对象、多属性的交叉校验逻辑 | 单属性基本校验（如：金额>0、名称非空） |
-| 开发者无法从 schema 推断的领域知识 | 从对象定义显而易见的约束（如：状态∈枚举值） |
-| 直接驱动算法或计算逻辑的核心公式 | 标准的 CRUD 前后置条件（如：创建后状态=草稿） |
-| 影响业务决策的非显而易见的约束 | 简单的外键存在性校验（如：合同ID必须存在） |
-| 跨实体的链路一致性校验 | 单表的字段类型/范围校验（如：系数∈(0,1]） |
+1. 对用户输入的理解和建模判断
+2. 本轮更新摘要，例如 `objects=3, edges=2, rules=1, sop_flows=1`
+3. 已更新文件路径
+4. 下一步最关键的问题
 
-**不需要提取的反例**（这些是开发者自然会实现的基本校验）：
-- ~~plan_quantity > 0~~ → 基本数据校验
-- ~~plan_month 非空~~ → 字段必填校验
-- ~~status ∈ {草稿, 审批中, 已审批}~~ → 枚举范围定义
-- ~~resource_price > 0~~ → 正数校验
-- ~~创建后 status = 草稿~~ → 显而易见的初始状态
-- ~~开票.合同ID 必须存在于合同表~~ → 标准外键约束
+示例：
 
-**需要提取的正例**（这些是必须明确告知的业务知识）：
-- **利润 = 交付量 × (销售单价 - 资源采购价 - 运力采购价)** → 业务计算公式
-- **is_must_supply=true 的需求不可被忽略** → 领域约束，驱动算法优先级
-- **匹配链路：资源的下载站 = 管输的起始站** → 跨实体一致性，开发者无法从 schema 推断
-- **非草稿状态锁定所有池数据** → 状态驱动的数据隔离逻辑
-
-#### 识别2类高价值规则：
-
-#### 业务计算规则(Calculation Rule)
-- **定义**：涉及多属性或多对象的计算公式或推导逻辑
-- **特征**：直接驱动应用代码中的计算模块，公式不显而易见
-- **示例**：利润 = 交付量 × (销售单价 - 资源采购价 - 运力采购价)
-
-**提问**：
-- 这个业务场景中有哪些核心的计算公式或推导逻辑？
-- 哪些数值是需要从其他属性或对象推导出来的？
-
-#### 业务约束规则(Business Constraint Rule)
-- **定义**：涉及多对象交互、跨实体一致性或领域特定决策的约束逻辑
-- **特征**：约束逻辑跨对象、非显而易见、直接影响算法或流程分支
-- **示例**：保供优先（is_must_supply=true的需求不可被忽略）、链路一致性（资源的下载站=管输的起始站）
-
-**提问**：
-- 有哪些跨对象的约束逻辑是开发者无法从 schema 直接推断的？
-- 有哪些业务决策规则会直接影响算法的优先级或分支逻辑？
-- 对象之间的关联关系中有哪些非显而易见的一致性要求？
-
-**产出**：
-- 本体 Schema：rules[]（仅包含高价值规则）
-- BRD：§7 业务规则 + §4.2 非功能需求
-
-### 步骤5：验证与优化
-
-进行建模质量检查：
-
-#### 核心原则验证
-- ✓ 对象是第一性的：先定义存在什么对象，再定义行为
-- ✓ 行为改变对象状态：每个行为必然导致至少一个对象的状态变化
-- ✓ 规则是不变式：无论何时何地，规则永远成立
-- ✓ 对象链即流程：对象之间的引用关系自然形成业务流转路径
-
-#### 完整性检查
-- 所有核心对象是否都有CRUD行为？
-- 所有高价值规则是否符合"过滤原则"（无基本校验噪音）？
-- 对象关系是否清晰明确？
-
-#### 一致性检查
-- 对象命名是否统一规范？
-- 行为命名是否清晰表达意图？
-- 规则定义是否无歧义？
-
-#### BRD 自检
-- 项目目标是否明确、可衡量？
-- 业务范围是否清晰界定？
-- 功能需求是否覆盖所有业务场景？
-- 术语是否统一、无歧义？
-
-**产出**：
-- 本体 Schema：schema 完整性验证
-- BRD：§8 约束与假设 + §9 风险分析 + §10 术语表
-
-### 步骤6：生成建模 Schema 与完整 BRD
-
-**重要原则：schema 和 BRD 应在整个建模过程中持续生成和更新，而非仅在最后一步生成。**
-
-从步骤1（需求理解与领域分析）开始，每次回复用户时都必须：
-1. 回应用户的输入，提出下一步问题
-2. 随着用户补充信息，动态调整和丰富两部分产出
-3. **每次回复结束前，将最新的 Schema 和 BRD 默认直接写入本地文件**：
-   - 将完整 JSON 字符串写入 `docs/ontology_schema.json`
-   - 将完整 Markdown 内容写入 `docs/brd.md`
-   - 只有当用户明确要求使用 MCP 持久化，或当前运行环境必须通过 MCP 服务写文件时，才改用 `mcp__graph__data_write`
-4. 在回复末尾给出产物摘要和文件路径，例如：
-   - `已更新 docs/ontology_schema.json（objects=3, edges=2, rules=1）`
-   - `已更新 docs/brd.md（已补充 §4 业务需求、§6 数据需求）`
-
-这意味着：
-- 识别出第一个核心对象时，就应生成包含该对象的初始 schema 和 BRD 数据需求章节
-- 用户补充属性后，更新 schema 中该对象的 properties 和 BRD 中的实体属性表
-- 识别出关系后，更新 schema 的 edges 和 BRD 的实体关系描述
-- 识别出规则后，更新 schema 的 rules 和 BRD 的业务规则章节
-- 每次交互都同步更新本地文件，确保文件内容与对话中的最新产出一致
-
-**本体 Schema 输出格式**：
-
-Schema JSON 必须写入 `docs/ontology_schema.json`，内容为纯 JSON（不带 Markdown 代码块、XML 标签或平台专用 wrapper），严格遵循以下 `Ontology` 接口定义：
-
-```ts
-interface OyObject {
-  code: string; // 对象code，仅包括英文、下划线，长度控制在32个字符
-  name: string; // 对象名称
-  comment: string;// 有关于对象的扩展信息
-  //type: string; // 对象类型，如：核心对象，实体对象
-  properties: OyProperty[]; // 对象的属性列表
-}
-
-interface OyProperty {
-    code: string; // 属性code，仅包括英文、下划线，长度控制在32个字符
-    name: string; // 属性名称
-    comment: string; // 属性描述
-    type: string; // 属性值的类型，仅允许展示String、Integer、Double
-}
-
-interface OyEdge {
-    code: string; // 关系code，仅包括英文、下划线，长度控制在32个字符
-    name: string; // 关系名称
-    comment: string; // 关系的描述
-    source_code: string; // 表达关系的来源对象code
-    target_code: string; // 表达关系的去向对象code
-    constraint: string; // 对象之前的关系约束
-}
-
-interface Rule {
-    code: string; // 约束规则的唯一编码，根据内容生成，确保唯一性。长度控制在64个字符
-    description:string; // 约束规则的内容
-}
-
-interface SopStep {
-    code: string; // SOP步骤编码，仅包括英文、下划线，长度控制在32个字符
-    title: string; // SOP步骤标题
-}
-
-interface SopFlow {
-    code: string; // SOP流程编码，仅包括英文、下划线，长度控制在32个字符
-    title: string; // SOP流程标题
-    steps: SopStep[]; // 流程步骤列表，按执行顺序排列
-}
-
-interface Ontology {
-  biz_logic: string; // 业务逻辑，将用户的对话内容完整记录，后续会作为智能能力打造的需求描述
-  domain: string; // 业务场景归属的领域
-  objects: OyObject[];  // 实体对象列表
-  edges: OyEdge[]; // 本体中的关系列表
-  rules: Rule[]; //分析提取出来的业务规则约束
-  sop_flows: SopFlow[]; // 业务逻辑SOP执行流程列表
-}
+```text
+已更新 docs/ontology_schema.json（objects=3, edges=2, rules=1）。
+已更新 docs/brd.md（补充了 §4 业务需求、§6 数据需求）。
+下一步我需要确认：合同从草稿到生效之间有哪些审批或状态变化？
 ```
 
-### 阶段准出门禁（Requirements Gate）
+## 写入规则
 
-建模过程可以增量、边聊边产出，但**标记 Requirements 阶段「完成」之前，必须通过以下门禁**。门禁不通过不得进入下游 app-design。
+- `docs/ontology_schema.json` 必须是纯 JSON，不带 Markdown 代码块、XML、HTML、artifact/card wrapper。
+- `docs/brd.md` 必须是普通 Markdown，不写入平台专用展示协议。
+- 每次覆盖写入完整当前版本，确保文件可以被其他 agent 直接接手。
+- 只有用户明确要求 MCP 持久化，或当前环境必须通过 MCP 服务写文件时，才改用 `mcp__graph__data_write`。
 
-**G1. Schema 合法性校验（硬门禁）**
+## 交互风格
 
-运行校验脚本（自包含、无需额外依赖）：
-
-```bash
-python3 skills/ontology-modeling/references/script/validate_ontology.py docs/ontology_schema.json
-```
-
-- 校验内容：结构完整性、各层级 `code` 唯一性、edge 的 `source_code`/`target_code` 引用完整性（无悬空指向）、属性 `type` 枚举（仅 String/Integer/Double）、`code` 格式与长度。
-- **退出码非 0（存在 ERROR）即未通过**：必须修复后重跑，禁止带着已知错误放行。
-- 字段约束详见 `references/ontology_schema.schema.json`（若环境装了 `jsonschema` 会自动附加结构校验）。
-
-**G2. 稳定需求 ID（硬门禁）**
-
-BRD §4 中的每个 **Must Have（必须有）** 功能必须同时具备：
-
-1. **稳定 ID**：形如 `F-001`，编号一旦分配不再变更（后续追溯、验收测试、变更影响分析都以此 ID 为锚点）；
-2. **可测试的验收标准**：能用「给定…当…则…」描述、可被验证的具体条件，而非「支持合同管理」这类模糊话术；
-3. **来源 code**：标注其对应的本体 `object` / `behavior` / `rule` code（至少一项），实现需求↔本体↔代码的双向可追溯。
-
-Should Have / Nice to Have 也建议补齐，但 Must Have 缺任一项视为门禁未过。
-
-**G3. 需求基线 + 验收测试契约（产出物）**
-
-通过 G1/G2 后，额外产出两份确定性制品（供下游 code-verification 做确定性验收，而非靠读 Markdown 自由发挥）：
-
-- `docs/requirements-baseline.json` —— 需求基线：
-
-  ```json
-  {
-    "baseline_version": "v1.0",
-    "approved": false,
-    "requirements": [
-      {
-        "id": "F-001",
-        "title": "创建燃气合同",
-        "priority": "MUST",
-        "acceptance_criteria": ["创建后合同状态为草稿", "生成唯一合同号"],
-        "source": { "object": "gas_contract", "behavior": "CREATE", "rules": ["profit_calc_rule"] }
-      }
-    ]
-  }
-  ```
-
-- `docs/contracts/acceptance-tests.yaml` —— 由 BRD §4 验收标准派生的验收测试契约：
-
-  ```yaml
-  acceptance_tests:
-    - requirement_id: F-001
-      title: 创建燃气合同
-      priority: MUST
-      given: 一个合法的合同录入请求
-      when: 调用 /api/gas-contract/create
-      then: 返回成功且合同状态为草稿、生成唯一合同号
-      source: { object: gas_contract, behavior: CREATE }
-  ```
-
-`approved` 字段在用户确认基线后置为 `true`，形成「已批准需求基线」，作为后续变更影响分析的比对起点。
-
-> **冻结变更锚点（为 C1 服务）**：基线批准（`approved=true`）的同时，由 or-workflow-guide 把当前所有 `docs/` 规格制品指纹写入 `docs/spec-versions.json`（其 `baseline_version` 与本基线版本一致）。这是「规格变更处理」分支的比对起点——后续任何上游规格变更都以此版本为起点计算 diff 并仅重生成受影响下游。
-
-## 通用输出规范
-
-### 文件优先
-
-本 skill 的跨平台契约是文件，而不是对话消息格式：
-
-| 内容 | 权威位置 | 格式 | 打开方式 |
-|------|---------|------|----------|
-| BRD 文档 | `docs/brd.md` | Markdown | 任意编辑器、Markdown 预览、代码仓库文件视图 |
-| Ontology Schema | `docs/ontology_schema.json` | JSON | 任意编辑器、JSON viewer、下游自动化脚本 |
-
-### 回复结构
-
-每次回复应包含：
-
-1. 对用户输入的回应和建模判断
-2. 下一步需要用户确认的问题
-3. 已更新文件的路径和摘要统计
-
-除非用户明确要求，不要在聊天回复里粘贴完整 BRD 或完整 Schema，避免让不同 agent 依赖私有消息解析。
-
-### 平台专用渲染的兼容规则
-
-如果某个运行环境明确要求 artifact/card 渲染，可以在写入标准文件后额外输出该平台需要的标记。但必须遵守：
-
-1. 标准文件仍是唯一权威产物，artifact/card 只是展示层副本
-2. artifact/card 内容不得与 `docs/ontology_schema.json`、`docs/brd.md` 不一致
-3. 不要把 `<artifact>`、HTML、自定义 XML 或卡片协议写入 `docs/ontology_schema.json` / `docs/brd.md`
-4. 给用户说明这些标记是当前平台的可选展示适配，不是 skill 的通用契约
-
-
-## 交互指导
-
-### 持续更新 Schema + BRD（核心要求）
-- **建模开始时，先读取 `docs/ontology_schema.json` 和 `docs/brd.md`（如果存在），在已有内容基础上继续建模**
-- **从识别出第一个对象开始，每次回复都必须更新本地 `docs/ontology_schema.json` 和 `docs/brd.md`**
-- 不要等到所有信息收集完毕才生成 schema 和 BRD，而是边建模边输出
-- 每次用户补充信息后，基于最新信息更新完整的双产出文件
-- schema 的 biz_logic 字段应持续记录用户的对话输入
-- 对于尚未确定的字段或章节，可以使用合理的初始值或标注"待确认"，后续交互中再更新
-- **每次回复结束后，默认直接将最新的 Schema 和 BRD 写入本地文件 `docs/ontology_schema.json` 和 `docs/brd.md`；只有用户明确要求 MCP 持久化或当前环境必须通过 MCP 写文件时，才使用 `mcp__graph__data_write`**
-- 回复中只展示摘要和文件路径；用户要求查看全文时，再读取文件并展示相关片段
-
-### 循序渐进
-- 不要一次性抛出所有问题
-- 按照步骤逐步引导用户
-- 每完成一个步骤再进入下一个
-
-### 提问技巧
-- 使用开放式问题："这个业务领域涉及哪些核心实体？"
-- 提供示例帮助理解："比如订单管理系统中的订单、商品等"
-- 追问细节："这个对象有哪些关键属性？"
-
-### 验证理解
-- 复述用户的回答确认理解
-- 指出潜在的问题或遗漏
-- 建议更优的建模方案
-
-### 提供建议
-- 当发现建模问题时，友好地指出
-- 解释为什么这样建模更好
-- 提供具体的改进建议
-
-### 推理补充策略
-当用户提供的信息不够完整时：
-1. **基于已有信息推理**：利用上下文和行业常识推断可能的需求
-2. **标注推理来源**：明确说明哪些是用户说的，哪些是推理的
-3. **以建议形式呈现**：使用"建议补充"、"可能需要考虑"等措辞
-4. **请用户决策**：所有推理结论都由用户确认或调整
-
-## 常见问题
-
-### 问题1：对象与属性混淆
-- **错误**：把"地址"作为核心对象
-- **正确**：地址应该作为值对象，依附于用户/企业等核心对象
-
-### 问题2：行为粒度过大
-- **错误**：一个"处理订单"行为包含创建、支付、发货等多个步骤
-- **正确**：拆分为"创建订单"、"支付订单"、"发货"等多个独立行为
-
-### 问题3：规则定义不明确
-- **错误**："金额要合理"
-- **正确**："金额 > 0 且 金额 <= 合同总金额"
-
-### 问题4：忽略状态机
-- **错误**：对象没有明确的状态定义
-- **正确**：明确定义对象的所有可能状态及状态转换条件
-
-## 开始建模
-
-当用户提出建模需求时，首先执行以下步骤：
-
-### 0. 检查本地文件与已有进度
-
-1. 检查 `docs/ontology_schema.json` 是否存在
-   - 如果存在：读取文件内容，告知用户"已加载上次的建模进度"，并展示当前已有的对象和规则概要
-   - 如果不存在：准备从零开始
-2. 检查 `docs/brd.md` 是否存在
-   - 如果存在：读取文件内容，展示当前 BRD 已完成的章节概要
-   - 如果不存在：准备从零开始
-3. 检查用户当前目录下是否有业务材料文件（如 `db.schema`、`business_scenario.md` 等）
-   - 如果存在：主动读取并提取其中的对象、属性、关系信息，纳入建模基础
-
-### 1. 需求确认
-
-询问用户：
-1. 要建模的业务领域或功能模块是什么？
-2. 主要解决什么业务问题？
-3. 涉及哪些主要的业务实体（对象）？
-
-然后按照上述工作流程逐步引导用户完成建模。
-
-**关键要求：从识别出第一个对象开始，每次回复都必须确保本地文件中有完整的当前 Schema 和 BRD。**
-- 即使信息不完整，也要基于已知信息生成初始 schema 和 BRD
-- 用户每次补充信息后，立即更新完整双产出文件
-- 不要等到最后才一次性生成 schema 和 BRD
-- **每次回复结束后，默认直接将最新的 Schema 和 BRD 持久化到本地文件 `docs/ontology_schema.json` 和 `docs/brd.md`；只有用户明确要求 MCP 持久化或当前环境必须通过 MCP 写文件时，才使用 `mcp__graph__data_write`**
-- **每次新会话开始时，先读取本地文件，在已有基础上继续建模**
+- 一次推进一个建模焦点，不要一次抛出完整问卷。
+- 对不完整信息可以合理推理，但必须标注为推理并让用户确认。
+- 发现建模问题时给出建议和原因，不直接替用户做高风险业务决定。
+- 用户要求查看全文时，读取文件后展示相关片段；默认只展示摘要。

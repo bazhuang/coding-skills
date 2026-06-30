@@ -1,154 +1,26 @@
-# 项目技术规范参考
+# 后端技术规范选择入口
 
-本文件提供应用设计阶段的项目技术约束，设计时必须在此范围内制定方案，不得违背。
+应用设计阶段必须先确定后端开发语言，再读取对应的技术规范。不要同时混用多套后端规范。
 
-## 项目概述
+## 语言选择规则
 
-基于 Spring Boot 3.4.5 的企业级多模块 Maven 项目。
+1. 先检查现有项目、历史文档、构建文件和用户要求，判断后端语言是否已经被约束。
+2. 如果现有项目已经明确是 Java/Spring Boot 或 Python/FastAPI，向用户说明推断结果并确认。
+3. 如果没有明确约束，必须在澄清问题阶段让用户选择后端语言；这是设计阶段的必问项，计入澄清问题预算。
+4. 用户选择后，将结果写入 `docs/app-design.md` 的技术选型部分，并写入 `docs/contracts/app-contract.yaml` 的 `project.backend.language` 字段。
+5. 读取并遵守所选语言的专用规范：
+   - Java: `references/backend-java-tech-guidelines.md`
+   - Python: `references/backend-python-tech-guidelines.md`
 
-**技术栈**: JDK 17 | Spring Boot 3.4.5 | MyBatis 3.0.4 | MySQL 5.7 | Maven 3.9
+## 选择题模板
 
-**关键集成**: Apollo 配置中心 | RocketMQ | RDFA 定时任务 | LangChain4j（AI）
+当上下文没有锁定语言时，使用以下问题：
 
-## Maven 模块结构
+> 后端开发语言你希望采用哪一种？  
+> A. Java / Spring Boot（适合既有企业 Java 体系、多模块 Maven、MyBatis）  
+> B. Python / FastAPI（适合轻量 API、AI/数据处理集成、快速迭代）  
+> 我会根据你的选择继续生成对应的架构、接口、目录和测试规范。
 
-```
-{project}-parent/
-├── {project}-starter    # 应用启动模块
-├── {project}-web        # Web 控制层 (Controller)
-├── {project}-service    # 业务服务层 (Biz + Service)
-├── {project}-dal        # 数据访问层 (Mapper + PO)
-├── {project}-client     # 客户端 VO 定义
-├── {project}-test       # 测试模块
-```
+## 通用数据库约束
 
-**约束**：仅在上述 Maven 管理的模块和测试模块中编写代码。
-
-## 分层架构
-
-**调用链**: `starter → controller → biz → service → dal`
-
-| 层次 | 模块 | 包路径模板 | 类命名 | 返回类型 | 说明 |
-|------|------|-----------|--------|---------|------|
-| **Controller** | {project}-web | `com.enn.*.controller.*` | `XxxController` | `ServiceResult<VO>` | REST 接口，默认 POST |
-| **Biz** | {project}-service | `com.enn.*.biz.*` | `XxxBizService` | `ServiceResult<VO>` | 业务编排、事务管理 |
-| **Service** | {project}-service | `com.enn.*.service.*` | `XxxService` | `DTO` | 具体业务逻辑 |
-| **DAL** | {project}-dal | `com.enn.*.repository.mapper` | `XxxMapper` | `PO` | 数据访问 |
-| **Client** | {project}-client | `com.enn.*.client.*` | `XxxVO` | — | 视图对象定义 |
-
-**架构关键原则**：
-- Biz 和 Service 层**不需要 interface 接口**，直接使用实现类
-- 数据转换方向：`PO → DTO → VO`；Controller/Biz 层禁止直接返回 PO/DTO
-- 所有 VO/DTO/PO 使用 `@Data` 注解（Lombok）
-
-## 启动类配置
-
-启动类必须包含以下注解：
-```java
-@SpringBootApplication(scanBasePackages = {"top.rdfa", "com.enn"})
-@EnableAspectJAutoProxy(proxyTargetClass = true)
-@MapperScan("com.enn.**.repository.mapper")
-@EnableApolloConfig
-```
-
-## Spring Boot 3.x 兼容性
-
-设计时接口方法、过滤器等应使用 Jakarta 命名空间：
-
-```java
-// ✅ 正确 (Spring Boot 3.x)
-import jakarta.annotation.Resource;
-import jakarta.servlet.*;
-
-// ❌ 错误 (Spring Boot 2.x，不可用)
-import javax.annotation.Resource;
-import javax.servlet.*;
-```
-
-## 认证与鉴权
-
-- **每个 Controller 方法必须添加 `@Authorize` 注解**（来自 `top.rdfa.framework.auth.client.annotation`）
-- 通过 `UnifyAuthContextHolder.getUserInfo()` 获取当前用户信息
-- 所有保存/更新操作必须记录操作人：创建时设 `creator`，更新时设 `modifier`
-
-## DAL 层规范
-
-- Mapper 类必须添加 `@Mapper` 注解
-- Mapper XML 放在 `resources/mapper/` 目录
-- 时间字段统一使用 `java.util.Date`，不使用 `LocalDateTime`
-- 禁止随意修改已有 SQL；如有指定 SQL 严格遵循
-
-## 数据库设计约束
-
-设计数据库表时必须遵守以下规范（与 SKILL.md 数据库规则配合使用）：
-
-**字段类型**：
-- 小数使用 `decimal`，禁止 `float`/`double`
-- 时间字段使用 `datetime`
-- 布尔/状态字段使用 `tinyint`，命名为 `is_xxx`
-
-**审计字段（每张表必须包含）**：
-- `create_by` varchar(64)：创建人（对应 Controller 中获取的 userId）
-- `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-- `update_by` varchar(64)：修改人
-- `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-
-**禁止事项**：
-- 禁止使用外键约束，关联完整性由应用层保证
-- 禁止使用 MySQL 保留字作为字段名（如 `desc`、`range`、`match`）
-
-## 单元测试规范
-
-- 测试类放在测试模块 `src/test/java` 下，继承 `BaseTest`
-- 类名 = 被测类名 + `Test`；方法名 = `test` + 方法名（驼峰）
-- 数据库写操作必须加 `@Transactional`（测试后自动回滚）
-- 不对引入的 Java Service 做 Mock，直接用 `@Resource` 注入
-
-## 配置和环境
-
-### 多环境支持
-支持区分不同的环境，目前有3套不同的环境，
-- FAT(开发测试环境)
-- UAT(预生产环境)
-- PROD(生产环境
-
-### 数据库配置
-配置位置: `{project}-starter/src/main/resources/application.properties`
-
-```properties
-spring.datasource.url=jdbc:mysql://{host}:{port}/{database}
-spring.datasource.username={username}
-spring.datasource.password={password}
-mybatis.mapper-locations=classpath:mapper/*.xml
-```
-
-### Apollo 配置中心
-- **命名空间**: `application`, `RDFA.auth`, `RDFA.mq.producer`, `RDFA.mq.consumer`, `RDFA.timer`, `RDFA.redisson`
-
-### 外部依赖 SDK
-
-**登录认证 SDK**：
-```xml
-<dependency>
-    <groupId>top.rdfa.auth</groupId>
-    <artifactId>rdfa-auth-spring-mvc-starter</artifactId>
-    <version>3.0.0-20221019-RELEASE</version>
-</dependency>
-```
-
-## 对应用设计的影响
-
-在制定应用设计时，以下决策已被技术栈固定，**不需要**再作为可选方案提出：
-
-| 设计维度 | 已确定方案                                         |
-|---------|-----------------------------------------------|
-| 框架 | Spring Boot 3.4.5，不可替换                        |
-| ORM | MyBatis，不可替换                                  |
-| 数据库 | MySQL 5.7，不可替换                                |
-| 分层架构 | Starter → Controller → Biz → Service → DAL，不可替换 |
-| 接口风格 | REST POST 为主，使用 `ServiceResult<VO>` 包装        |
-| 消息队列 | RocketMQ（如需异步，优先考虑）                           |
-| 配置管理 | Apollo 配置中心                                   |
-| 认证 | RDFA 认证 SDK，`@Authorize` 注解                   |
-
-因此，应用设计的 2-3 种方案应聚焦于**业务逻辑的分解方式、模块划分、数据流设计**等层面，而非技术选型层面。
+无论选择 Java 还是 Python，数据库设计仍遵守 `SKILL.md` 中的本体到表结构映射规则，并输出权威 DDL 到 `docs/contracts/db-schema.sql`。

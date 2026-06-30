@@ -34,25 +34,28 @@ parameters:
 
 ### 步骤 1：技术规范合规检查
 
-对照 `../app-design/references/backend-tech-guidelines.md` 逐条检查生成的代码。
+先读取 `docs/contracts/app-contract.yaml` 的 `project.backend.language`，再读取 `../app-design/references/backend-tech-guidelines.md` 和对应语言规范逐条检查生成的代码：
+
+- `java` -> `../app-design/references/backend-java-tech-guidelines.md`
+- `python` -> `../app-design/references/backend-python-tech-guidelines.md`
 
 **检查项**（包括但不限于）：
 
-| 检查维度 | 具体项 |
-|---------|--------|
-| Controller 层 | 方法是否有 `@Authorize` 注解、返回类型是否为 `ServiceResult<VO>` |
-| 命名空间 | 是否使用 `jakarta` 而非 `javax` |
-| 注解 | PO/DTO/VO 是否使用 `@Data`、Mapper 是否使用 `@Mapper` |
-| 分层规范 | Biz/Service 是否直接用实现类（无 interface）、数据转换方向是否为 PO→DTO→VO |
-| 审计字段 | 每张表对应的 PO 是否包含 create_by/gmt_create/update_by/gmt_modified |
-| 时间类型 | 时间字段是否使用 `java.util.Date` |
-| 数据库规范 | 是否存在外键约束、是否使用了 float/double、字段命名是否规范 |
+| 检查维度 | Java 具体项 | Python 具体项 |
+|---------|-------------|---------------|
+| 接口层 | Controller 方法是否有 `@Authorize` 注解、返回类型是否为 `ServiceResult<VO>` | API Router 是否声明鉴权依赖、是否使用统一 Result 包装 |
+| 命名空间/类型 | 是否使用 `jakarta` 而非 `javax` | 是否有公共函数类型标注，Pydantic Schema 是否清晰 |
+| 框架规范 | PO/DTO/VO 是否使用 `@Data`、Mapper 是否使用 `@Mapper` | FastAPI Router、Pydantic v2、SQLAlchemy 2.x 用法是否符合规范 |
+| 分层规范 | Biz/Service 是否直接用实现类（无 interface）、数据转换方向是否为 PO -> DTO -> VO | API -> Biz -> Service -> Repository -> DB 是否单向依赖，API/Biz 是否直接暴露 ORM Model |
+| 审计字段 | 每张表对应的 PO 是否包含 create_by/gmt_create/update_by/gmt_modified | 每张表对应的 Model 是否包含 create_by/gmt_create/update_by/gmt_modified |
+| 时间/小数类型 | 时间字段是否使用 `java.util.Date`，小数是否用 BigDecimal | 时间字段是否与数据库 datetime 一致，小数是否用 Decimal |
+| 数据库规范 | 是否存在外键约束、是否使用了 float/double、字段命名是否规范 | 是否存在外键约束、是否使用了 float、字段命名是否规范 |
 
 **问题分级**：
 
 | 级别 | 定义 | 处理方式 |
 |------|------|---------|
-| **Critical** | 技术规范违规（确定性规则，如缺 @Authorize、用了 javax） | **自动修复**，修复后重新检查 |
+| **Critical** | 技术规范违规（确定性规则，如缺鉴权、用了错误命名空间、绕过分层） | **自动修复**，修复后重新检查 |
 | **Important** | 编译错误、逻辑缺陷（可能涉及设计决策） | **报告给用户**，由用户决定如何处理 |
 | **Minor** | 代码风格、优化建议 | **记录备查**，不阻断流程 |
 
@@ -64,7 +67,7 @@ parameters:
 
 **子代理输入**：
 - 生成代码的 diff 文件（通过 `git diff` 生成）
-- `../app-design/references/backend-tech-guidelines.md` 技术规范
+- `../app-design/references/backend-tech-guidelines.md` 和所选语言技术规范
 
 **审查关注点**：
 
@@ -73,7 +76,7 @@ parameters:
 | 代码重复 | 多个 Service 中重复相同的逻辑块 |
 | 职责边界 | Biz 层是否做了 Service 层该做的事，Service 层是否越权 |
 | 异常处理 | 是否吞掉异常、是否有空 catch、业务异常是否明确 |
-| 安全风险 | SQL 拼接（MyBatis 中使用 `${}` 而非 `{}`）、未校验的入参 |
+| 安全风险 | SQL 拼接（Java/MyBatis 中使用 `${}` 而非 `{}`；Python 中拼接原始 SQL）、未校验的入参 |
 | 数据一致性 | 跨对象操作是否有事务保障 |
 | 代码可维护性 | 文件是否过大、方法是否过长、命名是否清晰 |
 
@@ -119,19 +122,19 @@ parameters:
 
 **环境检查顺序**：
 
-1. **JDK + Maven**：是否已安装？能否执行 `mvn compile`？
+1. **语言构建工具**：Java 检查 JDK + Maven，能否执行 `mvn compile`；Python 检查 Python + 依赖管理工具，能否执行测试/导入检查。
    - 如果不能 → 跳过运行验证，提示用户安装后重新执行
 2. **数据库**：是否有可连接的 MySQL 实例？
    - 引导方式："运行验证需要连接 MySQL 数据库。请提供连接信息（host/port/database/username），或输入 skip 跳过数据库验证。"
    - 如果不能 → 跳过数据库相关验证
-3. **应用启动**：能否启动 Spring Boot 应用？
+3. **应用启动**：能否启动所选语言应用（Java: Spring Boot；Python: FastAPI/Uvicorn）？
    - 如果不能 → 跳过接口冒烟测试
 
 **运行验证内容**（按环境可用性逐步执行）：
 
 | 环境就绪 | 验证内容 |
 |---------|---------|
-| Maven 可用 | `mvn compile` 编译通过 |
+| 构建工具可用 | Java: `mvn compile` 编译通过；Python: 依赖安装、导入检查或 `pytest` 基础检查通过 |
 | 数据库可用 | DDL 建表语句执行成功 |
 | 应用可启动 | 接口冒烟测试（POST /api/xxx/create 等端点可达） |
 
@@ -192,7 +195,7 @@ parameters:
 
 ## 技术规范参照
 
-验证时必须对照 `../app-design/references/backend-tech-guidelines.md` 中的全部技术规范，不可妥协。
+验证时必须对照 `../app-design/references/backend-tech-guidelines.md` 和 `app-contract.yaml` 中 `project.backend.guideline` 指向的语言规范，不可妥协。
 
 ## 关键原则
 
