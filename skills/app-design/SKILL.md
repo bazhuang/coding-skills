@@ -1,329 +1,146 @@
 ---
 name: app-design
-description: "当用户要求应用设计、架构设计、数据库设计，或需要把想法推进成规格文档时使用。基于本体方法论生成应用设计，数据库设计从本体图谱推导表结构。"
+description: "当用户要求应用设计、架构设计、数据库设计，或需要把本体模型推进成规格文档时使用。基于本体图谱生成 app-design.md、db-schema.sql、app-contract.yaml。"
 ---
 
-# 将想法头脑风暴为应用设计
+# 应用设计
 
-通过自然协作对话帮助将想法转化为完整的应用设计和规范。**采用本体方法论**：基于已有的领域本体图谱（类、属性、关系），推导出应用架构设计和数据库表结构。
-
-首先了解当前项目上下文和本体图谱，然后**通过对话逐步**收集关键信息，理解要构建什么后展示应用设计并获得用户批准。
+将已有业务本体和需求基线转化为应用架构、数据库设计、接口/规则/SOP 契约。
 
 <HARD-GATE>
-当本 skill 被用于应用设计、架构设计、数据库设计或规格生成时，在展示应用设计并获得用户批准之前，不要调用任何实现技能、编写任何代码、搭建任何项目或采取任何实现行动。
+当本 skill 被用于应用设计、架构设计、数据库设计或规格生成时，在展示应用设计并获得用户批准之前，不要调用实现技能、编写业务代码、搭建项目或生成实现。
 </HARD-GATE>
 
-## 反面模式："设计任务太简单，不需要设计"
+## 产物
 
-凡是进入本 skill 的设计任务都要经过这个流程。"简单"设计可以很短（真正简单的项目只需几句话），但你必须展示它并获得批准。
+| 产物 | 路径 | 说明 |
+|---|---|---|
+| 应用设计文档 | `docs/app-design.md` | 人类可读设计说明 |
+| 权威 DDL | `docs/contracts/db-schema.sql` | 可执行 MySQL DDL |
+| 数据库说明 | `docs/db-schema.md` | 指向 DDL 的说明文档 |
+| 应用契约 | `docs/contracts/app-contract.yaml` | 代码生成的机器可消费契约 |
 
-## 检查清单
+## 必读与按需参考
 
-你必须为进入本 skill 的设计任务创建任务并按顺序完成它们：
+先读本文件，再按场景读取 references：
 
-1. **探索项目上下文** — 检查文件、文档、最近的提交
-2. **理解需求及本体图谱** — 结合项目上下文理解用户需求，读取并理解项目目录下的本体图谱文件（类、属性、关系）
-3. **确认后端开发语言并理解项目技术规范** — 先读取 `references/backend-tech-guidelines.md`，根据现有项目或用户选择确认 Java/Python，再只读取对应语言规范（`backend-java-tech-guidelines.md` 或 `backend-python-tech-guidelines.md`）
-4. **提供可视化伴侣**（如果主题将涉及可视化问题）— 这是独立的消息，不与澄清问题合并。见下方的可视化伴侣部分。
-5. **逐步澄清问题** — 一次问一个关键问题，理解目的/约束/成功标准/应用范围，通过自然对话逐步明确需求；**澄清问题总数不超过 3 个**，优先问最关键的问题，其余信息从上下文推断或在设计阶段确认。若后端语言未被现有项目明确约束，语言选择必须作为其中一个澄清问题
-6. **提出 2-3 种应用设计方案** — 附带权衡和你的建议
-7. **边设计边写文档 + 生成结构化契约** — 基于本体图谱展示应用架构设计、数据库表设计、接口设计，**同时将每个部分写入设计文档**。数据库设计部分：将完整 DDL 写入**权威可执行**文件 `docs/contracts/db-schema.sql`（可直接 `mysql <` 执行），`docs/db-schema.md` 退化为引用说明文档（指向 `.sql` 为权威源）。**接口与映射**部分：按 `references/ontology-mapping-rules.md` 的三张映射规则，物化生成结构化契约 `docs/contracts/app-contract.yaml`（模板见 `references/app-contract-template.yaml`）。按复杂度缩放展示各个部分，在每个部分完成后获得用户批准并更新文档与契约
-8. **规范自审** — 快速内联检查占位符、矛盾、歧义、范围（见下方）
-9. **用户审查完整规范** — 在继续之前请用户审查完整的规范文件并提交
-10. **准备进入实现** — 确认设计文档已完成，可据此拆解实现任务
-
-## 流程
-
-```dot
-digraph brainstorming {
-    "探索项目上下文" [shape=box];
-    "理解需求及本体图谱\n（需求映射+类、属性、关系）" [shape=box];
-    "确认后端语言\n并理解技术规范" [shape=box];
-    "有可视化问题？" [shape=diamond];
-    "提供可视化伴侣\n（独立消息，无其他内容）" [shape=box];
-    "逐步澄清问题\n（一次一个）" [shape=box];
-    "还有未明确的问题？" [shape=diamond];
-    "提出 2-3 种应用设计方案" [shape=box];
-    "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" [shape=box];
-    "用户批准当前部分？" [shape=diamond];
-    "规范自审+契约覆盖率门禁\n（覆盖率100%才放行）" [shape=box];
-    "用户审查完整规范？" [shape=diamond];
-    "提交设计文档" [shape=box];
-    "设计文档完成" [shape=doublecircle];
-
-    "探索项目上下文" -> "理解需求及本体图谱\n（需求映射+类、属性、关系）";
-    "理解需求及本体图谱\n（需求映射+类、属性、关系）" -> "确认后端语言\n并理解技术规范";
-    "确认后端语言\n并理解技术规范" -> "有可视化问题？";
-    "有可视化问题？" -> "提供可视化伴侣\n（独立消息，无其他内容）" [label="是"];
-    "有可视化问题？" -> "逐步澄清问题\n（一次一个）" [label="否"];
-    "提供可视化伴侣\n（独立消息，无其他内容）" -> "逐步澄清问题\n（一次一个）";
-    "逐步澄清问题\n（一次一个）" -> "还有未明确的问题？";
-    "还有未明确的问题？" -> "逐步澄清问题\n（一次一个）" [label="是"];
-    "还有未明确的问题？" -> "提出 2-3 种应用设计方案" [label="否"];
-    "提出 2-3 种应用设计方案" -> "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）";
-    "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" -> "用户批准当前部分？";
-    "用户批准当前部分？" -> "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" [label="否，修改并更新文档"];
-    "用户批准当前部分？" -> "规范自审+契约覆盖率门禁\n（覆盖率100%才放行）" [label="所有部分完成"];
-    "规范自审+契约覆盖率门禁\n（覆盖率100%才放行）" -> "用户审查完整规范？";
-    "用户审查完整规范？" -> "边设计边写文档+生成契约\n（app-design.md + contracts/{db-schema.sql,app-contract.yaml}）" [label="要求更改"];
-    "用户审查完整规范？" -> "提交设计文档" [label="批准"];
-    "提交设计文档" -> "设计文档完成";
-}
-```
-
-**终端状态是设计文档完成。** 设计阶段结束后，等待用户决定是否进入实现、拆分任务或继续修改规格。
-
-## 流程
-
-**理解想法：**
-
-- 首先检查当前项目状态（文件、文档、最近的提交）
-- **确认后端开发语言并读取项目技术规范**，了解技术栈约束，使设计方案在约束范围内展开：
-  先读取 `references/backend-tech-guidelines.md`。如果现有项目或用户要求已经锁定 Java/Python，说明推断并确认；如果没有锁定，必须询问用户选择 Java/Spring Boot 或 Python/FastAPI。确认后只读取对应语言规范：`references/backend-java-tech-guidelines.md` 或 `references/backend-python-tech-guidelines.md`
-- 如果项目对于单个规范来说太大，帮助用户分解为子项目：有哪些独立的部分，它们如何关联，应该按什么顺序构建？然后通过正常的设计流程头脑风暴第一个子项目。每个子项目都有自己的规范 → 计划 → 实现周期。
-- 对于适当范围的项目，**通过自然对话逐步澄清需求，一次问一个关键问题**，避免一次性抛出大量问题让用户感到压力
-- **澄清问题总数不超过 3 个**：优先问最关键的问题（目的、核心约束、成功标准），其余信息从项目上下文推断或在设计阶段与用户确认
-- 尽可能使用多项选择题，但开放式问题也可以
-- 重点关注：目的、约束、成功标准、本体范围边界
-- 必须把最终后端语言选择写入 `docs/app-design.md` 的技术选型部分，并写入 `docs/contracts/app-contract.yaml` 的 `project.backend.language`
-- 每次提问后等待用户回答，根据回答决定下一个问题，形成自然的对话流
-
-**理解需求及本体图谱（从已有文件读取）：**
-
-在探索项目上下文后、澄清问题之前，读取并理解项目的本体图谱文件：
-
-- **识别类（Class）**：领域中的核心概念/业务对象，如"用户"、"订单"、"商品"
-- **识别属性（Property）**：每个类的数据属性，如用户的姓名、手机号
-- **识别关系（Relation/Edge）**：类之间的关联，如"用户 → 下单 → 订单"、"订单 → 包含 → 商品"
-  - 关系类型：一对一、一对多、多对多
-  - 关系方向和语义（动词描述）
-- **继承层次**：如果有父子类关系，理解继承结构
-- 如果本体图谱不清晰或缺失，向用户确认本体图谱的位置或请求补充
-
-**探索方法：**
-
-- 提出 2-3 种不同的应用设计方案及其权衡
-- 以对话方式呈现选项，附上你的建议和推理
-- 以你推荐的选项开头并解释原因
-
-**边设计边写文档（核心流程）：**
-
-这是本技能的核心工作方式：**设计和文档编写是同步进行的，而不是分离的两个步骤。**
-
-- 首先创建设计文档文件 `docs/app-design.md`
-- 在技术选型部分明确后端语言（Java 或 Python）、所采用的语言专用规范文件，以及选择理由
-- 然后按以下顺序逐部分进行：
-  1. **展示当前部分的设计**（如架构设计）
-  2. **立即将该部分写入文档**（使用 Write 或 Edit 工具）
-     - 数据库设计部分的DDL写入独立文件 `docs/db-schema.md`，在 `docs/app-design.md` 的数据库设计部分引用该文件
-  3. **询问用户是否批准当前部分**
-  4. 如果批准，继续下一部分；如果需要修改，更新设计和文档后再次确认
-- 每个部分的复杂度决定其详细程度：简单的几句话，复杂的 200-300 字
-- 涵盖的部分包括：
-  - 基于本体的应用架构
-  - 模块/组件划分
-  - 数据流设计
-  - 数据库设计（从本体推导，见下方规则）
-  - 接口设计（API/UI）
-  - 错误处理策略
-  - 测试策略
-- **关键原则**：用户在审查设计的同时也在审查文档，确保设计和文档始终保持一致
-
-**数据库设计（从本体推导，见下方规则）：**
-
-基于已读取的本体图谱,按照以下映射规则设计数据库表，将完整表定义的 DDL 写入**权威可执行文件** `docs/contracts/db-schema.sql`（可直接 `mysql < docs/contracts/db-schema.sql` 执行）。`docs/db-schema.md` 退化为引用说明文档：在其中引用 `.sql` 为权威源，仅保留必要的文字说明，**不再内嵌 DDL 作为权威**。`app-contract.yaml` 中每个 `object.table` 必须与 `db-schema.sql` 中的表名一致。
-
-**隔离和清晰度的应用设计：**
-
-- 将应用系统分解为较小的单元（模块/组件/服务），每个单元都有清晰的目的，通过明确定义的接口通信，并且可以独立理解和测试
-- 对于每个单元，你应该能够回答：它做什么，如何使用它，它依赖什么？
-- 有人能否在不阅读其内部实现的情况下理解单元的作用？你能在不破坏消费者的情况下更改内部实现吗？如果不能，边界需要改进。
-- 较小、边界清晰的单元也更容易让你处理——你能更好地一次理解代码，当文件专注时你的编辑更可靠。当文件变得过大时，这通常是它做得太多的信号。
-
-**在现有代码库中工作：**
-
-- 在提出更改之前探索当前结构。遵循现有模式。
-- 如果现有代码有影响工作的问题（例如增长过大的文件、不清晰的边界、混乱的职责），在设计中包含有针对性的改进——就像好的开发者改进他们工作的代码一样。
-- 不要提议无关的重构。专注于服务于当前目标的内容。
-
-## 数据库设计规则（从本体推导）
-
-设计中涉及数据库时，必须严格遵守以下规则：
-
-### 从本体类到业务表
-
-- 每个本体类（业务对象）对应一张业务表
-- 类名转换为表名：驼峰转下划线（如 `UserInfo` → `user_info`）
-- 可根据业务加前缀（如 `sys_`、`biz_`），与现有项目命名保持一致
-- 抽象父类可不独立建表，属性下推到子类表；也可选单表继承（用 `type` 字段区分）
-
-### 从本体关系（边）到关联设计
-
-- **一对一关系** → 两种方案：合并到主表，或从表添加主表 id 字段（建唯一索引）
-- **一对多关系** → 在"多"方表中添加"一"方的 id 字段（建普通索引），**不使用外键约束**
-- **多对多关系** → 创建独立的**关联关系表**，包含：自增主键、两侧 id 字段、审计字段；在 (表1_id, 表2_id) 建唯一索引
-
-### 必须遵守的数据库规范
-
-**主键：**
-- 每张表必须有 `id` 字段：`bigint unsigned NOT NULL AUTO_INCREMENT`，作为自增主键
-- 禁止使用业务字段作为主键
-
-**审计字段（每张表必须包含）：**
-- `create_by`：varchar(64)，创建人
-- `gmt_create`：datetime NOT NULL DEFAULT CURRENT_TIMESTAMP，创建时间
-- `update_by`：varchar(64)，修改人
-- `gmt_modified`：datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP，修改时间
-
-**禁止事项：**
-- **禁止使用外键约束**，关联完整性由应用层保证
-- 禁止使用 float 或 double，小数使用 decimal
-- 禁止使用 MySQL 保留字作为字段名（如 desc、range、match 等）
-
-**命名规范：**
-- 表名、字段名必须小写字母+下划线，禁止数字开头
-- 主键索引名：`pk_字段名`，唯一索引名：`uk_字段名`，普通索引名：`idx_字段名`
-- 布尔/状态字段使用 `is_xxx` 命名，类型为 tinyint
-
-**索引：**
-- 业务唯一字段必须建唯一索引
-- 关联字段（xxxId 类）必须建普通索引
-- 单表索引不超过 5 个
-
-### DDL 示例格式
-
-DDL 写入 `docs/contracts/db-schema.sql`（权威源），格式如下：
-
-```sql
-CREATE TABLE `biz_order_info` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `order_no` varchar(64) NOT NULL COMMENT '订单号',
-  `user_id` bigint unsigned NOT NULL COMMENT '用户ID',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态：0-待支付，1-已支付，2-已取消',
-  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT '是否删除：0-否，1-是',
-  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
-  `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `update_by` varchar(64) DEFAULT NULL COMMENT '修改人',
-  `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE KEY `uk_order_no` (`order_no`) USING BTREE,
-  KEY `idx_user_id` (`user_id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单信息表';
-```
-
-## 接口与逻辑设计规则（从本体行为和规则推导）
-
-数据库设计从本体的对象和关系推导，接口和逻辑设计从本体的行为和规则推导。接口、方法和分层命名必须根据已选择的后端语言适配：Java 使用 Controller/Biz/Service/DAL 与 camelCase 方法；Python 使用 API Router/Biz/Service/Repository 与 snake_case 方法。
-
-设计时**必须严格遵循** `references/ontology-mapping-rules.md` 中的映射规则，确保每个本体行为都有对应的接口设计，每条规则都有对应的代码位置，每个 SOP 流程都有对应的 Biz 编排方法。
-
-在 `docs/app-design.md` 的接口设计部分，必须包含三张映射表（人类可读视图）：
-1. 每个对象的行为到接口的完整映射表
-2. 每条规则到代码位置（层级+方法名）的映射表
-3. 每个 SOP 流程到 Biz 编排方法的映射表
-
-**这三张映射表的权威、机器可消费形态是结构化契约 `docs/contracts/app-contract.yaml`**（模板见 `references/app-contract-template.yaml`，字段约束见 `references/app-contract.schema.json`）：
-
-| 映射表（Markdown 人读视图） | 契约字段（app-contract.yaml 机器可消费） |
+| 场景 | 读取 |
 |---|---|
-| 行为→接口映射 | `objects[].behaviors[]`（type/controller/biz/service） |
-| 规则→代码位置映射 | `rules[]`（code/source/type/location） |
-| SOP→Biz 编排映射 | `sops[]`（code/bizMethod/calls） |
+| 确认后端语言与技术栈 | `references/backend-tech-guidelines.md`，再按语言读取 `backend-java-tech-guidelines.md` 或 `backend-python-tech-guidelines.md` |
+| 设计数据库或生成 DDL | `references/db-design-rules.md` |
+| 生成接口、规则、SOP 映射 | `references/ontology-mapping-rules.md` |
+| 生成或校验应用契约 | `references/app-contract-template.yaml`、`references/app-contract.schema.json` |
+| 规范自审与通用设计质量检查 | `references/design-review-checklist.md` |
 
-下游 `code-generation` **直接解析 `app-contract.yaml` 确定性生成代码骨架**，不再靠读 Markdown 表格自由推导。Markdown 三张表与 yaml 必须保持一致——yaml 是权威源，Markdown 是其人读视图。
+只读取当前任务需要的 reference，不要一次性加载所有细节。
 
-## 设计之后
+## 工作流程
 
-**规范自审：**
-完成所有设计部分并同步写入文档后，以全新的眼光审视完整的设计文档：
+### 1. 探索上下文
 
-1. **占位符扫描：** 任何"TBD"、"TODO"、不完整的部分或模糊的需求？修复它们。
-2. **内部一致性：** 任何部分是否相互矛盾？应用架构是否与功能描述匹配？
-3. **范围检查：** 这是否足够专注于单个实现计划，还是需要分解？
-4. **歧义检查：** 任何需求是否可以有两种不同的解释？如果是，选择一个并使其明确。
-5. **后端语言检查：** `docs/app-design.md` 和 `docs/contracts/app-contract.yaml` 是否明确记录后端语言？是否只使用了该语言对应的技术规范？
-6. **数据库规范检查：** 每张表是否有自增主键、完整审计字段？是否有外键约束（不允许）？关联表是否从本体边正确推导？
-7. **接口完整性检查：** API接口定义是否完整？输入输出是否明确？UI界面设计是否清晰？命名是否符合所选语言规范？
-8. **映射完整性检查（可执行准出门禁）：** 对照 `docs/ontology_schema.json` 的 `objects` / `edges` / `rules` / `sop_flows` 的 `code`，逐项核对 `docs/contracts/app-contract.yaml` 是否覆盖，并输出覆盖率：
+- 检查项目文件、已有 `docs/` 产物和最近设计材料。
+- 读取 `docs/ontology_schema.json`、`docs/brd.md`、`docs/requirements-baseline.json`、`docs/contracts/acceptance-tests.yaml`。
+- 如果缺少本体或需求基线，提示用户先回到 ontology-modeling；不要凭空设计。
 
-   ```
-   契约覆盖率：对象 8/8 ✅  行为 40/40 ✅  规则 5/5 ✅  SOP 3/3 ✅
-   ```
-   - **覆盖率不达 100% 不得放行**：缺失项必须补入 `app-contract.yaml` 后才能进入下游。
-   - 这是 code-generation 禁止回读业务原文（不读 ontology_schema/brd）的**最后补救点**，任何遗漏在这里之后将永久丢失。
+### 2. 确认技术规范
 
-内联修复任何问题。无需重新审查——只需修复并继续。
+- 先读取 `references/backend-tech-guidelines.md`。
+- 从现有项目、构建文件、用户要求中判断后端语言。
+- 若无法判断，向用户确认 Java/Spring Boot 或 Python/FastAPI；该问题计入最多 3 个澄清问题。
+- 只读取所选语言的专用规范。
+- 在 `docs/app-design.md` 和 `docs/contracts/app-contract.yaml` 中记录后端语言。
 
-**用户审查关卡：**
-规范审查循环通过后，在继续之前请用户审查完整的书面规范：
+### 3. 逐步澄清
 
-> "设计文档已完成并保存到 `docs/app-design.md`。结构化契约已生成：DDL 在 `docs/contracts/db-schema.sql`、接口/规则/SOP 映射在 `docs/contracts/app-contract.yaml`（契约覆盖率已核对达 100%）。请审查完整的规范与契约，在进入实现前告诉我你是否想做任何更改。"
+最多问 3 个关键问题。优先确认：
 
-等待用户响应。如果他们要求更改，进行更改、更新文档并重新运行规范审查循环。只有在用户批准后才提交文档并继续。
+- 成功标准和范围边界
+- 后端语言或技术约束
+- 会影响数据库/接口契约的关键业务口径
 
-**提交文档：**
+其余细节从本体和需求基线推断，并在设计中标注。
 
-- 用户批准后，将设计文档提交到 git
-- 如果可用，使用 elements-of-style:writing-clearly-and-concisely 技能优化文档
+### 4. 提出设计方案
 
-**实现：**
+提出 2-3 种应用设计方案，聚焦业务分解和数据流，不重新争论已被技术规范锁定的框架选型。
 
-- 设计文档完成后，等待用户决定是否进入实现
-- 如用户要求继续实现，基于已批准的设计文档拆解任务并执行
+推荐方案应说明：
 
-## 关键原则
+- 模块边界
+- 数据流
+- 是否需要异步任务、快照、汇总读模型
+- 主要权衡
 
-- **逐步对话** — 一次问一个关键问题，通过自然对话逐步明确需求，避免一次性抛出大量问题；**澄清问题总数不超过 3 个**，优先问最关键的问题
-- **首选多项选择** — 在可能时比开放式问题更容易回答
-- **本体优先** — 基于已有的领域本体图谱，推导应用架构和数据库设计
-- **边设计边写文档** — 设计和文档编写同步进行，每完成一个设计部分立即写入文档，确保设计与文档始终一致
-- **严格遵循 YAGNI** — 从所有设计中删除不必要的功能
-- **探索替代方案** — 在确定之前总是提出 2-3 种应用设计方案
-- **增量验证** — 展示每个设计部分，在继续之前获得批准
-- **保持灵活** — 当某些东西没有意义时返回并澄清
+### 5. 边设计边写文档
+
+按以下顺序同步生成和更新文件：
+
+1. 架构与模块设计 -> `docs/app-design.md`
+2. 数据流与关键业务流程 -> `docs/app-design.md`
+3. 数据库设计 -> `docs/contracts/db-schema.sql` + `docs/db-schema.md`
+4. 行为/接口、规则、SOP 映射 -> `docs/contracts/app-contract.yaml` + `docs/app-design.md`
+5. 错误处理、状态流转、测试策略 -> `docs/app-design.md`
+
+数据库设计必须读取并遵守 `references/db-design-rules.md`。
+
+接口与逻辑映射必须读取并遵守 `references/ontology-mapping-rules.md`。
+
+## 设计重点
+
+基于本体推导设计，但不要机械 CRUD 化。需要判断是否存在：
+
+- 数据维护模块与业务编排模块分离
+- 多轮迭代与历史版本保留
+- 输入快照与结果可复现
+- 长耗时生成任务的异步执行
+- 明细结果之外的汇总读模型
+- 目标函数策略化
+- 主数据编码与名称展示分离
+- 单位、税价、统计口径结构化
+
+这些检查项的完整列表见 `references/design-review-checklist.md`。
+
+## 结构化契约要求
+
+`docs/contracts/app-contract.yaml` 是 code-generation 的权威输入，必须包含：
+
+- `project`：后端语言、basePackage、模块列表等项目元信息
+- `objects[]`：本体对象到表、行为、Controller/Biz/Service 的映射
+- `rules[]`：本体规则到代码位置的映射
+- `sops[]`：SOP 到 Biz 编排方法的映射
+
+Markdown 表格只是人读视图，必须与 YAML 保持一致。
+
+## 准出门禁
+
+设计完成后读取 `references/design-review-checklist.md`，并完成以下检查：
+
+1. `docs/app-design.md` 无 TBD/TODO、无明显矛盾、范围清晰。
+2. `docs/contracts/db-schema.sql` 满足数据库规约。
+3. `docs/contracts/app-contract.yaml` 可解析，且符合 schema。
+4. `app-contract.yaml` 覆盖 `ontology_schema.json` 中全部 objects、rules、sop_flows。
+5. `app-contract.yaml` 的表名与 `db-schema.sql` 一致。
+6. 覆盖率不达 100% 不得进入 code-generation。
+
+最终向用户汇报：
+
+```text
+设计文档已完成并保存到 docs/app-design.md。
+结构化契约已生成：DDL 在 docs/contracts/db-schema.sql，接口/规则/SOP 映射在 docs/contracts/app-contract.yaml。
+契约覆盖率：对象 X/X，规则 Y/Y，SOP Z/Z。
+请审查完整规范与契约，确认后再进入实现。
+```
 
 ## 可视化伴侣
 
-用于在头脑风暴期间展示模拟图、图表和可视化选项的基于浏览器的伴侣。作为工具可用——不是一种模式。接受伴侣意味着它可用于从可视化处理中受益的问题；这并不意味着每个问题都通过浏览器。
+如果设计内容明显涉及架构图、ER 图、流程图、本体图谱或界面布局，可以单独询问用户是否需要可视化伴侣。
 
-**提供伴侣：** 当你预期即将到来的问题将涉及可视化内容（模拟图、布局、图表、本体图谱可视化）时，提供一次同意：
-> "我们正在处理的一些内容如果我在 Web 浏览器中向你展示可能更容易解释。我可以在进行时准备模拟图、图表、本体图谱、比较和其他可视化内容。这个功能仍然比较新，可能会消耗较多 token。想试试吗？（需要打开本地 URL）"
+该询问必须单独成句，不与澄清问题混在一起。用户拒绝时，继续文本设计。
 
-**此提供必须是其自己的消息。** 不要将其与澄清问题、上下文摘要或任何其他内容合并。消息应该只包含上述提供，没有其他内容。在继续之前等待用户响应。如果他们拒绝，继续仅文本的头脑风暴。
+## 关键原则
 
-**每个问题的决定：** 即使用户接受，也要为每个问题决定是否使用浏览器或终端。测试：**用户通过看它是否比阅读它理解得更好？**
-
-- **使用浏览器** 用于可视化的内容——模拟图、线框图、布局比较、架构图、本体图谱、ER图、并排可视化设计
-- **使用终端** 用于文本内容——需求问题、概念选择、权衡列表、A/B/C/D 文本选项、范围决定
-
-关于 UI 主题的问题不自动是可视化问题。"在这种情况下个性意味着什么？"是概念问题——使用终端。"哪个向导布局更好？"是可视化问题——使用浏览器。
-
-如果他们同意伴侣，在继续之前阅读详细指南：
-`skills/brainstorming/visual-companion.md`
-
-## 本体方法论补充说明
-
-**为什么采用本体方法论？**
-
-本体方法论帮助我们从概念层面理解业务领域，建立清晰的领域模型，然后系统地推导出架构设计和数据库设计。这种自顶向下的方法避免了直接从需求跳到实现的盲目性，确保设计的一致性和完整性。
-
-**本体图谱的位置：**
-
-- 通常在项目根目录或 `docs/` 目录下
-- 常见文件名：`ontology.md`、`domain-model.md`、`本体图谱.md` 等
-- 如果找不到，询问用户本体图谱的位置
-
-**本体图谱的表达方式：**
-
-- 可能使用 Mermaid 类图（classDiagram）展示类、属性、关系
-- 或使用文字列表：类 → 属性列表 → 关系列表
-- 关系标注方向、类型（1:1、1:N、N:M）、语义（动词）
-
-**从本体到实现的完整路径：**
-
-1. **本体图谱**（概念模型）：类、属性、关系（已存在于项目中）
-2. **架构设计**（逻辑模型）：模块、组件、接口、数据流
-3. **数据库设计**（物理模型）：业务表（从类推导）+ 关联表（从边推导）
-4. **实现计划**（代码层）：文件、函数、测试
-
-这个路径确保从业务概念到技术实现的可追溯性。
+- 本体优先，契约准出。
+- 少问问题，多用已有文件推断。
+- 设计和文档同步写入。
+- 不把实现细节提前到设计阶段。
+- 保持 skill 主文件短小，细则放 references。

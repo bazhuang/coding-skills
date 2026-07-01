@@ -152,4 +152,4 @@ def execute_approval_flow(contract_id: int) -> Result[None]:
 
 ### 准出门禁
 
-`app-contract.yaml` 中 `objects` / `rules` / `sops` 的 `code` 必须与 `docs/ontology_schema.json` 的 `objects` / `rules` / `sop_flows` 的 `code` **逐项对齐**，覆盖率不达 100% 不得进入下游（详见 app-design SKILL.md「规范自审」第 7 项）。
+`app-contract.yaml` 中 `objects` / `rules` / `sops` 的 `code` 必须与 `docs/ontology_schema.json` 的 `objects` / `rules` / `sop_flows` 的 `code` **逐项对齐**，覆盖率不达 100% 不得进入下游（详见 app-design `SKILL.md` 的「准出门禁」）。
