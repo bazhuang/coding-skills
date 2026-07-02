@@ -1,23 +1,25 @@
 ---
 name: code-generation
-description: "基于应用设计契约（app-contract.yaml + db-schema.sql）生成可运行的后端项目代码（Java/Spring Boot 或 Python/FastAPI）：先产出实现计划供审查，再骨架+并行填充，并生成追溯清单。当用户要求代码生成、实现功能、生成项目代码时使用。"
-triggers:
-  - 用户要求生成代码、实现功能、创建项目
-  - app-design 完成后用户要求进入实现阶段
-  - 用户要求将设计文档转化为可运行代码
-parameters:
-  project_path:
-    description: 项目代码生成的目标路径
-    required: false
+description: "基于后端应用设计契约（legacy app-contract.yaml + db-schema.sql）生成可运行的 Java/Spring Boot 或 Python/FastAPI 后端项目代码：先产出实现计划供审查，再骨架+并行填充，并生成追溯清单。当用户要求后端代码生成、实现 Java/Python 后端功能、生成后端项目代码时使用；不直接消费 app-contract v2 的非后端/桌面端/纯前端契约。"
 ---
 
 # 代码生成
 
-基于 `app-design` 产出的技术文档，按契约中的后端语言生成可运行的 Java/Spring Boot 或 Python/FastAPI 项目代码。
+基于 `app-design` 产出的后端技术文档，按 legacy 契约中的后端语言生成可运行的 Java/Spring Boot 或 Python/FastAPI 项目代码。
+
+<HARD-GATE>
+如果 `docs/contracts/app-contract.yaml` 包含 `version: 2`，且 `project.targetKind` 不是 `backend-java` 或 `backend-python`，不要生成后端项目代码。向用户说明该契约是非后端 traceability contract，应按现有项目增量实现流程处理，或先回到 app-design 产出后端 target 契约。
+</HARD-GATE>
 
 ## 技术规范约束
 
-生成代码时先读取 `docs/contracts/app-contract.yaml` 的 `project.backend.language`，再读取 `../app-design/references/backend-tech-guidelines.md` 和对应语言规范：
+生成代码时先读取 `docs/contracts/app-contract.yaml`：
+
+- legacy contract：读取 `project.backend.language`。
+- v2 backend contract：仅当 `project.targetKind` 为 `backend-java` 或 `backend-python` 时继续，并映射到对应语言。
+- v2 非后端 contract：停止，不进入后端代码生成。
+
+确认后端语言后，再读取 `../app-design/references/backend-tech-guidelines.md` 和对应语言规范：
 
 - `java` -> `../app-design/references/backend-java-tech-guidelines.md`
 - `python` -> `../app-design/references/backend-python-tech-guidelines.md`
@@ -34,6 +36,8 @@ parameters:
 | `docs/contracts/db-schema.sql` | **权威 DDL（主输入）**：表结构、索引——PO/Mapper 生成的直接依据 |
 | `docs/app-design.md` | 架构决策、模块划分、数据流、错误处理——人读补充（契约的人类可读视图） |
 
+本 skill 只消费 legacy Java/Python 后端契约，或 v2 中明确为后端 target 的契约。`desktop-electron-feature`、`frontend-only-feature`、`existing-app-feature` 的 v2 契约用于追溯和评审，不得按后端模板生成。
+
 **不读取** `docs/ontology_schema.json`（已被 app-design 消化为契约）和 `docs/brd.md`（验收由下游验证 skill 负责）。app-design → code-generation 之间单向依赖，无回溯补救通道，因此 app-design 的契约覆盖率门禁必须 100% 通过。
 
 ## 生成流程
@@ -45,6 +49,7 @@ parameters:
 **上游完整性 preflight（C4 豁免降级）**：先检查 `docs/workflow-progress.md` 中应用设计阶段状态与契约文件是否齐全：
 
 - 若应用设计为 `waived`，或 `docs/contracts/app-contract.yaml` / `docs/contracts/db-schema.sql` 缺失 → **降级告警**「非完整 SDD 输入：上游被豁免/契约缺失，追溯完整性与覆盖率无保障」，退化为基于 `docs/app-design.md`（人读视图）+ 已有代码推断生成，并在最终 `traceability.json` 标注 `confidence=degraded`；不得假装完整 SDD 输入。
+- 若 `app-contract.yaml` 为 v2 非后端 target → 停止后端生成，不进入降级推断。
 - 若应用设计 `complete`（gate=passed）且契约齐全 → 进入正常确定性生成。
 
 **检测项**：

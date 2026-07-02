@@ -1,0 +1,68 @@
+# =============================================================================
+# 应用设计契约模板 v2（app-contract.yaml）
+# -----------------------------------------------------------------------------
+# v2 用于非纯后端目标的 traceability contract，也可表达现有应用增量设计。
+# 它记录 ontology 对象/行为/规则/SOP 到应用表面的映射，不默认作为后端
+# code-generation 的输入。
+# =============================================================================
+
+version: 2
+
+project:
+  targetKind: desktop-electron-feature
+  implementation:
+    language: typescript
+    framework: electron-vue
+    guideline: AGENTS.md
+  modules:
+    - renderer-auth
+    - preload-auth
+    - main-auth
+    - external-auth
+
+objects:
+  - code: qr_login_ticket
+    name: QrLoginTicket
+    persistence: external-service
+    persistenceReason: "Ticket authority and lifecycle live in the external auth service; the desktop app only keeps transient polling state."
+    behaviors:
+      - type: CREATE
+        surfaces:
+          component: LoginPanel.startQrLogin
+          renderer: authService.startQrLogin
+          preload: electron.auth.startQrLogin
+          ipc: auth:startQrLogin
+          main: startEnnewQrLogin
+          external: POST /userCenter/unify/auth/qr/create
+      - type: QUERY
+        surfaces:
+          component: LoginPanel.pollQrLoginStatus
+          renderer: authService.pollQrLoginStatus
+          preload: electron.auth.getQrLoginStatus
+          ipc: auth:getQrLoginStatus
+          main: getEnnewQrLoginStatus
+          external: POST /userCenter/unify/auth/qr/status
+    requirements:
+      - F-001
+
+rules:
+  - code: qr_ticket_timeout_rule
+    source: ontology
+    type: CONSTRAINT
+    location: authService.pollQrLoginStatus()
+    description: Stop polling and surface timeout state when the QR ticket expires.
+
+sops:
+  - code: qr_login_flow
+    entry: LoginPanel.startQrLogin
+    calls:
+      - authService.startQrLogin
+      - electron.auth.startQrLogin
+      - auth:startQrLogin
+      - startEnnewQrLogin
+      - POST /userCenter/unify/auth/qr/create
+      - authService.pollQrLoginStatus
+      - electron.auth.getQrLoginStatus
+      - auth:getQrLoginStatus
+      - getEnnewQrLoginStatus
+      - POST /userCenter/unify/auth/qr/status

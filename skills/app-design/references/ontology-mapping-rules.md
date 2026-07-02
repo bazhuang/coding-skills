@@ -1,10 +1,18 @@
-# 本体到代码映射规则
+# 本体到应用表面映射规则
 
-从 ontology-modeling 的本体三要素（对象、行为、规则）推导到应用设计和代码结构的映射规则。设计时必须严格遵循，确保行为和规则不丢失，完整传导至代码层面。
+从 ontology-modeling 的本体三要素（对象、行为、规则）推导到应用设计和实现表面的映射规则。设计时必须严格遵循，确保对象、行为、规则、SOP 不丢失，完整传导至契约层面。
 
-## 行为到接口映射
+## 通用追溯要求
 
-每个核心对象的 5 类行为分别映射为接口层端点。接口层在 Java 中是 Controller，在 Python 中是 API Router。
+- 每个 `objects[].code` 必须与 `docs/ontology_schema.json` 对齐。
+- 每个对象的业务行为必须映射到目标应用的可实现表面：HTTP API、IPC、preload、renderer service、component、store、main helper、external API 等。
+- 每个 `rules[].code` 必须映射到明确位置，格式可为 `Class.method()`、`Module.method()`、`Component.method()`、`file:function` 或 `ipc:channel`。
+- 每个 `sops[].code` 必须映射到一个编排入口和按顺序排列的调用链。
+- Markdown 表格只是人读视图，`docs/contracts/app-contract.yaml` 是权威结构化源。
+
+## 后端行为到接口映射
+
+`target_kind = backend-java` 或 `target_kind = backend-python` 时，每个核心对象的 5 类行为分别映射为接口层端点。接口层在 Java 中是 Controller，在 Python 中是 API Router。
 
 | 行为类型 | HTTP 方法 | URL 模式 | Biz 方法模式 | Service 方法模式 |
 |---------|----------|---------|-------------|-----------------|
@@ -21,6 +29,8 @@
 - Python 选择下：每个 API Router 必须声明鉴权依赖，响应使用统一 Result 包装，方法名使用 snake_case
 
 ## 规则到代码逻辑映射
+
+后端 target 使用下表。非后端 target 使用相同规则类型，但 `location` 可落到 renderer service、main helper、store、component 或文档流程节点。
 
 | 规则类型 | 实现位置 | 实现方式 | 说明 |
 |---------|---------|---------|------|
@@ -59,9 +69,9 @@ def create_contract(vo: ContractCreateSchema) -> Result[ContractResponseSchema]:
     return Result.success(ContractResponseSchema.model_validate(contract))
 ```
 
-## SOP 流程到 Biz 编排方法映射
+## SOP 流程到编排方法映射
 
-一个 SOP 流程对应一个 Biz 方法，方法内部按步骤依次调用对应的 Service。
+后端 target 中，一个 SOP 流程对应一个 Biz 方法，方法内部按步骤依次调用对应的 Service。非后端 target 中，一个 SOP 流程对应一个编排入口，`calls` 按 UI/service/IPC/helper/external 的真实顺序列出。
 
 ### 映射示例
 
@@ -124,13 +134,30 @@ def execute_approval_flow(contract_id: int) -> Result[None]:
 - 不需要独立的流程引擎，用 Biz 方法的顺序调用即可表达
 - 一个 SOP 流程 = 一个 Biz 方法，保持可追溯性
 
+## 非后端应用表面映射
+
+非后端 target 使用 app-contract v2 的 `surfaces` 表达行为到应用表面的映射：
+
+| 表面 | 示例 |
+|---|---|
+| `component` | `LoginPanel.onQrLoginClick` |
+| `renderer` | `authService.startQrLogin`、`useAuthStore.setToken` |
+| `preload` | `electron.auth.startQrLogin` |
+| `ipc` | `auth:startQrLogin` |
+| `main` | `startEnnewQrLogin` |
+| `external` | `POST /userCenter/unify/auth/qr/create` |
+| `route` | `/login` |
+| `store` | `authStore.currentUser` |
+
+Electron/Vue target 的细则见 `mapping-electron-vue.md`。
+
 ## 设计文档中的映射表达
 
-映射规则有两种产出形态，二者必须保持一致——**结构化契约是权威源，Markdown 表格是其人类可读视图**。
+映射规则有两种产出形态，二者必须保持一致：**结构化契约是权威源，Markdown 表格是其人类可读视图**。
 
 ### 形态一：结构化契约 `docs/contracts/app-contract.yaml`（权威、机器可消费）
 
-三张映射规则物化为契约字段，供下游 `code-generation` **确定性解析**（而非读 Markdown 自由推导）：
+后端 legacy contract 将三张映射规则物化为契约字段，供下游后端 `code-generation` **确定性解析**（而非读 Markdown 自由推导）：
 
 | 映射规则 | 契约字段 |
 |---------|---------|
@@ -142,14 +169,16 @@ def execute_approval_flow(contract_id: int) -> Result[None]:
 
 命名必须与 `project.backend.language` 一致：Java 使用 PascalCase 类名和 camelCase 方法名；Python 使用 PascalCase schema/model 名和 snake_case 函数名。契约字段名保持 `controller` / `biz` / `service` 不变，用于表达逻辑角色，不要求 Python 代码中存在 Controller 类。
 
+非后端 v2 contract 使用 `objects[].persistence`、`objects[].behaviors[].surfaces`、`rules[].location`、`sops[].entry` 和 `sops[].calls`。模板与字段约束见 `app-contract-v2-template.yaml` 与 `app-contract-v2.schema.json`。
+
 ### 形态二：Markdown 三张映射表（人读视图，写入 `docs/app-design.md`）
 
 在 `docs/app-design.md` 的接口设计部分，必须包含以下三张映射表（与契约字段一一对应，便于人工评审）：
 
-1. **行为→接口映射表**：每个对象的每个行为对应哪个 Controller 接口、Biz 方法、Service 方法
+1. **行为→应用表面映射表**：每个对象的每个行为对应哪个接口、IPC、component、service、helper 或 external API
 2. **规则→代码位置映射表**：每条规则对应哪个层级、哪个方法名
-3. **SOP→Biz 编排方法映射表**：每个 SOP 流程对应哪个 Biz 方法，内部调用哪些 Service 方法
+3. **SOP→编排方法映射表**：每个 SOP 流程对应哪个编排入口，内部调用哪些实现表面
 
 ### 准出门禁
 
-`app-contract.yaml` 中 `objects` / `rules` / `sops` 的 `code` 必须与 `docs/ontology_schema.json` 的 `objects` / `rules` / `sop_flows` 的 `code` **逐项对齐**，覆盖率不达 100% 不得进入下游（详见 app-design `SKILL.md` 的「准出门禁」）。
+`app-contract.yaml` 中 `objects` / `rules` / `sops` 的 `code` 必须与 `docs/ontology_schema.json` 的 `objects` / `rules` / `sop_flows` 的 `code` **逐项对齐**，覆盖率不达 100% 不得进入下游（详见 app-design `SKILL.md` 的「准出门禁」）。非后端 v2 contract 不得被后端 code-generation 当作 legacy contract 消费。

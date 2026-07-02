@@ -1,10 +1,30 @@
 # 数据库设计规则
 
-本文件是 app-design 阶段的数据库设计规约。设计数据库或生成 `docs/contracts/db-schema.sql` 时读取并遵守。
+本文件是 app-design 阶段的持久化决策和数据库设计规约。判断对象是否建表、设计数据库或生成 `docs/contracts/db-schema.sql` 时读取并遵守。
+
+## 持久化决策门禁
+
+在从本体对象推导表结构前，先判断每个对象的数据权威源和生命周期。只有由当前应用长期持久化、具有独立业务生命周期的对象才建表。
+
+| 对象类型 | 是否建表 | 规则 |
+|---|---|---|
+| 核心业务实体 | 通常建表 | 有独立生命周期、需要本系统持久化 |
+| 外部系统实体 | 不建表或只存引用 | 数据权威源在外部系统 |
+| 短生命周期流程状态 | 默认不建表 | 如扫码票据、验证码、临时授权态 |
+| UI 状态 | 不建表 | 组件内状态、store 状态或 URL 状态 |
+| 既有本地 KV 状态 | 不新增表 | 复用现有 key，设计中说明 key 契约 |
+| 审计事件 | 视项目已有审计能力 | 没有明确审计表时不强制新建 |
+
+持久化决策必须写入 `docs/app-design.md`，并同步到 `app-contract.yaml` 的对象字段：
+
+- 需要建表：`persistence: mysql-table`，同时填写 `table`。
+- 不建表：填写 `persistence` 为 `external-service`、`transient-memory`、`existing-local-kv`、`ui-state` 或 `none`，并说明原因。
+
+如果不涉及数据库变更，不强制生成 `docs/contracts/db-schema.sql` 或 `docs/db-schema.md`，但必须在 `docs/app-design.md` 写明“数据库影响：无”及原因。只有下游兼容流程明确依赖 SQL 文件存在时，才生成 no-op `docs/contracts/db-schema.sql`，并说明它不是实际数据库设计。
 
 ## 本体到表结构映射
 
-- 每个本体业务对象默认对应一张业务表。
+- 每个需要当前应用长期持久化的本体业务对象默认对应一张业务表。
 - 类名转换为表名：PascalCase 或 snake_case 统一转小写下划线。
 - 可按项目规范添加前缀，如 `biz_`、`rel_`、`sys_`。
 - 一对多关系：在多方表添加一方 id 字段并建普通索引。
@@ -48,6 +68,7 @@
 
 ## 输出要求
 
-- DDL 写入 `docs/contracts/db-schema.sql`，这是权威可执行源。
+- 有数据库变更时，DDL 写入 `docs/contracts/db-schema.sql`，这是权威可执行源。
 - `docs/db-schema.md` 只做说明和引用，不内嵌第二份权威 DDL。
-- `app-contract.yaml` 中 `objects[].table` 必须与 DDL 表名一致。
+- `app-contract.yaml` 中需要建表对象的 `objects[].table` 必须与 DDL 表名一致。
+- 不建表对象不得为了满足模板虚构表名；改用 v2 contract 的 `persistence` 表达。
