@@ -53,7 +53,7 @@ description: "当用户要求应用设计、架构设计、数据库设计、现
 ### 1. 探索上下文
 
 - 检查项目文件、已有 `docs/` 产物和最近设计材料。
-- 读取 `docs/ontology_schema.json`、`docs/brd.md`、`docs/requirements-baseline.json`、`docs/contracts/acceptance-tests.yaml`。
+- 读取 `docs/ontology_schema.json`、`docs/requirements-baseline.json`，并把 `docs/brd.md` 作为人读补充；若存在 `docs/contracts/acceptance-tests.yaml`，仅作为由 baseline 派生的测试视图读取。
 - 如果缺少本体或需求基线，提示用户先回到 ontology-modeling；不要凭空设计。
 
 ### 2. 确认设计目标类型与技术规范

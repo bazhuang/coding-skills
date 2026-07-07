@@ -5,10 +5,11 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 # 本体论建模与 BRD 生成
 
-使用**对象(Object)、行为(Behavior)、规则(Rules)**三要素方法论，通过业务访谈持续产出两份跨 coding agent 通用的权威文件：
+使用**对象(Object)、行为(Behavior)、规则(Rules)**三要素方法论，通过业务访谈持续产出跨 coding agent 通用的需求规格文件：
 
-1. `docs/ontology_schema.json` — 结构化业务领域模型
-2. `docs/brd.md` — 结构化业务需求文档
+1. `docs/ontology_schema.json` — 结构化业务领域模型（权威规格）
+2. `docs/brd.md` — 结构化业务需求文档（人读派生视图）
+3. `docs/requirements-baseline.json` — 已冻结需求基线（Requirements Gate 后的权威规格）
 
 建模交互必须边聊边写文件。回复只输出摘要、下一步问题和文件路径；除非用户明确要求，不要在回复里粘贴完整 JSON 或完整 BRD。
 
@@ -30,23 +31,23 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 ## 核心原则
 
-1. **文件优先**：`docs/ontology_schema.json` 和 `docs/brd.md` 是唯一权威产物。
+1. **文件优先**：建模阶段以 `docs/ontology_schema.json` 为领域模型权威源；Requirements Gate 通过后以 `docs/requirements-baseline.json` 为冻结需求权威源；`docs/brd.md` 是人读视图。
 2. **持续更新**：从识别出第一个对象开始，每次回复前都要写入完整当前版本，非增量片段。
 3. **对象优先**：先定义存在什么对象，再定义行为和规则。
 4. **行为改变状态**：每个行为应导致至少一个对象的属性或状态变化；查询行为除外，但要明确其读取目的。
 5. **规则只保留高价值**：只提取后续代码无法自然推断、会影响算法/流程/跨实体一致性的领域规则。
 6. **渐进访谈**：不要一次性抛出所有问题；每次问最能推进建模的一组问题。
 
-## 权威产物
+## 产物分层
 
 | 产物 | 文件路径 | 默认时机 |
 |---|---|---|
-| Ontology Schema | `docs/ontology_schema.json` | 每次交互结束前更新 |
-| BRD 文档 | `docs/brd.md` | 每次交互结束前更新 |
-| 需求基线 | `docs/requirements-baseline.json` | Requirements Gate 通过后生成 |
-| 验收测试契约 | `docs/contracts/acceptance-tests.yaml` | Requirements Gate 通过后生成 |
+| Ontology Schema（权威规格） | `docs/ontology_schema.json` | 每次交互结束前更新 |
+| BRD 文档（派生视图） | `docs/brd.md` | 每次交互结束前更新 |
+| 需求基线（权威规格） | `docs/requirements-baseline.json` | Requirements Gate 通过后生成并批准 |
+| 验收测试视图（派生导出） | `docs/contracts/acceptance-tests.yaml` | 需要自动验收、接口冒烟或测试 runner 对接时，从需求基线导出 |
 
-建模交互过程中的通用默认产物只要求前两份。只有在准备进入下游阶段时，才生成需求基线和验收测试契约。
+建模交互过程中的通用默认产物只要求前两份。只有在准备进入下游阶段时，才生成并批准需求基线；`acceptance-tests.yaml` 不是第二个需求事实源，只是基线验收标准的测试视图。
 
 ## 启动流程
 
@@ -138,7 +139,7 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 1. 运行 `validate_ontology.py`，修复所有 ERROR。
 2. 确保 BRD §4 的每个 Must Have 功能有稳定 ID、可测试验收标准、来源 ontology code。
-3. 生成 `docs/requirements-baseline.json` 和 `docs/contracts/acceptance-tests.yaml`。
+3. 生成 `docs/requirements-baseline.json`；如需要自动验收或接口冒烟，再从 baseline 导出 `docs/contracts/acceptance-tests.yaml`。
 4. 用户确认后，将 `requirements-baseline.json` 中 `approved` 置为 `true`。
 
 Gate 不通过不得进入下游 app-design。

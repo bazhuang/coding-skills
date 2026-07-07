@@ -14,9 +14,9 @@ description: "对已生成的代码进行交付前质量验证：技术规范合
 | `docs/app-design.md` | 技术规范合规检查的依据（人读视图） |
 | `docs/contracts/db-schema.sql` | 数据库设计合规检查的权威依据（可执行 DDL）；无数据库变更时可不存在 |
 | `docs/contracts/app-contract.yaml` | 接口/应用表面、规则/SOP 契约，校验代码是否与设计契约一致的依据；支持 legacy 与 v2 |
-| `docs/traceability.json` | **功能完整性对照的确定性依据**——本体/规则/SOP/需求 code → 代码位置 |
+| `docs/traceability.json` | **功能完整性对照的确定性依据**——本体/规则/SOP/需求 code → 代码位置；须符合 `references/traceability.schema.json` |
 | `docs/requirements-baseline.json` | 已批准需求基线，判定功能点是否为已批准需求的锚点 |
-| `docs/contracts/acceptance-tests.yaml` | 验收测试契约，确定性验收依据（BRD §4 作为补充） |
+| `docs/contracts/acceptance-tests.yaml` | 可选验收测试视图，由 requirements baseline 派生；存在时用于自动验收/接口冒烟 |
 | `docs/brd.md` | 功能完整性对照的补充验收清单 |
 
 > 若 `traceability.json` / `requirements-baseline.json` 缺失，或上游阶段为 `waived`（非完整 SDD 输入），需在报告中明确「追溯置信度受限 / 上游被豁免」，并降级为方法名模糊匹配。
@@ -106,7 +106,7 @@ v2 非后端契约检查项：
 1. **优先读 `docs/traceability.json`**：以 `requirements` / `objects` / `rules` / `sops` 的 code→代码位置映射做**确定性匹配**，不再靠方法名+注释模糊匹配（改名不失配、漏标注不误判）。
 2. 如果没有 `traceability.json` 但存在 app-contract v2，使用 `objects[].behaviors[].surfaces`、`rules[].location`、`sops[].entry/calls` 作为确定性追溯输入。
 3. 以 `docs/requirements-baseline.json` 为需求锚点：确认每个 Must Have 需求都有对应代码实现，且判定其是否为「已批准需求」。
-4. 以 `docs/contracts/acceptance-tests.yaml` 为验收条件：逐条 `given/when/then` 判定是否可被代码满足（有运行环境时可实际执行）。
+4. 以 `docs/requirements-baseline.json` 的 `acceptance_criteria[]` 为验收条件权威；若存在 `docs/contracts/acceptance-tests.yaml`，逐条 `given/when/then` 执行或判定其是否可被代码满足。
 5. `docs/brd.md` §4 作为补充（仅在上述制品缺失时降级使用）。
 
 生成对照清单：
@@ -199,7 +199,7 @@ v2 非后端契约检查项：
 
 **输出**：将分类结果写回报告「待处理事项」（每条带 `[spec-gap]`/`[impl-gap]`/`[scope]` 标签与建议修订位置），并提示用户：`[spec-gap]` 项需先改契约再重生成代码，`[impl-gap]` 项可直接重生成代码。这样实现「缺陷 → 定位根因 → 修订对应层 → 重新生成」的反馈闭环。
 
-**与 C1 变更分支衔接**：当 `[spec-gap]`/`[impl-gap]` 项修订后需重生成代码时，走 or-workflow-guide 的「规格变更处理」分支做**增量重生成**（仅改受影响类/方法 + 增量更新 `traceability.json` / `spec-versions.json`），而非整条流水线重跑——缺陷回流天然就是一次规格变更，复用变更分支避免全量返工。
+**与 C1 变更分支衔接**：当 `[spec-gap]`/`[impl-gap]` 项修订后需重生成代码时，走 or-workflow-guide 的「规格变更处理」分支做**增量重生成**（仅改受影响类/方法 + 增量更新 `traceability.json` / `sdd-state.yaml`），而非整条流水线重跑——缺陷回流天然就是一次规格变更，复用变更分支避免全量返工。
 
 ## 技术规范参照
 
@@ -212,5 +212,5 @@ v2 非后端契约检查项：
 - **代码质量审查由子代理执行**：提供没有上下文包袱的"新鲜视角"，避免自己看不到自己的问题
 - **分级处理**：Critical 自动修复、Important 报告用户、Minor 记录备查——不过度打断，也不放任问题
 - **环境不强求**：逐步引导，有环境就验，没有就跳过，明确告知跳过了什么
-- **功能对照确定性优先**：以 `traceability.json` + `requirements-baseline.json` + `acceptance-tests.yaml` 做确定性匹配，制品缺失或上游 `waived` 时降级为模糊匹配并明确标注置信度受限
+- **功能对照确定性优先**：以 `traceability.json` + `requirements-baseline.json` 做确定性匹配，`acceptance-tests.yaml` 仅作为可选自动验收视图；制品缺失或上游 `waived` 时降级为模糊匹配并明确标注置信度受限
 - **缺陷回流有方向**：`[spec-gap]` 回 app-design 改契约、`[impl-gap]` 回 code-generation 改代码——让验证驱动迭代而非止于报告

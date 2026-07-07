@@ -38,7 +38,7 @@ description: "基于后端应用设计契约（legacy app-contract.yaml + db-sch
 
 本 skill 只消费 legacy Java/Python 后端契约，或 v2 中明确为后端 target 的契约。`desktop-electron-feature`、`frontend-only-feature`、`existing-app-feature` 的 v2 契约用于追溯和评审，不得按后端模板生成。
 
-**不读取** `docs/ontology_schema.json`（已被 app-design 消化为契约）和 `docs/brd.md`（验收由下游验证 skill 负责）。app-design → code-generation 之间单向依赖，无回溯补救通道，因此 app-design 的契约覆盖率门禁必须 100% 通过。
+**不读取** `docs/ontology_schema.json`（已被 app-design 消化为契约）和 `docs/brd.md`（验收由下游验证 skill 负责）。app-design → code-generation 的执行链路单向，因此 app-design 的契约覆盖率门禁必须 100% 通过；验证发现 `[spec-gap]` 时仍可人工回流到 app-design 局部修订后再增量生成。
 
 ## 生成流程
 
@@ -46,7 +46,7 @@ description: "基于后端应用设计契约（legacy app-contract.yaml + db-sch
 
 检查目标项目路径，确定生成模式；同时读取设计契约：
 
-**上游完整性 preflight（C4 豁免降级）**：先检查 `docs/workflow-progress.md` 中应用设计阶段状态与契约文件是否齐全：
+**上游完整性 preflight（C4 豁免降级）**：先检查 `docs/sdd-state.yaml`（旧项目兼容 `docs/workflow-progress.md`）中应用设计阶段状态与契约文件是否齐全：
 
 - 若应用设计为 `waived`，或 `docs/contracts/app-contract.yaml` / `docs/contracts/db-schema.sql` 缺失 → **降级告警**「非完整 SDD 输入：上游被豁免/契约缺失，追溯完整性与覆盖率无保障」，退化为基于 `docs/app-design.md`（人读视图）+ 已有代码推断生成，并在最终 `traceability.json` 标注 `confidence=degraded`；不得假装完整 SDD 输入。
 - 若 `app-contract.yaml` 为 v2 非后端 target → 停止后端生成，不进入降级推断。
@@ -65,7 +65,7 @@ description: "基于后端应用设计契约（legacy app-contract.yaml + db-sch
 |------|---------|------|
 | **全新项目** | 目标路径为空或无所选语言项目结构 | 生成完整项目骨架：模块/目录结构、启动入口、配置文件、依赖文件 |
 | **增量开发** | 目标路径存在所选语言项目（契约未变） | 在已有结构上追加，不覆盖已有文件 |
-| **规格变更增量** | `docs/spec-versions.json` 检测到上游契约/DDL 指纹已变，或收到「规格变更处理」分支传入的 spec-diff | **只重生成受影响的类/方法**：按 `docs/traceability.json` 把变化的 object/rule/SOP/behavior code 映射到具体代码位置，仅改这些位置；增量更新 `impl-plan.md` 与 `traceability.json`，不整体重写 |
+| **规格变更增量** | `docs/sdd-state.yaml` 检测到上游契约/DDL 指纹已变，或收到「规格变更处理」分支传入的 spec-diff | **只重生成受影响的类/方法**：按 `docs/traceability.json` 把变化的 object/rule/SOP/behavior code 映射到具体代码位置，仅改这些位置；增量更新 `impl-plan.md` 与 `traceability.json`，不整体重写 |
 
 **增量开发注意事项**：
 - 新增的文件不与已有文件冲突
@@ -77,7 +77,7 @@ description: "基于后端应用设计契约（legacy app-contract.yaml + db-sch
 - spec-diff 来自 or-workflow-guide「规格变更处理」分支——按稳定 code 分类的新增/删除/修改项（object/rule/SOP/F-xxx/behavior）。
 - 仅重生成 `traceability.json` 命中的受影响类/方法；删除的规格对应代码按删除/隔离处理，不遗留悬空引用。
 - **增量更新**（而非整体重写）`impl-plan.md` 的覆盖计数与 `traceability.json` 的 code→位置映射。
-- 重生成完成后，由 or-workflow-guide 更新 `docs/spec-versions.json` 指纹，标记代码已对齐新规格。
+- 重生成完成后，由 or-workflow-guide 更新 `docs/sdd-state.yaml` 的指纹和 `generated_against`，标记代码已对齐新规格。
 
 **读取设计契约**：探测完成后，读取 `docs/contracts/app-contract.yaml`（对象/行为/规则/SOP 结构化契约）与 `docs/contracts/db-schema.sql`（权威 DDL）。后续所有步骤都以这两份契约为确定性输入，不再回头读 `app-design.md` 的 Markdown 表格。
 
@@ -107,6 +107,7 @@ description: "基于后端应用设计契约（legacy app-contract.yaml + db-sch
 - 设计可行性在此预演验证——若契约自相矛盾（如某规则 location 指向不存在的类），在此暴露而非等到生成骨架时。
 
 > 此步骤对应 SDD 四阶段中的 Tasks（任务分解），是从 Design 到 Implementation 的独立缓冲层。
+> `impl-plan.md` 是由 `app-contract.yaml` / `db-schema.sql` 派生的审查型过程产物，不是新的设计权威源。用户批准后按它生成骨架；实现完成后的实际映射以 `traceability.json` 为准。
 
 ### 步骤 2：生成全局骨架（单代理，顺序执行）
 
@@ -220,7 +221,7 @@ def create_gas_contract(vo: GasContractCreateSchema) -> Result[GasContractRespon
 - 并行子代理的具体数量由 agent 根据实际情况自行决定
 - 后批可以引用前批已确定的类和方法签名
 
-**填充完成后汇总生成 `docs/traceability.json`**：把 `app-contract.yaml` 的 code 映射到实际生成的代码位置，供下游 code-verification 做确定性追溯（不再靠方法名+注释模糊匹配）：
+**填充完成后汇总生成 `docs/traceability.json`**：把 `app-contract.yaml` 的 code 映射到实际生成的代码位置，供下游 code-verification 做确定性追溯（不再靠方法名+注释模糊匹配）。该文件是实现后证据，必须符合 `skills/code-verification/references/traceability.schema.json`：
 
 ```json
 {
@@ -254,9 +255,9 @@ def create_gas_contract(vo: GasContractCreateSchema) -> Result[GasContractRespon
 
 | 产出物 | 说明 |
 |--------|------|
-| 实现计划 | `docs/impl-plan.md`——任务分解（步骤1），用户审查门禁 |
+| 实现计划 | `docs/impl-plan.md`——任务分解（步骤1），用户审查门禁；由设计契约派生，不作为长期权威源 |
 | 后端项目代码 | 完整项目（全新）或增量代码（增量开发），所有文件已写入磁盘，方法带 `@ontology/@brd/@rule` 追溯标注 |
-| 追溯清单 | `docs/traceability.json`——本体/规则/SOP/需求 code → 代码位置的确定性映射 |
+| 追溯清单 | `docs/traceability.json`——本体/规则/SOP/需求 code → 代码位置的确定性映射；实现后证据，需符合 traceability schema |
 | 测试代码（可选） | 仅在用户要求时生成，测试类骨架 |
 
 ## 关键原则

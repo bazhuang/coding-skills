@@ -6,7 +6,7 @@
 
 - G1. Schema 合法性校验
 - G2. 稳定需求 ID
-- G3. 需求基线 + 验收测试契约
+- G3. 需求基线 + 可选验收测试视图
 - 用户确认与冻结锚点
 - 准出回复
 
@@ -42,9 +42,9 @@ BRD §4 中的每个 **Must Have（必须有）** 功能必须同时具备：
 
 Should Have / Nice to Have 也建议补齐，但 Must Have 缺任一项视为门禁未过。
 
-## G3. 需求基线 + 验收测试契约（产出物）
+## G3. 需求基线 + 可选验收测试视图（产出物）
 
-通过 G1/G2 后，额外产出两份确定性制品，供下游 code-verification 做确定性验收，而不是靠读 Markdown 自由发挥。
+通过 G1/G2 后，必须产出一份确定性需求基线，供下游 app-design/code-verification 做确定性消费，而不是靠读 Markdown 自由发挥。验收测试 YAML 是由基线导出的派生测试视图，只有需要自动验收、接口冒烟或测试 runner 对接时才必须生成。
 
 ### `docs/requirements-baseline.json`
 
@@ -72,10 +72,11 @@ Should Have / Nice to Have 也建议补齐，但 Must Have 缺任一项视为门
 - `approved` 在用户确认前必须是 `false`。
 - `requirements[]` 必须覆盖 BRD §4 的 Must Have 功能。
 - `source` 至少包含 object / behavior / rules 中一项。
+- `acceptance_criteria[]` 是验收条件的权威字段；下游若没有 `acceptance-tests.yaml`，直接使用本字段验收。
 
 ### `docs/contracts/acceptance-tests.yaml`
 
-由 BRD §4 验收标准派生：
+由 `requirements-baseline.json` 的 `acceptance_criteria[]` 派生：
 
 ```yaml
 acceptance_tests:
@@ -93,12 +94,13 @@ acceptance_tests:
 - 每个 Must Have 需求至少有一条 acceptance test。
 - `requirement_id` 必须与 `requirements-baseline.json` 对齐。
 - `given` / `when` / `then` 必须具体、可验证。
+- 本文件不得引入 baseline 中没有的新需求或新验收口径；若发现需要新增验收口径，先修改并重新批准 `requirements-baseline.json`。
 
 ## 用户确认与冻结锚点
 
 `approved` 字段在用户确认基线后置为 `true`，形成“已批准需求基线”，作为后续变更影响分析的比对起点。
 
-基线批准（`approved=true`）的同时，由 or-workflow-guide 把当前所有 `docs/` 规格制品指纹写入 `docs/spec-versions.json`（其 `baseline_version` 与本基线版本一致）。这是“规格变更处理”分支的比对起点；后续任何上游规格变更都以此版本为起点计算 diff 并仅重生成受影响下游。
+基线批准（`approved=true`）的同时，由 or-workflow-guide 把当前权威规格制品指纹写入 `docs/sdd-state.yaml`（兼容旧项目时可同步 `docs/spec-versions.json`），其 `baseline_version` 与本基线版本一致。这是“规格变更处理”分支的比对起点；后续任何上游规格变更都以此版本为起点计算 diff 并仅重生成受影响下游。`acceptance-tests.yaml` 是派生视图，不单独作为漂移锚点。
 
 ## 准出回复
 
@@ -106,7 +108,7 @@ Gate 通过后，回复用户时包含：
 
 - Schema 校验通过摘要。
 - Must Have 需求覆盖数。
-- 生成的 `requirements-baseline.json` 和 `acceptance-tests.yaml` 路径。
+- 生成的 `requirements-baseline.json` 路径，以及是否导出了 `acceptance-tests.yaml`。
 - 是否已由用户确认 `approved=true`。
 
 Gate 未通过时，明确列出阻断项并修复，不进入下游。

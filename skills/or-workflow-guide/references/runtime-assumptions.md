@@ -10,8 +10,8 @@
 
 skills/ 下的本地流程（Claude Code / Codex / ZCode 等直接读写文件的 agent）统一约定：
 
-- 所有规格与过程制品写入项目根的 `docs/` 目录（`docs/ontology_schema.json`、`docs/brd.md`、`docs/requirements-baseline.json`、`docs/contracts/*`、`docs/impl-plan.md`、`docs/traceability.json`、`docs/spec-versions.json`、`docs/workflow-progress.md`）。
-- 跨会话状态唯一真相源 = `docs/workflow-progress.md`（进度账本）。
+- 所有规格与过程制品写入项目根的 `docs/` 目录（`docs/ontology_schema.json`、`docs/brd.md`、`docs/requirements-baseline.json`、`docs/contracts/*`、`docs/impl-plan.md`、`docs/traceability.json`、`docs/sdd-state.yaml`、兼容旧制品 `docs/spec-versions.json` / `docs/workflow-progress.md`）。
+- 跨会话状态唯一真相源 = `docs/sdd-state.yaml`（结构化 SDD 状态账本）。旧项目只有 `docs/workflow-progress.md` 时可兼容读取；新项目可把它作为人读摘要。
 - 跨 agent 契约是文件本身，而非对话消息格式或平台专用标记。
 
 ## 2. `finish_ontology.py` 是外部运行时集成脚本
@@ -26,7 +26,7 @@ skills/ 下的本地流程（Claude Code / Codex / ZCode 等直接读写文件�
 
 ## 3. `agents/openai.yaml`：外部 OpenAI agent 隐式调用入口
 
-`skills/or-workflow-guide/agents/openai.yaml` 声明 `allow_implicit_invocation: true`，即本 skill（or-workflow-guide）可被外部 OpenAI agent 入口隐式调用。其运行时假设（进度状态权威、产物路径、阶段触发方式）需与本地 skill 文件保持一致——**以 `docs/workflow-progress.md` 为跨运行时唯一状态真相源**。该文件本身的编排策略改动属高风险，本轮不动。
+`skills/or-workflow-guide/agents/openai.yaml` 声明 `allow_implicit_invocation: true`，即本 skill（or-workflow-guide）可被外部 OpenAI agent 入口隐式调用。其运行时假设（进度状态权威、产物路径、阶段触发方式）需与本地 skill 文件保持一致——**以 `docs/sdd-state.yaml` 为跨运行时唯一状态真相源**，`docs/workflow-progress.md` 仅作兼容摘要。该文件本身的编排策略改动属高风险，本轮不动。
 
 ## 4. C3-code 仍待做（高风险，待外部运行时评估）
 
@@ -36,4 +36,4 @@ C3「运行时与产物路径统一」中，**schema 读取路径已统一**（`
 - 修改 `agents/openai.yaml` 的隐式调用策略或编排假设。
 - 评估外部 OpenAI agent 回调是否参与阶段流转。
 
-**接续要点**（待评估）：先确认外部 OpenAI agent 回调是否参与阶段流转；`docs/workflow-progress.md` 已选定（本文件 §1 写明）为跨运行时唯一状态真相源；剩余统一 `common/` 依赖与 `openai.yaml` 编排。
+**接续要点**（待评估）：先确认外部 OpenAI agent 回调是否参与阶段流转；`docs/sdd-state.yaml` 已选定（本文件 §1 写明）为跨运行时唯一状态真相源；剩余统一 `common/` 依赖与 `openai.yaml` 编排。

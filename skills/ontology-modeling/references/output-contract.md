@@ -4,7 +4,7 @@
 
 ## 权威文件
 
-每次生成的 Ontology Schema 和 BRD 文档默认写入本地 `docs/` 目录，后续交互在已有数据基础上进行增量修改。**文件是唯一权威产物**：Codex、ZCode、Claude Code 等 agent 只需要读写这些标准文件即可继续工作或交给下游 skill。
+每次生成的 Ontology Schema 和 BRD 文档默认写入本地 `docs/` 目录，后续交互在已有数据基础上进行增量修改。`docs/ontology_schema.json` 是领域模型权威源，`docs/brd.md` 是人读视图；Requirements Gate 通过后，`docs/requirements-baseline.json` 是冻结需求权威源。Codex、ZCode、Claude Code 等 agent 只需要读写这些标准文件即可继续工作或交给下游 skill。
 
 对话回复只输出摘要、下一步问题和文件路径，不在回复里内嵌完整 JSON/Markdown。只有当用户或特定平台明确要求时，才额外输出平台专用的 artifact/card 标记；这些标记不得作为跨 agent 的主契约。
 
@@ -15,7 +15,7 @@
 | Ontology Schema | `docs/ontology_schema.json` | JSON（符合 `Ontology` 接口定义，且须通过 `scripts/validate_ontology.py` 校验） |
 | BRD 文档 | `docs/brd.md` | Markdown（符合 BRD 模板结构） |
 
-> Requirements 阶段准备进入下游 app-design / code-verification 时，可按 `requirements-gate.md` 额外生成 `docs/requirements-baseline.json` 与 `docs/contracts/acceptance-tests.yaml`。建模交互过程中的通用默认产物仍只要求上述两份文件。
+> Requirements 阶段准备进入下游 app-design / code-verification 时，必须按 `requirements-gate.md` 生成并批准 `docs/requirements-baseline.json`。`docs/contracts/acceptance-tests.yaml` 是从 baseline 导出的派生测试视图，仅在需要自动验收或测试 runner 对接时生成。建模交互过程中的通用默认产物仍只要求上述两份文件。
 
 ## 读写规则
 
@@ -75,7 +75,7 @@
 
 如果某个运行环境明确要求 artifact/card 渲染，可以在写入标准文件后额外输出该平台需要的标记。但必须遵守：
 
-1. 标准文件仍是唯一权威产物，artifact/card 只是展示层副本。
+1. 标准文件仍是事实源，artifact/card 只是展示层副本；其中 `ontology_schema.json` / `requirements-baseline.json` 是权威规格，`brd.md` 是人读视图。
 2. artifact/card 内容不得与 `docs/ontology_schema.json`、`docs/brd.md` 不一致。
 3. 不要把 `<artifact>`、HTML、自定义 XML 或卡片协议写入 `docs/ontology_schema.json` / `docs/brd.md`。
 4. 给用户说明这些标记是当前平台的可选展示适配，不是 skill 的通用契约。
