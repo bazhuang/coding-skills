@@ -11,7 +11,7 @@
 
 首选格式为 `docs/sdd-state.yaml`：
 
-- 顶层记录 `schema_version`、`updated_at`、`baseline_version`、`artifact_policy`。
+- 顶层记录 `schema_version`、`updated_at`、`baseline_version`、`artifact_policy`；如有历史场景归档，另有 `archives:` 列表（由 sdd-archive skill 追加，每条含 `scenario`/`path`/`archived_at`/`baseline_version`/`trigger`，只增不删）。
 - `stages.<阶段键>` 记录 `status`、`gate`、`substage`、`artifacts`、`fingerprints`、`generated_against`、`coverage`、`waiver`。
 - `fingerprints` 只记录权威规格和实现证据，不记录人读派生视图，避免派生文档改写造成无意义漂移。
 

@@ -58,6 +58,7 @@ parameters:
 | 派生视图（derived view） | 由权威规格生成的人读说明或测试视图；不单独作为事实源 | `docs/brd.md`、`docs/app-design.md`、`docs/db-schema.md`、`docs/contracts/acceptance-tests.yaml` |
 | 过程状态（process state） | 跨会话恢复与阶段门禁状态 | `docs/sdd-state.yaml`、兼容摘要 `docs/workflow-progress.md` |
 | 实现证据（implementation evidence） | 证明代码如何按规格生成/验证；不反向覆盖设计权威 | `docs/impl-plan.md`、`docs/traceability.json`、验证报告 |
+| 归档快照（archive snapshot） | 已完成场景的历史底稿，只读；由 `sdd-archive` skill 管理 | `docs/archive/<日期>-<场景>/`（manifest.yaml + specs/views/process/evidence） |
 
 `acceptance-tests.yaml` 是从 `requirements-baseline.json` 导出的测试视图，仅在需要对接测试 runner、接口冒烟或自动验收时导出，不是第二个需求事实源。
 
@@ -101,7 +102,7 @@ parameters:
    ↓ 迭代：上游规格变更 → 走「规格变更处理」分支（见 references/spec-change.md）
 ```
 
-执行方式：每阶段调用对应 skill（阶段标识符表），执行中关注进度，完成后核对门禁、写账本，并以选择题方式向用户推荐下一阶段。验证完成后汇报报告、建议后续步骤（如修复 Important 问题后重新验证）。
+执行方式：每阶段调用对应 skill（阶段标识符表），执行中关注进度，完成后核对门禁、写账本，并以选择题方式向用户推荐下一阶段。验证完成后汇报报告、建议后续步骤（如修复 Important 问题后重新验证），并建议调用 `sdd-archive` 归档本场景产物（详见其 SKILL.md）。
 
 ## 规格变更处理（迭代重生成）
 
@@ -110,7 +111,7 @@ parameters:
 ## 交互规范
 
 1. **分诊在前**：收到用户请求后，先按「请求分诊」判定通道；快速通道请求直接处理并结束，不执行以下步骤
-2. **启动检查**（轻量模式/完整流水线）：检查 `docs/sdd-state.yaml`（或兼容摘要 `docs/workflow-progress.md`）是否存在。存在则读取 `references/state-ledger.md` 按启动恢复决策树处置（含 waived 风险复述、gate 未通过回补、指纹漂移走规格变更分支、账本自愈），告知用户上次进度并建议从断点恢复；不存在则从本体建模开始
+2. **启动检查**（轻量模式/完整流水线）：检查 `docs/sdd-state.yaml`（或兼容摘要 `docs/workflow-progress.md`）是否存在。存在则读取 `references/state-ledger.md` 按启动恢复决策树处置（含 waived 风险复述、gate 未通过回补、指纹漂移走规格变更分支、账本自愈），告知用户上次进度并建议从断点恢复；不存在则从本体建模开始。若账本显示上一场景四阶段已全部 `complete` 且本次请求是**新需求场景**，先建议调用 `sdd-archive` 归档上一场景，再重置 `stages` 开始新场景
 3. **状态透明**：每进入一个新阶段，清楚告知用户当前阶段和预计后续步骤
 4. **路由确认**：每个阶段完成后，以选择题方式让用户确认下一步路由，同时给出推荐选项
 5. **灵活跳转（waived 记录）**：用户要求跳过某阶段时，询问并记录 `reason`，推断 `missing`/`risk`/`remediation`，在账本写 `waived` 条目（而非裸 `complete`/`pending`）；下游据此降低自动化承诺

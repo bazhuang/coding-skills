@@ -4,6 +4,14 @@ schema_version: 1
 updated_at: "2026-07-06T10:00:00+08:00"
 baseline_version: "v1.0"
 
+# 历史场景归档记录（由 sdd-archive skill 追加，只增不删）
+archives:
+  - scenario: gas-monthly-matching
+    path: archive/2026-06-30-gas-monthly-matching
+    archived_at: "2026-06-30T18:00:00+08:00"
+    baseline_version: "v0.9"
+    trigger: verification-complete
+
 artifact_policy:
   authoritative_specs:
     - ontology_schema.json
