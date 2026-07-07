@@ -1,13 +1,62 @@
 # =============================================================================
-# 应用设计契约模板 v2（app-contract.yaml）
+# 应用设计契约模板 v2（app-contract.yaml）—— 统一契约格式（唯一产出格式）
 # -----------------------------------------------------------------------------
-# v2 用于非纯后端目标的 traceability contract，也可表达现有应用增量设计。
-# 它记录 ontology 对象/行为/规则/SOP 到应用表面的映射，不默认作为后端
-# code-generation 的输入。
+# v2 覆盖所有 target_kind：
+#   - backend-java / backend-python：作为后端 code-generation 的确定性输入，
+#     surfaces 约定使用 api（接口 URL）/ biz（Biz 方法）/ service（Service 方法），
+#     SOP 的 entry 即 Biz 编排方法（等价旧 bizMethod），calls 为按序 Service 调用。
+#   - 其余 targetKind：作为 traceability contract，记录对象/行为/规则/SOP 到
+#     应用表面的映射，不直接进入后端 code-generation。
+# 字段约束见同目录 app-contract-v2.schema.json。
+# 旧 legacy 格式（无 version 字段、project.backend.*）已弃用：存量项目只读兼容，
+# 新契约一律按本模板产出。
 # =============================================================================
 
 version: 2
 
+# --- 示例 A：后端目标（backend-java）---
+# project:
+#   targetKind: backend-java
+#   implementation:
+#     language: java
+#     framework: Spring Boot 3.4.5
+#     guideline: backend-java-tech-guidelines.md
+#   basePackage: "com.enn.gas"        # 后端必填：Java 根包或 Python 根包（如 app）
+#   modules: [web, service, dal, client]
+#
+# objects:
+#   - code: gas_contract
+#     name: GasContract
+#     persistence: mysql-table
+#     table: biz_gas_contract          # *-table 持久化必填，与 db-schema.sql 一致
+#     behaviors:
+#       - type: CREATE
+#         surfaces:
+#           api: /api/gas-contract/create
+#           biz: createGasContract
+#           service: insertGasContract
+#       - type: DERIVE
+#         surfaces:
+#           api: /api/gas-contract/derive-billing
+#           biz: deriveBillingFromGasContract
+#           service: source_select_then_target_insert
+#     requirements: [F-001, F-002]
+#
+# rules:
+#   - code: profit_calc_rule
+#     source: ontology
+#     type: CALCULATION                # CALCULATION→Service 方法；CONSTRAINT→Biz 校验；CROSS_ENTITY→Biz 事务内校验
+#     location: GasContractService.calculateProfit()
+#
+# sops:
+#   - code: contract_approval_flow
+#     entry: GasContractBizService.executeApprovalFlow   # 即 Biz 编排方法
+#     calls:
+#       - GasContractService.submitContract
+#       - GasContractService.approveContract
+#       - GasContractService.activateContract
+
+# --- 示例 B：非后端目标（desktop-electron-feature）---
 project:
   targetKind: desktop-electron-feature
   implementation:

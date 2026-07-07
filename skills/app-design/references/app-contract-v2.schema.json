@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://coding-skills/app-design/app-contract-v2.schema.json",
   "title": "App Design Contract v2",
-  "description": "app-design 阶段面向现有应用、桌面端、前端和非后端目标的结构化追溯契约。",
+  "description": "app-design 阶段的统一结构化契约（唯一产出格式）：后端目标（backend-java/backend-python）作为 code-generation 的确定性输入；非后端目标作为 traceability 契约。",
   "type": "object",
   "required": ["version", "project", "objects", "rules", "sops"],
   "additionalProperties": false,
@@ -45,6 +45,11 @@
             }
           }
         },
+        "basePackage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "后端目标必填：Java 根包（com.enn.gas）或 Python 根包（app）"
+        },
         "modules": {
           "type": "array",
           "items": {
@@ -54,7 +59,22 @@
           "minItems": 1,
           "uniqueItems": true
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "targetKind": {
+                "enum": ["backend-java", "backend-python"]
+              }
+            },
+            "required": ["targetKind"]
+          },
+          "then": {
+            "required": ["basePackage"]
+          }
+        }
+      ]
     },
     "objects": {
       "type": "array",
@@ -212,6 +232,9 @@
           "$ref": "#/definitions/surfaceValue"
         },
         "api": {
+          "$ref": "#/definitions/surfaceValue"
+        },
+        "biz": {
           "$ref": "#/definitions/surfaceValue"
         },
         "service": {

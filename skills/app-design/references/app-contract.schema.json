@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://coding-skills/app-design/app-contract.schema.json",
-  "title": "App Design Contract (app-contract.yaml)",
-  "description": "app-design 阶段的结构化机器可消费契约，是 code-generation 的确定性输入。由 ontology-mapping-rules.md 的三张映射规则物化而来。",
+  "title": "App Design Contract (legacy, DEPRECATED)",
+  "description": "【已弃用】legacy 后端契约格式（无 version 字段）。新契约一律使用 app-contract-v2.schema.json（后端目标 targetKind=backend-java/backend-python）。本 schema 仅用于校验存量项目的旧契约。",
   "type": "object",
   "required": ["project", "objects", "rules", "sops"],
   "additionalProperties": false,
