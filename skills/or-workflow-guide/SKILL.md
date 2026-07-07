@@ -58,7 +58,7 @@ parameters:
 | 派生视图（derived view） | 由权威规格生成的人读说明或测试视图；不单独作为事实源 | `docs/brd.md`、`docs/app-design.md`、`docs/db-schema.md`、`docs/contracts/acceptance-tests.yaml` |
 | 过程状态（process state） | 跨会话恢复与阶段门禁状态 | `docs/sdd-state.yaml`、兼容摘要 `docs/workflow-progress.md` |
 | 实现证据（implementation evidence） | 证明代码如何按规格生成/验证；不反向覆盖设计权威 | `docs/impl-plan.md`、`docs/traceability.json`、验证报告 |
-| 归档快照（archive snapshot） | 已完成场景的历史底稿，只读；由 `sdd-archive` skill 管理 | `docs/archive/<日期>-<场景>/`（manifest.yaml + specs/views/process/evidence） |
+| 归档快照（archive snapshot） | 已完成场景的历史底稿，只读；由 `sdd-archive` skill 管理 | `docs/archive/index.md`（人读索引）+ `docs/archive/<日期>-<场景>/`（manifest.yaml + specs/views/process/evidence） |
 
 `acceptance-tests.yaml` 是从 `requirements-baseline.json` 导出的测试视图，仅在需要对接测试 runner、接口冒烟或自动验收时导出，不是第二个需求事实源。
 

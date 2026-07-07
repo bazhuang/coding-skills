@@ -49,19 +49,24 @@ description: Guide business teams through ontology modeling and BRD generation u
 
 建模交互过程中的通用默认产物只要求前两份。只有在准备进入下游阶段时，才生成并批准需求基线；`acceptance-tests.yaml` 不是第二个需求事实源，只是基线验收标准的测试视图。
 
+**多场景迭代下的产物边界**：`ontology_schema.json` 与 `requirements-baseline.json` 是系统态制品，跨场景累积演进；`brd.md` 采用「主文档 + 历史场景索引」结构——系统态章节累积维护，§4 只保留当前活跃场景的需求明细，已交付场景收敛为摘要行并链接归档（由 `sdd-archive` skill 在交付时收敛）。新场景的 F-xxx 编号在既有最大编号后递增，不复用已交付编号。
+
 ## 启动流程
 
 当用户提出建模、BRD、领域模型、业务对象梳理、继续上次建模等需求时，按以下顺序执行。
 
 ### 0. 恢复上下文
 
-1. 检查 `docs/ontology_schema.json` 是否存在。
-   - 存在：读取文件，告知用户已加载上次建模进度，并摘要展示已有对象、关系、规则、SOP。
+1. 检查 `docs/sdd-state.yaml` 是否有 `archives:` 列表（或存在 `docs/archive/index.md`）。
+   - 有：说明系统已有已交付场景。向用户播报「系统已有 N 个已交付场景：<场景列表>，本次将在已有系统模型上**增量建模**」，历史需求明细按需查 `docs/archive/<场景>/views/brd.md`，不要整体读入。
+2. 检查 `docs/ontology_schema.json` 是否存在。
+   - 存在且有已交付场景：读取文件，作为**系统累积域模型**加载（不是"未完成的上次进度"），摘要展示已有对象、关系、规则、SOP，新建模在其上增量扩展。
+   - 存在且无归档记录：读取文件，告知用户已加载上次建模进度，摘要展示。
    - 不存在：准备从零开始。
-2. 检查 `docs/brd.md` 是否存在。
-   - 存在：读取文件，摘要展示已完成章节。
+3. 检查 `docs/brd.md` 是否存在。
+   - 存在：读取文件，摘要展示已完成章节；若含「历史场景索引」章节，本次场景的需求写入 §4，不改写已交付场景的摘要行。
    - 不存在：准备从零开始。
-3. 检查当前目录下是否有业务材料文件，如 `db.schema`、`business_scenario.md`、`requirements.md`、DDL、流程说明等。
+4. 检查当前目录下是否有业务材料文件，如 `db.schema`、`business_scenario.md`、`requirements.md`、DDL、流程说明等。
    - 存在：读取材料，提取对象、属性、关系、流程、规则，并与现有产物合并。
    - 冲突：不要覆盖已有内容，向用户确认保留或合并方式。
 

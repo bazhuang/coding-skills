@@ -73,6 +73,7 @@ Should Have / Nice to Have 也建议补齐，但 Must Have 缺任一项视为门
 - `requirements[]` 必须覆盖 BRD §4 的 Must Have 功能。
 - `source` 至少包含 object / behavior / rules 中一项。
 - `acceptance_criteria[]` 是验收条件的权威字段；下游若没有 `acceptance-tests.yaml`，直接使用本字段验收。
+- **多场景迭代**：本文件跨场景累积，不按场景拆分。每条需求可带可选字段 `scenario`（场景 slug）与 `status`（`active` | `delivered`，缺省视为 `active`）；`delivered` 由 `sdd-archive` skill 在场景交付归档时标记。新场景的 F-xxx 编号在既有最大编号后递增，不复用已交付编号。
 
 ### `docs/contracts/acceptance-tests.yaml`
 
