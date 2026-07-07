@@ -42,8 +42,8 @@ description: "当用户要求应用设计、架构设计、数据库设计、现
 | Electron/Vue 桌面端功能 | `references/mapping-electron-vue.md` |
 | 设计数据库或生成 DDL | `references/db-design-rules.md` |
 | 生成接口、规则、SOP 映射 | `references/ontology-mapping-rules.md` |
-| 生成或校验后端契约 | `references/app-contract-template.yaml`、`references/app-contract.schema.json` |
-| 生成或校验非后端 traceability 契约 | `references/app-contract-v2-template.yaml`、`references/app-contract-v2.schema.json` |
+| 生成或校验结构化契约（所有 target） | `references/app-contract-v2-template.yaml`、`references/app-contract-v2.schema.json` |
+| 读取/校验存量项目的旧 legacy 后端契约 | `references/app-contract-template.yaml`、`references/app-contract.schema.json`（已弃用，仅只读兼容） |
 | 规范自审与通用设计质量检查 | `references/design-review-checklist.md` |
 
 只读取当前任务需要的 reference，不要一次性加载所有细节。
@@ -116,25 +116,20 @@ description: "当用户要求应用设计、架构设计、数据库设计、现
 
 ## 结构化契约要求
 
-结构化契约根据 `target_kind` 选择格式：
-
-- `backend-java` / `backend-python`：使用现有 Java/Python contract 模板，作为后端 code-generation 的权威输入。
-- `desktop-electron-feature` / `frontend-only-feature` / `existing-app-feature`：使用 app-contract v2 traceability 模板，记录对象、行为、规则、SOP 到 UI/service/IPC/helper/API 的映射；该契约默认不直接交给后端 code-generation。
-
-后端 legacy contract 必须包含：
-
-- `project`：后端语言、basePackage、模块列表等项目元信息
-- `objects[]`：本体对象到表、行为、Controller/Biz/Service 的映射
-- `rules[]`：本体规则到代码位置的映射
-- `sops[]`：SOP 到 Biz 编排方法的映射
-
-v2 traceability contract 必须包含：
+所有 `target_kind` 统一产出 **v2 契约**（`version: 2`，schema 见 `references/app-contract-v2.schema.json`），必须包含：
 
 - `version: 2`
-- `project.targetKind` 与 `project.implementation`
-- `objects[]`：对象、可选表名、`persistence`、行为到 `surfaces` 的映射
+- `project.targetKind` 与 `project.implementation`（language/framework/guideline）
+- `objects[]`：对象、`persistence`（建表对象须带 `table`）、行为到 `surfaces` 的映射
 - `rules[]`：规则到 `Module.method()`、`Component.method()` 或 `file:function` 的映射
-- `sops[]`：SOP 到跨 UI/service/IPC/main/external 的调用链映射
+- `sops[]`：SOP 的 `entry`（编排入口）与按序 `calls`
+
+按 target 补充约定：
+
+- `backend-java` / `backend-python`：作为 code-generation 的确定性输入。额外必填 `project.basePackage`；behaviors 的 `surfaces` 使用 `api`（接口 URL）/ `biz`（Biz 方法）/ `service`（Service 方法）三键；SOP 的 `entry` 即 Biz 编排方法。
+- 其余 targetKind：作为 traceability contract，`surfaces` 使用 UI/service/IPC/helper/API 等表面键；该契约不直接交给后端 code-generation。
+
+**legacy 兼容（只读）**：无 `version` 字段、以 `project.backend.*` 开头的旧后端契约已弃用。遇到存量项目的 legacy 契约可继续读取（字段对应关系见 `references/app-contract-template.yaml` 头部注释），但任何新建或修订契约都必须写成 v2 格式；对旧契约做规格变更时，趁机迁移为 v2。
 
 Markdown 表格只是人读视图，必须与 YAML 保持一致。
 

@@ -7,7 +7,7 @@
 1. 先检查现有项目、历史文档、构建文件和用户要求，判断后端语言是否已经被约束。
 2. 如果现有项目已经明确是 Java/Spring Boot 或 Python/FastAPI，向用户说明推断结果并确认。
 3. 如果目标确实是新建/扩展后端且没有明确约束，必须在澄清问题阶段让用户选择后端语言；这是后端 target 的必问项，计入澄清问题预算。
-4. 用户选择后，将结果写入 `docs/app-design.md` 的技术选型部分，并写入 `docs/contracts/app-contract.yaml` 的 `project.backend.language` 字段。
+4. 用户选择后，将结果写入 `docs/app-design.md` 的技术选型部分，并写入 `docs/contracts/app-contract.yaml` 的 `project.targetKind`（`backend-java` / `backend-python`）与 `project.implementation` 字段。
 5. 读取并遵守所选语言的专用规范：
    - Java: `references/backend-java-tech-guidelines.md`
    - Python: `references/backend-python-tech-guidelines.md`

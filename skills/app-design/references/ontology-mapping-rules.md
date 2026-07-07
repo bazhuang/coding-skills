@@ -157,19 +157,21 @@ Electron/Vue target 的细则见 `mapping-electron-vue.md`。
 
 ### 形态一：结构化契约 `docs/contracts/app-contract.yaml`（权威、机器可消费）
 
-后端 legacy contract 将三张映射规则物化为契约字段，供下游后端 `code-generation` **确定性解析**（而非读 Markdown 自由推导）：
+所有 target 统一使用 v2 契约（`version: 2`）。后端 target（`backend-java` / `backend-python`）将三张映射规则物化为契约字段，供下游后端 `code-generation` **确定性解析**（而非读 Markdown 自由推导）：
 
-| 映射规则 | 契约字段 |
+| 映射规则 | 契约字段（v2 后端约定） |
 |---------|---------|
-| 行为→接口映射（上文） | `objects[].behaviors[]`：`type`(CREATE/UPDATE/QUERY/DELETE/DERIVE) / `controller` / `biz` / `service` |
+| 行为→接口映射（上文） | `objects[].behaviors[]`：`type`(CREATE/UPDATE/QUERY/DELETE/DERIVE) / `surfaces.api`(接口 URL) / `surfaces.biz`(Biz 方法) / `surfaces.service`(Service 方法) |
 | 规则→代码逻辑映射（上文） | `rules[]`：`code` / `source`(ontology/design) / `type`(CALCULATION/CONSTRAINT/CROSS_ENTITY) / `location`(类.方法()) |
-| SOP→Biz 编排映射（上文） | `sops[]`：`code` / `bizMethod`(类.方法) / `calls`[](按步骤顺序的 Service 方法) |
+| SOP→Biz 编排映射（上文） | `sops[]`：`code` / `entry`(Biz 编排类.方法) / `calls`[](按步骤顺序的 Service 方法) |
 
-契约模板与字段约束见同目录 `app-contract-template.yaml` 与 `app-contract.schema.json`。
+契约模板与字段约束见同目录 `app-contract-v2-template.yaml` 与 `app-contract-v2.schema.json`。后端 target 额外要求 `project.basePackage`。
 
-命名必须与 `project.backend.language` 一致：Java 使用 PascalCase 类名和 camelCase 方法名；Python 使用 PascalCase schema/model 名和 snake_case 函数名。契约字段名保持 `controller` / `biz` / `service` 不变，用于表达逻辑角色，不要求 Python 代码中存在 Controller 类。
+命名必须与后端语言一致：Java 使用 PascalCase 类名和 camelCase 方法名；Python 使用 PascalCase schema/model 名和 snake_case 函数名。surfaces 键名 `api` / `biz` / `service` 表达逻辑角色，不要求 Python 代码中存在 Controller 类。
 
-非后端 v2 contract 使用 `objects[].persistence`、`objects[].behaviors[].surfaces`、`rules[].location`、`sops[].entry` 和 `sops[].calls`。模板与字段约束见 `app-contract-v2-template.yaml` 与 `app-contract-v2.schema.json`。
+非后端 target 使用 `objects[].persistence`、`objects[].behaviors[].surfaces`（component/renderer/ipc/main/external 等键）、`rules[].location`、`sops[].entry` 和 `sops[].calls`。
+
+> 旧 legacy 后端格式（无 `version` 字段，behaviors 用 `controller`/`biz`/`service` 平铺、SOP 用 `bizMethod`）已弃用：存量契约只读兼容，字段对应关系见 `app-contract-template.yaml` 头部注释。
 
 ### 形态二：Markdown 三张映射表（人读视图，写入 `docs/app-design.md`）
 
@@ -181,4 +183,4 @@ Electron/Vue target 的细则见 `mapping-electron-vue.md`。
 
 ### 准出门禁
 
-`app-contract.yaml` 中 `objects` / `rules` / `sops` 的 `code` 必须与 `docs/ontology_schema.json` 的 `objects` / `rules` / `sop_flows` 的 `code` **逐项对齐**，覆盖率不达 100% 不得进入下游（详见 app-design `SKILL.md` 的「准出门禁」）。非后端 v2 contract 不得被后端 code-generation 当作 legacy contract 消费。
+`app-contract.yaml` 中 `objects` / `rules` / `sops` 的 `code` 必须与 `docs/ontology_schema.json` 的 `objects` / `rules` / `sop_flows` 的 `code` **逐项对齐**，覆盖率不达 100% 不得进入下游（详见 app-design `SKILL.md` 的「准出门禁」）。非后端契约不得被后端 code-generation 当作后端契约消费。

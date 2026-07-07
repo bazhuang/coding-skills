@@ -6,12 +6,14 @@
 
 | target_kind | 适用场景 | 必读参考 | 契约格式 |
 |---|---|---|---|
-| `backend-java` | 新建或扩展 Java/Spring Boot 后端 | `backend-tech-guidelines.md` + `backend-java-tech-guidelines.md` | legacy app-contract |
-| `backend-python` | 新建或扩展 Python/FastAPI 后端 | `backend-tech-guidelines.md` + `backend-python-tech-guidelines.md` | legacy app-contract |
-| `existing-app-feature` | 在现有项目中增量新增功能 | 仓库规范、`AGENTS.md`、相关代码；必要时读取对应 target reference | v2 traceability contract |
-| `desktop-electron-feature` | Electron 桌面端 IPC/UI/主进程功能 | `mapping-electron-vue.md` + 仓库规范 | v2 traceability contract |
-| `frontend-only-feature` | 纯前端界面、交互、状态或组件 | 项目 UI 规范、组件库、路由/store 约定 | v2 traceability contract |
+| `backend-java` | 新建或扩展 Java/Spring Boot 后端 | `backend-tech-guidelines.md` + `backend-java-tech-guidelines.md` | v2 契约（backend target，含 basePackage + api/biz/service surfaces） |
+| `backend-python` | 新建或扩展 Python/FastAPI 后端 | `backend-tech-guidelines.md` + `backend-python-tech-guidelines.md` | v2 契约（backend target，含 basePackage + api/biz/service surfaces） |
+| `existing-app-feature` | 在现有项目中增量新增功能 | 仓库规范、`AGENTS.md`、相关代码；必要时读取对应 target reference | v2 契约（traceability） |
+| `desktop-electron-feature` | Electron 桌面端 IPC/UI/主进程功能 | `mapping-electron-vue.md` + 仓库规范 | v2 契约（traceability） |
+| `frontend-only-feature` | 纯前端界面、交互、状态或组件 | 项目 UI 规范、组件库、路由/store 约定 | v2 契约（traceability） |
 | `docs-or-process` | 流程、规范、文档类改造 | 相关文档和组织约束 | app-design.md；契约可选 |
+
+所有 target 统一产出 v2 契约（`version: 2`，见 `app-contract-v2-template.yaml`）。旧 legacy 后端格式已弃用，仅对存量项目只读兼容。
 
 ## 判定顺序
 
@@ -33,4 +35,4 @@
 
 ## 下游边界
 
-只有 legacy Java/Python contract，或 v2 contract 中 `project.targetKind` 明确为后端目标，才允许直接进入后端 `code-generation`。非后端 v2 contract 是追溯和评审契约，后续实现应按现有项目方式增量编码。
+只有 `project.targetKind` 明确为后端目标（`backend-java` / `backend-python`）的契约（含存量 legacy 旧契约），才允许直接进入后端 `code-generation`。非后端契约是追溯和评审契约，后续实现应按现有项目方式增量编码。

@@ -1,6 +1,6 @@
 ---
 name: code-verification
-description: "对已生成的代码进行交付前质量验证：技术规范合规、代码质量审查、基于 traceability.json 或 app-contract v2 的功能完整性确定性对照、运行验证，并对缺陷做根因分类回流（设计层/实现层）。当代码生成完成后、现有应用增量实现完成后、交付前使用。"
+description: "对已生成的代码进行交付前质量验证：技术规范合规、代码质量审查、基于 traceability.json 或 app-contract 的功能完整性确定性对照、运行验证，并对缺陷做根因分类回流（设计层/实现层）。当代码生成完成后、现有应用增量实现完成后、交付前使用。"
 ---
 
 # 代码验证
@@ -13,7 +13,7 @@ description: "对已生成的代码进行交付前质量验证：技术规范合
 |---------|------|
 | `docs/app-design.md` | 技术规范合规检查的依据（人读视图） |
 | `docs/contracts/db-schema.sql` | 数据库设计合规检查的权威依据（可执行 DDL）；无数据库变更时可不存在 |
-| `docs/contracts/app-contract.yaml` | 接口/应用表面、规则/SOP 契约，校验代码是否与设计契约一致的依据；支持 legacy 与 v2 |
+| `docs/contracts/app-contract.yaml` | 接口/应用表面、规则/SOP 契约，校验代码是否与设计契约一致的依据；统一 v2 格式（存量 legacy 旧契约只读兼容） |
 | `docs/traceability.json` | **功能完整性对照的确定性依据**——本体/规则/SOP/需求 code → 代码位置；须符合 `references/traceability.schema.json` |
 | `docs/requirements-baseline.json` | 已批准需求基线，判定功能点是否为已批准需求的锚点 |
 | `docs/contracts/acceptance-tests.yaml` | 可选验收测试视图，由 requirements baseline 派生；存在时用于自动验收/接口冒烟 |
@@ -25,11 +25,10 @@ description: "对已生成的代码进行交付前质量验证：技术规范合
 
 ### 步骤 1：技术规范合规检查
 
-先读取 `docs/contracts/app-contract.yaml`，判断契约类型：
+先读取 `docs/contracts/app-contract.yaml`，按 `project.targetKind` 分流：
 
-- legacy 后端契约：读取 `project.backend.language`，再读取 `../app-design/references/backend-tech-guidelines.md` 和对应语言规范逐条检查生成的代码。
-- v2 后端契约：按 `project.targetKind` 映射到 Java/Python 后端规范。
-- v2 非后端契约：不要套用 Java/Python 后端规范；改为按 `project.implementation.guideline`、仓库规范、`docs/app-design.md` 和 `objects[].behaviors[].surfaces` 做项目内一致性检查。
+- 后端契约（`backend-java` / `backend-python`）：读取 `../app-design/references/backend-tech-guidelines.md` 和对应语言规范逐条检查生成的代码。存量 legacy 旧契约（无 `version` 字段）按 `project.backend.language` 确定语言，同样走后端规范检查。
+- 非后端契约：不要套用 Java/Python 后端规范；改为按 `project.implementation.guideline`、仓库规范、`docs/app-design.md` 和 `objects[].behaviors[].surfaces` 做项目内一致性检查。
 
 后端语言规范：
 
@@ -48,7 +47,7 @@ description: "对已生成的代码进行交付前质量验证：技术规范合
 | 时间/小数类型 | 时间字段是否使用 `java.util.Date`，小数是否用 BigDecimal | 时间字段是否与数据库 datetime 一致，小数是否用 Decimal |
 | 数据库规范 | 是否存在外键约束、是否使用了 float/double、字段命名是否规范 | 是否存在外键约束、是否使用了 float、字段命名是否规范 |
 
-v2 非后端契约检查项：
+非后端契约检查项：
 
 | 检查维度 | 具体项 |
 |---------|--------|
@@ -104,7 +103,7 @@ v2 非后端契约检查项：
 **对照方式**（按优先级，确定性优先）：
 
 1. **优先读 `docs/traceability.json`**：以 `requirements` / `objects` / `rules` / `sops` 的 code→代码位置映射做**确定性匹配**，不再靠方法名+注释模糊匹配（改名不失配、漏标注不误判）。
-2. 如果没有 `traceability.json` 但存在 app-contract v2，使用 `objects[].behaviors[].surfaces`、`rules[].location`、`sops[].entry/calls` 作为确定性追溯输入。
+2. 如果没有 `traceability.json`，使用 `app-contract.yaml` 的 `objects[].behaviors[].surfaces`、`rules[].location`、`sops[].entry/calls` 作为确定性追溯输入。
 3. 以 `docs/requirements-baseline.json` 为需求锚点：确认每个 Must Have 需求都有对应代码实现，且判定其是否为「已批准需求」。
 4. 以 `docs/requirements-baseline.json` 的 `acceptance_criteria[]` 为验收条件权威；若存在 `docs/contracts/acceptance-tests.yaml`，逐条 `given/when/then` 执行或判定其是否可被代码满足。
 5. `docs/brd.md` §4 作为补充（仅在上述制品缺失时降级使用）。
@@ -203,7 +202,7 @@ v2 非后端契约检查项：
 
 ## 技术规范参照
 
-验证 legacy/v2 后端契约时必须对照 `../app-design/references/backend-tech-guidelines.md` 和契约中指向的语言规范，不可妥协。验证 v2 非后端契约时，对照 `project.implementation.guideline`、仓库规范、`docs/app-design.md` 与 v2 surfaces，不套用后端专用规则。
+验证后端契约时必须对照 `../app-design/references/backend-tech-guidelines.md` 和契约中指向的语言规范，不可妥协。验证非后端契约时，对照 `project.implementation.guideline`、仓库规范、`docs/app-design.md` 与契约 surfaces，不套用后端专用规则。
 
 ## 关键原则
 

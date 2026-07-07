@@ -1,6 +1,16 @@
 # =============================================================================
-# 应用设计契约模板（app-contract.yaml）
+# 【DEPRECATED】应用设计契约模板 legacy 格式（app-contract.yaml，无 version 字段）
 # -----------------------------------------------------------------------------
+# 本格式已弃用：新契约一律使用统一 v2 格式（app-contract-v2-template.yaml，
+# 后端目标 targetKind=backend-java/backend-python）。本文件仅保留用于
+# 理解/校验存量项目的旧契约，不要用它产出新契约。
+# 字段对应关系（legacy → v2）：
+#   project.backend.{language,framework,guideline} → project.implementation.*（targetKind 表达语言）
+#   project.basePackage → project.basePackage（不变）
+#   behaviors[].{controller,biz,service} → behaviors[].surfaces.{api,biz,service}
+#   objects[].table（必填） → persistence: *-table + table
+#   sops[].bizMethod → sops[].entry
+# =============================================================================
 # 这是 app-design 阶段的【结构化机器可消费产物】，是 code-generation 的确定性输入。
 # 它由 references/ontology-mapping-rules.md 中的三张映射规则「物化」而来：
 #   - 行为→接口映射  → objects[].behaviors[]
