@@ -13,8 +13,10 @@ If --output is omitted, prints JSON to stdout.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import subprocess
 import sys
 
 
@@ -30,14 +32,44 @@ EXCLUDED_FILE_SUFFIXES = (".pyc", ".pyo", ".class", ".o", ".so", ".dylib", ".dll
 EXCLUDED_FILE_NAMES = {".DS_Store", "Thumbs.db", ".gitignore", ".gitkeep"}
 
 
+def get_git_hash(repo_path: str) -> str:
+    """Get the current git commit hash of the repo, or empty string if not a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return ""
+
+
+def compute_file_hash(file_path: str) -> str:
+    """Compute SHA-256 hash of file content for change detection."""
+    h = hashlib.sha256()
+    try:
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+    except Exception:
+        pass
+    return h.hexdigest()[:16]  # 16 chars is enough for change detection
+
+
 def scan_repo(repo_path: str) -> dict:
-    """Walk a repository directory and return file_tree + readme content."""
+    """Walk a repository directory and return file_tree, readme, git_hash, and file_hashes."""
     repo_path = os.path.abspath(repo_path)
     if not os.path.isdir(repo_path):
         print(f"Error: directory not found: {repo_path}", file=sys.stderr)
         sys.exit(1)
 
     file_tree_lines: list[str] = []
+    file_hashes: dict[str, str] = {}
     readme_content = ""
 
     for root, dirs, files in os.walk(repo_path):
@@ -66,16 +98,27 @@ def scan_repo(repo_path: str) -> dict:
             rel_file = os.path.join(rel_dir, file) if rel_dir != "." else file
             file_tree_lines.append(rel_file)
 
+            # Compute content hash for change detection (incremental update)
+            abs_path = os.path.join(root, file)
+            file_hashes[rel_file] = compute_file_hash(abs_path)
+
             # Find README (case-insensitive, first match)
             if file.lower().startswith("readme") and file.lower().endswith(".md") and not readme_content:
                 try:
-                    with open(os.path.join(root, file), "r", encoding="utf-8", errors="replace") as f:
+                    with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
                         readme_content = f.read()
                 except Exception:
                     pass
 
     file_tree_str = "\n".join(sorted(file_tree_lines))
-    return {"file_tree": file_tree_str, "readme": readme_content}
+    git_hash = get_git_hash(repo_path)
+
+    return {
+        "file_tree": file_tree_str,
+        "readme": readme_content,
+        "git_hash": git_hash,
+        "file_hashes": file_hashes,
+    }
 
 
 def main() -> None:

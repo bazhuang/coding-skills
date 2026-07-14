@@ -9,11 +9,12 @@ the overview page file with the table of contents merged in.
 All output filenames are derived from page titles (sanitized for filesystem).
 
 Usage:
-    python3 export_wiki.py <structure.json> <pages_dir> [--output <docs/wiki>]
+    python3 export_wiki.py <structure.json> <pages_dir> [--output <docs/wiki>] [--scan <scan.json>]
 
   structure.json  -- output of parse_structure.py
   pages_dir      -- directory containing <page_id>.md files with generated content
   --output       -- target directory (default: docs/wiki)
+  --scan         -- scan.json from scan_repo.py (for incremental update)
 """
 
 from __future__ import annotations
@@ -60,6 +61,50 @@ def build_page_filename(page: dict, used_filenames: set[str] | None = None) -> s
     unique = f"{stem}_{n}.md"
     used_filenames.add(unique)
     return unique
+
+
+def _find_parent_section(section_id: str, sections: list) -> dict | None:
+    """Find the parent section that contains section_id in its subsections."""
+    for s in sections:
+        if section_id in (s.get("subsections") or []):
+            return s
+    return None
+
+
+def build_page_dir(page: dict, sections: list) -> str:
+    """Build the subdirectory path for a page based on its parent section.
+
+    Returns "" (flat) when:
+    - there are no sections (lite mode)
+    - the page has no parentSection
+
+    Returns "section_title/[subsection_title/]" for full mode pages
+    nested under sections. Maximum depth is 2 levels.
+    """
+    if not sections:
+        return ""
+
+    parent_section_id = page.get("parentSection", "")
+    if not parent_section_id:
+        return ""
+
+    section_map = {s["id"]: s for s in sections}
+    chain: list[str] = []
+    current_id = parent_section_id
+    visited: set[str] = set()
+
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        sec = section_map.get(current_id)
+        if sec:
+            chain.append(sanitize_filename(sec["title"]))
+        parent = _find_parent_section(current_id, sections)
+        current_id = parent["id"] if parent else None
+
+    chain.reverse()
+    # Limit to 2 levels max
+    chain = chain[:2]
+    return os.path.join(*chain) if chain else ""
 
 
 def generate_anchor(heading: str) -> str:
@@ -199,12 +244,38 @@ def _write_section_pages(section: dict, section_map: dict, pages: list, page_id_
     out.append("")
 
 
-def export_wiki(structure: dict, pages_dir: str, output_dir: str) -> list[str]:
-    """Write all wiki pages to output_dir. Overview page gets TOC merged in, uses title-based filename."""
-    # Clean output directory to avoid leftover files from previous runs
-    if os.path.isdir(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir, exist_ok=True)
+def export_wiki(structure: dict, pages_dir: str, output_dir: str, scan_data: dict | None = None, incremental: bool = False, overview_only: bool = False) -> list[str]:
+    """Write all wiki pages to output_dir. Overview page gets TOC merged in, uses title-based filename.
+    
+    Args:
+        structure: Wiki structure dict (from parse_structure.py)
+        pages_dir: Directory containing generated page markdown files
+        output_dir: Output directory for wiki files
+        scan_data: Optional scan data dict (from scan_repo.py) for meta.yaml generation
+        incremental: If True, only regenerate pages whose source files have changed
+        overview_only: If True, only generate overview page and meta.yaml (skip other pages)
+    
+    Returns:
+        List of written file paths
+    """
+    # Read old meta.yaml for incremental comparison
+    old_meta = None
+    if incremental:
+        old_meta = read_meta_yaml(output_dir)
+        if old_meta:
+            print(f"Incremental mode: comparing with previous generation from {old_meta.get('generated_at', 'unknown')}", file=sys.stderr)
+        else:
+            print("Incremental mode: no previous meta.yaml found, falling back to full generation", file=sys.stderr)
+            incremental = False
+
+    # Clean output directory to avoid leftover files from previous runs (only in full mode)
+    if not incremental and not overview_only:
+        if os.path.isdir(output_dir):
+            shutil.rmtree(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
+    else:
+        # In incremental mode or overview-only mode, ensure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
 
     pages = structure.get("pages", [])
     wiki_title = structure.get("title", "")
@@ -220,21 +291,55 @@ def export_wiki(structure: dict, pages_dir: str, output_dir: str) -> list[str]:
     # First pass: determine filenames - all pages use title-based filenames.
     # Track used filenames so that pages sharing the same title get a numeric
     # suffix instead of silently overwriting each other.
+    # In full mode, files go into section-based subdirectories.
+    # The overview page stays at the root level (it's the entry point).
+    sections = structure.get("sections", [])
     used_filenames: set[str] = set()
     page_id_to_file: dict[str, str] = {}
     for page in pages:
-        page_id_to_file[page["id"]] = build_page_filename(page, used_filenames)
+        filename = build_page_filename(page, used_filenames)
+        # Overview page always at root; others in section subdirs (full mode)
+        if overview_page and page["id"] == overview_page["id"]:
+            page_id_to_file[page["id"]] = filename
+        else:
+            page_dir = build_page_dir(page, sections)
+            page_id_to_file[page["id"]] = os.path.join(page_dir, filename) if page_dir else filename
 
     # Build TOC lines (referencing non-overview page filenames)
     toc_lines = build_toc(structure, page_id_to_file, overview_page["id"] if overview_page else None)
 
     written: list[str] = []
     missing_pages: list[str] = []
+    skipped_pages: list[str] = []
+
+    # Build old page hash map for incremental comparison
+    old_page_hashes = {}
+    if incremental and old_meta and "pages" in old_meta:
+        for old_page in old_meta["pages"]:
+            old_page_hashes[old_page["id"]] = old_page.get("source_hash", "")
 
     # Write each page
     for page in pages_sorted:
         page_id = page["id"]
         filename = page_id_to_file[page_id]
+
+        # Overview-only mode: skip non-overview pages
+        if overview_only and page is not overview_page:
+            continue
+
+        # Incremental mode: check if page needs regeneration
+        if incremental and old_meta:
+            current_hash = compute_source_hash(page.get("filePaths", []), scan_data.get("file_hashes", {}) if scan_data else {})
+            old_hash = old_page_hashes.get(page_id, "")
+            
+            if current_hash == old_hash and current_hash != "":
+                # Source files unchanged, skip regeneration
+                output_file = os.path.join(output_dir, filename)
+                if os.path.isfile(output_file):
+                    skipped_pages.append(page.get("title", page_id))
+                    continue
+                # If file doesn't exist, we need to regenerate it
+            # else: hash changed or no old hash, regenerate
 
         content = ""
         content_path = os.path.join(pages_dir, f"{page_id}.md")
@@ -309,33 +414,213 @@ def export_wiki(structure: dict, pages_dir: str, output_dir: str) -> list[str]:
                     parts.append(f"- {rid}")
             parts.append("")
 
-        file_path = os.path.join(output_dir, filename)
+        file_path = os.path.join(output_dir, page_id_to_file[page_id])
+        # Ensure subdirectory exists (for section-based layout in full mode)
+        file_dir = os.path.dirname(file_path)
+        if file_dir and file_dir != output_dir:
+            os.makedirs(file_dir, exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("\n".join(parts))
-        written.append(filename)
+        written.append(page_id_to_file[page_id])
 
     if missing_pages:
         print(f"Warning: {len(missing_pages)} page(s) have no generated content:", file=sys.stderr)
         for title in missing_pages:
             print(f"  - {title}", file=sys.stderr)
 
+    if skipped_pages:
+        print(f"Incremental: {len(skipped_pages)} page(s) skipped (source files unchanged):", file=sys.stderr)
+        for title in skipped_pages:
+            print(f"  - {title}", file=sys.stderr)
+
     return written
+
+
+def read_meta_yaml(output_dir: str) -> dict | None:
+    """Read existing meta.yaml for incremental update comparison.
+
+    Returns None if meta.yaml doesn't exist or is invalid.
+    Parses YAML manually to avoid PyYAML dependency.
+    """
+    meta_path = os.path.join(output_dir, "meta.yaml")
+    if not os.path.isfile(meta_path):
+        return None
+
+    try:
+        with open(meta_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Parse simple YAML structure manually
+        meta = {"pages": []}
+        current_page = None
+
+        for line in content.split("\n"):
+            line = line.rstrip()
+            if not line or line.startswith("#"):
+                continue
+
+            # Top-level fields
+            if line.startswith("repo_path:"):
+                meta["repo_path"] = line.split(":", 1)[1].strip().strip('"')
+            elif line.startswith("git_hash:"):
+                meta["git_hash"] = line.split(":", 1)[1].strip().strip('"')
+            elif line.startswith("generated_at:"):
+                meta["generated_at"] = line.split(":", 1)[1].strip().strip('"')
+            elif line.startswith("  - id:"):
+                # Start of a new page
+                if current_page:
+                    meta["pages"].append(current_page)
+                current_page = {"id": line.split(":", 1)[1].strip().strip('"'), "source_files": []}
+            elif current_page and line.startswith("    title:"):
+                current_page["title"] = line.split(":", 1)[1].strip().strip('"')
+            elif current_page and line.startswith("    file:"):
+                current_page["file"] = line.split(":", 1)[1].strip().strip('"')
+            elif current_page and line.startswith("    importance:"):
+                current_page["importance"] = line.split(":", 1)[1].strip().strip('"')
+            elif current_page and line.startswith("      - "):
+                # Source file entry
+                current_page["source_files"].append(line.strip().lstrip("- ").strip('"'))
+            elif current_page and line.startswith("    source_hash:"):
+                current_page["source_hash"] = line.split(":", 1)[1].strip().strip('"')
+
+        # Don't forget the last page
+        if current_page:
+            meta["pages"].append(current_page)
+
+        return meta
+    except Exception as e:
+        print(f"Warning: Failed to read meta.yaml: {e}", file=sys.stderr)
+        return None
+
+
+def compute_source_hash(source_files: list, file_hashes: dict) -> str:
+    """Compute combined hash for a list of source files."""
+    if not source_files or not file_hashes:
+        return ""
+    combined = ""
+    for sf in source_files:
+        if sf in file_hashes:
+            combined += file_hashes[sf]
+    if combined:
+        import hashlib
+        return hashlib.sha256(combined.encode()).hexdigest()[:16]
+    return ""
+
+
+def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict | None, output_dir: str) -> None:
+    """Generate meta.yaml in docs/wiki/ for incremental update support.
+
+    meta.yaml records:
+    - repo_path: source repository path
+    - git_hash: current commit hash
+    - generated_at: generation timestamp
+    - pages: list of page metadata (id, title, file, importance, source_files, source_hash)
+
+    This enables incremental updates: next run compares current git_hash/file_hashes
+    with meta.yaml to determine which pages need regeneration.
+    """
+    pages = structure.get("pages", [])
+    git_hash = scan_data.get("git_hash", "") if scan_data else ""
+    file_hashes = scan_data.get("file_hashes", {}) if scan_data else {}
+
+    meta = {
+        "repo_path": scan_data.get("repo_path", "") if scan_data else "",
+        "git_hash": git_hash,
+        "generated_at": datetime.now().isoformat(),
+        "pages": [],
+    }
+
+    for page in pages:
+        page_id = page["id"]
+        file_path = page_id_to_file.get(page_id, build_page_filename(page))
+        source_files = page.get("filePaths", [])
+
+        # Compute combined hash of all source files for this page
+        source_hash = ""
+        if source_files and file_hashes:
+            combined = ""
+            for sf in source_files:
+                if sf in file_hashes:
+                    combined += file_hashes[sf]
+            if combined:
+                import hashlib
+                source_hash = hashlib.sha256(combined.encode()).hexdigest()[:16]
+
+        meta["pages"].append({
+            "id": page_id,
+            "title": page.get("title", ""),
+            "file": file_path,
+            "importance": page.get("importance", "medium"),
+            "source_files": source_files,
+            "source_hash": source_hash,
+        })
+
+    # Write meta.yaml (YAML format, not JSON)
+    meta_path = os.path.join(output_dir, "meta.yaml")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        f.write("# wiki 产物元数据，用于增量更新\n")
+        f.write(f"# 生成时间: {meta['generated_at']}\n")
+        f.write(f"# 仓库: {meta['repo_path']}\n")
+        f.write(f"# Git Hash: {meta['git_hash']}\n")
+        f.write("\n")
+        f.write(f"repo_path: \"{meta['repo_path']}\"\n")
+        f.write(f"git_hash: \"{meta['git_hash']}\"\n")
+        f.write(f"generated_at: \"{meta['generated_at']}\"\n")
+        f.write("\n")
+        f.write("pages:\n")
+        for p in meta["pages"]:
+            f.write(f"  - id: \"{p['id']}\"\n")
+            f.write(f"    title: \"{p['title']}\"\n")
+            f.write(f"    file: \"{p['file']}\"\n")
+            f.write(f"    importance: \"{p['importance']}\"\n")
+            f.write(f"    source_files:\n")
+            for sf in p["source_files"]:
+                f.write(f"      - \"{sf}\"\n")
+            f.write(f"    source_hash: \"{p['source_hash']}\"\n")
+
+    print(f"Generated meta.yaml at {meta_path}", file=sys.stderr)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export wiki structure + pages to docs/wiki/")
     parser.add_argument("structure", help="Path to structure.json (from parse_structure.py)")
-    parser.add_argument("pages_dir", help="Directory containing <page_id>.md content files")
+    parser.add_argument("pages_dir", nargs="?", default=None, help="Directory containing <page_id>.md content files (optional, not used in --overview-only mode)")
     parser.add_argument("--output", "-o", default="docs/wiki", help="Output directory (default: docs/wiki)")
+    parser.add_argument("--scan", "-s", default=None, help="Path to scan.json from scan_repo.py (for meta.yaml generation)")
+    parser.add_argument("--incremental", "-i", action="store_true", help="Only regenerate pages whose source files have changed")
+    parser.add_argument("--overview-only", action="store_true", help="Only generate overview page and meta.yaml (skip other pages)")
     args = parser.parse_args()
 
     with open(args.structure, "r", encoding="utf-8") as f:
         structure = json.load(f)
 
-    written = export_wiki(structure, args.pages_dir, args.output)
+    # Load scan data if provided
+    scan_data = None
+    if args.scan and os.path.isfile(args.scan):
+        with open(args.scan, "r", encoding="utf-8") as f:
+            scan_data = json.load(f)
+
+    # Build page_id_to_file mapping (same logic as in export_wiki)
+    pages = structure.get("pages", [])
+    sections = structure.get("sections", [])
+    overview_page = find_overview_page(pages)
+    used_filenames: set[str] = set()
+    page_id_to_file: dict[str, str] = {}
+    for page in pages:
+        filename = build_page_filename(page, used_filenames)
+        if overview_page and page["id"] == overview_page["id"]:
+            page_id_to_file[page["id"]] = filename
+        else:
+            page_dir = build_page_dir(page, sections)
+            page_id_to_file[page["id"]] = os.path.join(page_dir, filename) if page_dir else filename
+
+    written = export_wiki(structure, args.pages_dir or "", args.output, scan_data, args.incremental, args.overview_only)
     print(f"Written {len(written)} files to {args.output}:", file=sys.stderr)
     for fname in written:
         print(f"  - {fname}", file=sys.stderr)
+
+    # Generate meta.yaml for incremental update
+    generate_meta_yaml(structure, page_id_to_file, scan_data, args.output)
 
 
 if __name__ == "__main__":

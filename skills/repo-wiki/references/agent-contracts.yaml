@@ -1,0 +1,44 @@
+schema_version: 1
+description: >
+  页面生成 Agent 的角色契约。定义子 agent 的输入输出边界，
+  确保并行生成时各 agent 职责隔离、互不干扰。
+
+principles:
+  - 子 agent 只看自己该看的输入，只产自己该产的输出。
+  - 下游不可直接修改上游产物。需要改时只能向主 agent 报告，由主 agent 决定是否重新生成。
+  - 每个子 agent 在独立上下文中执行，避免注意力稀释和上游噪音污染。
+  - 确定性的输入输出：输入是明确的字段，输出也是明确的文件路径，可被脚本解析、可被断点恢复。
+
+roles:
+  page_generator:
+    purpose: "为单个文档页面生成 Markdown 内容"
+    triggers:
+      - "主 agent 在步骤 4 中按 importance 分批派发"
+    must_read:
+      - "references/page-content-prompt.md（提示词模板，理解页面内容格式要求）"
+      - "docs/tmp/wiki_structure.json 中本页的 page 定义（title, description, filePaths, relatedPages）"
+      - "filePaths 列表中的源文件内容（从仓库读取）"
+    must_write:
+      - "docs/wiki/<章节子目录>/<中文标题>.md（且仅此文件）"
+    must_not:
+      - "修改 docs/tmp/wiki_structure.json"
+      - "修改 docs/tmp/wiki_structure.xml"
+      - "修改其他 page 的 .md 文件"
+      - "修改仓库源代码"
+      - "跳过 page-content-prompt.md 中的任何格式要求"
+      - "生成与 filePaths 无关的内容（所有信息必须来源于提供的源文件）"
+    output_format: |
+      Markdown 格式，必须包含：
+      - H1 标题（# 页面标题）
+      - 简介（1-2 段）
+      - 详细章节（H2/H3）
+      - Mermaid 图表（至少 1 个，纵向布局）
+      - Markdown 表格（至少 1 个）
+      - 源文件引用（来源：[filename:行号](../../filename)，至少引用 5 个不同文件）
+      - 总结段落
+      - <details> 相关源文件块（放在页面最底部）
+    concurrency: "可并行——页面间无内容依赖，通过 relatedPages 做链接，并行安全"
+
+  # 未来可扩展角色：
+  # structure_generator:  "生成文档目录结构 XML"
+  # overview_generator:   "生成概览页面（合并目录导航）"
