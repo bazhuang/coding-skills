@@ -23,7 +23,7 @@ parameters:
 |---|---|
 | 读写 `docs/sdd-state.yaml`、断点恢复、账本自愈、核对各阶段准出门禁 | `references/state-ledger.md`，格式示例见 `references/sdd-state.example.yaml` |
 | 规格变更、检测到指纹漂移、轻量模式增量处理 | `references/spec-change.md` |
-| 涉及外部 agent 运行时的路径与假设 | `references/runtime-assumptions.md` |
+| 编写/修改运行时 adapter（Codex/OpenAI、Claude Code、ZCode、自研 harness 的模型分派与 agent 映射） | `references/runtime-assumptions.md`；需要角色契约时再读 `agents/roles.yaml` |
 
 脚本：交付前快速体检可运行 `python3 skills/or-workflow-guide/scripts/sdd_doctor.py`（轻量存在性/形状检查，不替代阶段门禁）。
 
@@ -58,6 +58,7 @@ parameters:
 | 派生视图（derived view） | 由权威规格生成的人读说明或测试视图；不单独作为事实源 | `docs/brd.md`、`docs/app-design.md`、`docs/db-schema.md`、`docs/contracts/acceptance-tests.yaml` |
 | 过程状态（process state） | 跨会话恢复与阶段门禁状态 | `docs/sdd-state.yaml`、兼容摘要 `docs/workflow-progress.md` |
 | 实现证据（implementation evidence） | 证明代码如何按规格生成/验证；不反向覆盖设计权威 | `docs/impl-plan.md`、`docs/traceability.json`、验证报告 |
+| 审查证据（review evidence） | 多角色/多模型互检的阶段审查结论；不替代权威规格 | `docs/reviews/*.review.yaml` |
 
 `acceptance-tests.yaml` 是从 `requirements-baseline.json` 导出的测试视图，仅在需要对接测试 runner、接口冒烟或自动验收时导出，不是第二个需求事实源。
 
@@ -142,4 +143,4 @@ Router: 本体建模 → 用户确认 → 应用设计 → 用户确认 → 代�
   - ontology-modeling → app-design：docs/ontology_schema.json、docs/brd.md、docs/requirements-baseline.json
   - app-design → code-generation：docs/contracts/app-contract.yaml、docs/contracts/db-schema.sql、docs/app-design.md（人读视图）
   - code-generation → code-verification：代码 + docs/traceability.json、docs/requirements-baseline.json；若存在 docs/contracts/acceptance-tests.yaml，则作为自动验收视图
-- **运行时假设**：本 skill 及下游均以 `docs/` 为制品根目录、`docs/sdd-state.yaml` 为跨运行时状态唯一真相源。`finish_ontology.py` 与 `agents/openai.yaml` 涉及外部 agent 运行时，假设与路径约定见 `references/runtime-assumptions.md`（**代码级改动属高风险，未经外部运行时评估勿动**）
+- **运行时契约**：本 skill 及下游均以 `docs/` 为制品根目录、`docs/sdd-state.yaml` 为跨运行时状态唯一真相源。多角色互检以 `agents/roles.yaml` 为中立角色契约；Codex/OpenAI、Claude Code、ZCode 或自研 harness 的 adapter 只负责模型分派和运行时映射，不改变阶段门禁与制品契约，adapter 的能改/不能改红线见 `references/runtime-assumptions.md`。
