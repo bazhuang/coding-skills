@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  wiki 文档结构 XML 示例（全面模式）。
+  这是一个完整可解析的真实示例，LLM 生成结构时应参照此格式。
+  格式规范见 references/structure-prompt.md。
+-->
+<wiki_structure>
+  <title>Gas Agents 智能体平台</title>
+  <description>面向能源行业的多智能体编排与技能管理平台</description>
+
+  <sections>
+    <!-- 顶层章节 -->
+    <section id="section-overview">
+      <title>概览</title>
+      <pages>
+        <page_ref>page-overview</page_ref>
+      </pages>
+    </section>
+
+    <section id="section-architecture">
+      <title>系统架构</title>
+      <pages>
+        <page_ref>page-arch-overview</page_ref>
+        <page_ref>page-arch-components</page_ref>
+      </pages>
+      <subsections>
+        <section_ref>section-arch-detail</section_ref>
+      </subsections>
+    </section>
+
+    <!-- 子章节示例：展示 subsection 嵌套用法 -->
+    <section id="section-arch-detail">
+      <title>架构细节</title>
+      <pages>
+        <page_ref>page-arch-components</page_ref>
+      </pages>
+    </section>
+
+    <section id="section-features">
+      <title>核心功能</title>
+      <pages>
+        <page_ref>page-skill-management</page_ref>
+        <page_ref>page-agent-orchestration</page_ref>
+      </pages>
+    </section>
+
+    <section id="section-deployment">
+      <title>部署与运维</title>
+      <pages>
+        <page_ref>page-deployment</page_ref>
+      </pages>
+    </section>
+  </sections>
+
+  <pages>
+    <page id="page-overview">
+      <title>项目概览</title>
+      <description>项目定位、核心能力、技术栈和目录结构总览</description>
+      <importance>high</importance>
+      <relevant_files>
+        <file_path>README.md</file_path>
+        <file_path>package.json</file_path>
+        <file_path>docker-compose.yml</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-arch-overview</related>
+      </related_pages>
+      <parent_section>section-overview</parent_section>
+    </page>
+
+    <page id="page-arch-overview">
+      <title>整体架构设计</title>
+      <description>系统的分层架构、模块划分和核心设计模式</description>
+      <importance>high</importance>
+      <relevant_files>
+        <file_path>src/core/orchestrator.ts</file_path>
+        <file_path>src/core/skill-loader.ts</file_path>
+        <file_path>src/types/index.ts</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-overview</related>
+        <related>page-arch-components</related>
+      </related_pages>
+      <parent_section>section-architecture</parent_section>
+    </page>
+
+    <page id="page-arch-components">
+      <title>组件关系</title>
+      <description>核心组件之间的依赖关系和交互方式</description>
+      <importance>medium</importance>
+      <relevant_files>
+        <file_path>src/core/orchestrator.ts</file_path>
+        <file_path>src/core/skill-loader.ts</file_path>
+        <file_path>src/core/agent-manager.ts</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-arch-overview</related>
+      </related_pages>
+      <parent_section>section-architecture</parent_section>
+    </page>
+
+    <page id="page-skill-management">
+      <title>技能管理</title>
+      <description>技能的发现、加载、生命周期管理机制</description>
+      <importance>high</importance>
+      <relevant_files>
+        <file_path>src/core/skill-loader.ts</file_path>
+        <file_path>src/skills/base-skill.ts</file_path>
+        <file_path>src/types/skill.ts</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-agent-orchestration</related>
+      </related_pages>
+      <parent_section>section-features</parent_section>
+    </page>
+
+    <page id="page-agent-orchestration">
+      <title>智能体编排</title>
+      <description>多智能体的调度策略、并行执行和结果汇总</description>
+      <importance>medium</importance>
+      <relevant_files>
+        <file_path>src/core/orchestrator.ts</file_path>
+        <file_path>src/core/agent-manager.ts</file_path>
+        <file_path>src/types/agent.ts</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-skill-management</related>
+      </related_pages>
+      <parent_section>section-features</parent_section>
+    </page>
+
+    <page id="page-deployment">
+      <title>部署流程</title>
+      <description>Docker 部署、环境配置和运维监控</description>
+      <importance>low</importance>
+      <relevant_files>
+        <file_path>docker-compose.yml</file_path>
+        <file_path>Dockerfile</file_path>
+        <file_path>.github/workflows/ci.yml</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-overview</related>
+      </related_pages>
+      <parent_section>section-deployment</parent_section>
+    </page>
+  </pages>
+</wiki_structure>
