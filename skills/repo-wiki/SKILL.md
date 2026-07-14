@@ -1,34 +1,43 @@
 ---
 name: repo-wiki
-description: "当用户要求为代码仓库生成中文知识库、生成仓库文档树、生成结构化技术文档，或新维护者需要按模块了解项目全貌时使用。从已有代码逆向生成 docs/wiki/ 下的模块知识库，产出为全中文（包括文件名、分类名、正文内容）。按业务章节分层组织（章节 = 物理目录，每章节下含若干模块 markdown 文件），每文件统一知识维度章节（概述/架构设计/技术栈/编码规范/配置与命令/关系）+ frontmatter，外加 repo-knowledge/ 六个跨切面类别与 index.md 章节树总览。四阶段流程：模块合成 → 章节规划 → 按模块生成文件 → 跨切面知识。纯本地文档型，无需任何认证或外部凭证，一次性全量生成。"
+description: "当用户要求为代码仓库生成项目文档、项目百科、技术文档站点时使用。从本地仓库的文件树和 README 出发，先让 LLM 生成文档目录结构（XML），解析后逐页生成包含 Mermaid 图表、源码引用、数据表格的 Markdown 内容，最终输出到 docs/wiki/ 目录。所有内容和文件名均使用中文。纯文档型，独立可用，无鉴权、无模型配置。"
 ---
 
-# Repo Wiki — 中文仓库知识库
+# 仓库文档生成
 
-从已有代码逆向生成**按业务章节分层组织的中文仓库知识库**，让维护者按章节逐模块查阅，无需通读源码。
+为本地代码仓库生成结构化、带图表和源码引用的技术文档，输出到 `docs/wiki/` 目录。
 
-本 skill 只产人读文档（markdown + index），不生成代码。纯本地执行，仅读写项目文件，不调用任何需认证或外部凭证的服务。只做一次性全量生成，不做 git-diff 增量更新。
+参照 DeepWiki-Open 项目移植，去掉鉴权和模型配置，仅保留文档生成核心流程。由执行者（LLM agent）按提示词生成文档结构和页面内容，脚本负责文件扫描、XML 解析、Markdown 导出。
 
-**核心模型**：按**业务章节**分层组织（借鉴 DeepWiki 的 WikiSection 模型）。章节 = 物理目录（如 `docs/wiki/系统架构/`），每章节下放置若干模块 markdown 文件。文件名为中文模块名，每文件用**统一知识维度章节**（`## 概述` / `## 架构设计` / `## 关系`，技术栈/编码规范/配置与命令仅在模块特有时写）+ frontmatter，外加 `仓库级约定/` 六个跨切面类别与 `总览.md` 章节树总览。
+## 写文件规则（全局约束）
 
-**架构设计必须包含 Mermaid 图**：每篇模块文件的 `## 架构设计` 至少包含一张 Mermaid 图（流程图/时序图/类图/ER图/架构图），用于可视化展示架构、流程或关系。
+本 skill 运行过程中需要写多个临时文件（XML、JSON、Markdown）。所有临时文件的写入必须通过 shell 命令完成，禁止使用 Write 工具。
 
-**技术栈/编码规范上移原则**：同一项目内各模块通常共用相同的技术栈和编码规范，为避免在每个模块文件中重复列出，这些信息统一在章节 `_简介.md` 或 `仓库级约定/` 中说明。模块文件仅在引入**模块特有**的额外技术栈或编码规范时才写对应章节。
+Write 工具在目标文件已存在时会报错 "File has not been read yet"，导致流程中断。shell 命令无此限制。
 
-> **关键差异**：不同于扁平布局（所有模块文件平铺在同一目录），本版按业务领域划分章节，章节可嵌套（最多 2 层），每章节有 `_简介.md` 简介。所有输出为全中文，文件名、分类名、正文内容均使用项目源码实际的中文含义，概述聚焦业务功能而不是枚举文件路径。
+写入方式统一用 heredoc：
+
+```bash
+cat > /tmp/wiki_structure.xml << 'WIKI_EOF'
+（文件内容）
+WIKI_EOF
+```
+
+注意：heredoc 的结束标记（如 `WIKI_EOF`）必须独占一行、顶格无缩进。如果内容中包含 `EOF` 字样，换一个不会冲突的标记名。
+
+以下文件一律用此方式写入：
+- `/tmp/wiki_structure.xml`（步骤 3 生成的 XML 结构）
+- `/tmp/wiki_pages/<page_id>.md`（步骤 4 每页生成的 Markdown 内容）
+- 其他所有需要执行者主动创建的临时文件
 
 ## 产物
 
 | 产物 | 路径 | 说明 |
 |---|---|---|
-| 章节简介 | `docs/wiki/<章节名>/简介.md` | 每章节一个，frontmatter + 章节业务概述 |
-| 模块知识文件 | `docs/wiki/<章节名>/<模块中文名>.md` | 章节目录布局，每模块一个文件；中文文件名、frontmatter + 统一知识维度章节 + 关系段 |
-| 仓库级约定 | `docs/wiki/仓库级约定/<分类中文名>.md` | 6 类别作为特殊根章节：构建系统/配置系统/依赖管理/异常处理/日志系统/前端风格 |
-| 章节树总览 | `docs/wiki/总览.md` | 按章节分组展示模块链接 + 业务描述 |
+| 概览页面 | `docs/wiki/<概览标题>.md` | 项目概览 + 目录导航 + 概览正文，合并为一个页面 |
+| 文档页面 | `docs/wiki/<页面标题>.md` | 其余每个页面一个文件，中文文件名 |
 
-> 工作基线文件（`.模块树.md`、`.章节树.md`）仅在生成过程中使用，生成完成后删除，不留在最终产物中。
-
-章节目录布局、frontmatter 字段、知识维度章节、关系段、简介.md、总览.md 格式见 `references/`。
+默认只产出 Markdown。章节结构、提示词模板见 `references/`。
 
 ## 必读与按需参考
 
@@ -36,105 +45,163 @@ description: "当用户要求为代码仓库生成中文知识库、生成仓库
 
 | 场景 | 读取 |
 |---|---|
-| 阶段1 模块合成：全量枚举、模块树、逐模块知识提取、业务领域标签、只读并行子代理 | `references/module-synthesis.md` |
-| 阶段2 章节规划：章节树 XML、规划约束、章节命名 | `references/section-planning.md` |
-| 阶段3 按模块生成文件：章节目录布局、frontmatter、## 知识维度章节、## 关系段、简介.md、总览.md | `references/module-file-format.md` |
-| 阶段4 仓库级约定：6 类别作为特殊根章节、per-category 格式 | `references/repo-knowledge.md` |
-| 覆盖率 100% 门禁、自底向上生成顺序、写边界 | `references/coverage-gates.md` |
+| 生成文档目录结构时的提示词模板和 XML 格式 | `references/structure-prompt.md` |
+| 生成单个 文档页面内容时的提示词模板和内容结构 | `references/page-content-prompt.md` |
 
 只读取当前任务需要的 reference，不要一次性加载所有细节。
 
-脚本：交付前可运行 `python3 skills/repo-wiki/scripts/validate_repo_wiki.py`（轻量结构检查，不替代人工核对）。
+脚本：用于文件树扫描、XML 解析、Markdown 导出，见 `scripts/`。
 
 ## 工作流程
 
-四阶段，每阶段完成核对门禁后再进下一阶段。
+### 0. 清理临时文件
 
-### 阶段1：模块合成
-
-- **inventory 优先**：全量枚举源码树（仅排除默认 glob：node_modules/dist/.git/build/venv 等），**禁止采样**——只扫部分是功能不全的根因。
-- 构建模块树：每节点 = 模块路径 + 业务描述（一句话说明该模块的功能职责）+ `[N 子模块]` 规模提示。**业务描述聚焦"这个模块做什么"，而不是"这个目录在哪里"**。
-- 逐模块提取知识：`description`（业务概述，1-2句）/ `architecture_design`（架构设计，主信号，描述设计意图和模式）/ `tech_stack`（技术栈）/ `coding_conventions`（编码规范）/ `unique_setup_and_commands`（配置命令）/ `scope`（覆盖范围）/ `source_files`（关键源文件）/ `dependencies`（依赖关系）/ `related`（相关模块）。
-- **提取业务领域标签**：为每个模块标注所属业务领域（如"数据层"、"API层"、"基础设施"、"核心业务"），为阶段2的章节分组提供输入。
-- **大项目只读并行子代理**：按顶层目录分区，派发 `Explore` 子代理逐区枚举（仅 inspect+summarize，主 agent 负责所有写入），再合并去重。
-- **repo 为真相源**：不把全部源码复制进中间产物，模块树即工作基线（内存中保留，不写入文件）。
-
-提取启发式、枚举信号、业务领域标签、子代理分区模板见 `references/module-synthesis.md`。
-
-### 阶段2：章节规划
-
-- **输入**：阶段1的模块树（内存中）+ 仓库 README。
-- **规划章节树**：基于业务领域分组，设计章节树结构。章节按**业务领域**划分（如"概览"、"系统架构"、"核心功能"、"数据管理"、"部署与基础设施"），**不映射源码目录结构**。
-- **输出章节树 XML**：借鉴 DeepWiki 的 `<wiki_structure>` 格式，输出 `<section_tree>` XML，包含章节层级、每章节下的模块分配。
-- **规划约束**：根章节 3-10 个；每章节 1-8 个模块；嵌套最多 2 层；每个非噪音模块必须归属且仅归属一个章节；章节名全中文，3-10 个汉字。
-- **内存中保留**：章节规划在内存中保留，供阶段3参照，不写入文件。
-
-章节规划流程、XML 格式、约束、命名指南见 `references/section-planning.md`。
-
-### 阶段3：按模块生成知识文件
-
-- **章节目录布局**：模块文件按章节规划放入对应章节目录（`docs/wiki/<章节名>/<模块中文名>.md`）。章节 = 物理目录，可嵌套（最多 2 层）。
-- **每章节含 `简介.md`**：章节简介文件，frontmatter（`title`/`description`/`module_count`）+ 章节业务概述 + **章节级技术栈**（该章节下模块共用的技术栈，避免在每个模块文件中重复列出）。
-- **按模块拆分**：模块树中**每个模块一个 markdown 文件**，中文文件名由模块的业务含义确定，**不用 ASCII slug**。文件名长度控制在 3-20 个汉字。
-- **自底向上**：叶子模块先写，父模块后写（父模块的 `## 架构设计` 可综合其子模块）。
-- **每文件统一结构**：frontmatter（`description` + `module_id` + `section`）+ 知识维度章节（`## 概述` / `## 架构设计` / `## 关系`，技术栈/编码规范/配置与命令仅在模块特有时写）+ `## 关系`（依赖/被依赖/相关三向，链接到其他模块文件；父子关系不列，由 总览.md 表达）。
-- **概述不是堆路径**：`## 概述` 段落用 1-3 段说明模块的业务功能、职责定位、解决的问题，**不要罗列文件路径**。源文件引用仅在使用 inline 形式（如 `` `manager.py` `` 的配置加载功能），不单独列出文件路径清单。
-- **架构设计侧重意图 + 必须包含 Mermaid 图**：`## 架构设计` 描述设计思路、分层策略、核心抽象、关键设计模式、模块间协作方式，用 inline 引用来佐证（如"`service/` 下的策略模式实现不同算法"），而不是枚举目录下的每个文件。**必须包含至少一张 Mermaid 图**（流程图/时序图/类图/ER图/架构图），用于可视化展示架构、流程或关系。
-- **技术栈/编码规范上移原则**：同一项目内各模块通常共用相同的技术栈和编码规范，为避免在每个模块文件中重复列出，这些信息统一在章节 `简介.md` 或 `仓库级约定/` 中说明。模块文件仅在引入**模块特有**的额外技术栈或编码规范时才写 `## 技术栈` 或 `## 编码规范` 章节。
-- **无内容的章节跳过**：模块没有独立配置就跳过 `## 配置与命令`；但 `## 概述`、`## 架构设计` 必有。
-- 最后生成 `docs/wiki/总览.md`：按章节分组的模块链接 + 业务描述。
-
-章节目录布局、frontmatter、简介.md、章节、关系段、总览.md 见 `references/module-file-format.md`。
-
-### 阶段4：仓库级约定
-
-- 仓库级提取 6 个固定跨切面类别（非模块级，是全仓模式），作为特殊根章节 `仓库级约定/` 融合到章节树中：
-  - `构建系统` — 构建工具链与流程
-  - `配置系统` — 配置体系（多环境/配置中心）
-  - `依赖管理` — 依赖声明与版本策略
-  - `异常处理` — 异常处理（统一异常/错误码/AOP）
-  - `日志系统` — 日志框架与输出
-  - `前端风格` — 前端框架与样式（纯后端仓则标 confidence=low 并说明）
-- 每类别一个 `docs/wiki/仓库级约定/<中文分类名>.md`，frontmatter + 自由 H2 章节。
-- 章节简介 `docs/wiki/仓库级约定/_简介.md` 包含 6 类别概览表。
-
-per-category 格式、confidence 判定见 `references/repo-knowledge.md`。
-
-## 准出门禁
-
-1. **覆盖率门禁**：模块树每个模块 100% 有对应 `docs/wiki/<章节名>/<模块中文名>.md`（或显式标噪音排除）；未达 100% 不得准出。
-2. **章节归属门禁**：每个非噪音模块有且仅有一个章节归属，且对应物理文件存在于该章节目录下。
-3. 每个模块文件有 frontmatter（`description` / `module_id` / `section` 必填）。
-4. 每个模块文件有 `## 概述` + `## 架构设计`；其余章节有内容才写、无则跳过。
-5. `## 概述` **不是文件路径列表**——应为业务功能描述。
-6. 每个章节目录含 `简介.md`（frontmatter + 章节业务概述）。
-7. 6 个仓库级约定类别文件齐全（不适用者 confidence=low 并说明）；`仓库级约定/简介.md` 包含概览表。
-8. `总览.md` 按章节分组展示全部模块链接。
-9. **写边界**：所有写入仅落在 `docs/wiki/` 下。
-10. 文件名全中文，非 ASCII slug。
-11. 运行 `validate_repo_wiki.py` 通过（无 FAIL）。
-
-覆盖核对方法、自底向上顺序、写边界细则见 `references/coverage-gates.md`。
-
-最终向用户汇报产物路径、覆盖率与统计：
-
-```text
-Repo wiki 已生成：docs/wiki/。
-章节规划：N 个根章节，N 个子章节。
-覆盖率核对：模块 N/N 有对应文件，全部归属章节（见 总览.md）。
-覆盖：模块 N 个、仓库级约定 N/N（其中 N 个 low=不适用）。
-备注：本版 wiki 为全中文输出，按业务章节分层组织，文件名使用中文模块名。
-请维护者重点核对章节划分的合理性和业务描述的准确性。
+```bash
+rm -rf /tmp/wiki_scan.json /tmp/wiki_api_entries.json /tmp/wiki_structure.xml /tmp/wiki_structure.json /tmp/wiki_pages/
+mkdir -p /tmp/wiki_pages
+# 同时清理上一次的输出目录，避免残留文件
+rm -rf docs/wiki
 ```
 
-## 关键原则
+每次执行前必须清理上一次的临时文件，避免残留文件导致写入冲突。
 
-- 代码为唯一事实源，wiki 为派生视图，**不臆造**文件/函数/命令。
-- **全中文输出**：文件名、分类名、正文内容均为中文。
-- **章节按业务领域划分**：章节反映业务逻辑分组，不映射源码目录结构。
-- **概述聚焦业务**：`## 概述` 说清楚模块的功能职责，不是文件路径清单。
-- **按模块拆分**：模块树每模块一文件，放入对应章节目录；统一知识维度章节。
-- **全量枚举保覆盖**：先穷举模块再规划章节再逐个写文件；大项目只读并行 `Explore` 子代理，覆盖率未达 100% 不准出。
-- **父子关系由 index.md 层级表达**，跨模块依赖/相关由 `## 关系` 段表达。
-- **阶段提示词化 + agent 自主用原生工具执行**；无独立运行时/状态机，不依赖任何认证或外部凭证。
-- 主文件短小，细则下沉 references（按需读取）。
+### 1. 扫描仓库文件树和 README
+
+```bash
+python3 skills/repo-wiki/scripts/scan_repo.py <仓库路径> --output /tmp/wiki_scan.json
+```
+
+脚本会遍历仓库目录（排除 .git、node_modules、__pycache__ 等），输出 JSON：
+- `file_tree`：排序后的文件路径列表（每行一个）
+- `readme`：README.md 内容（如果存在）
+
+### 2. 扫描 API 入口
+
+```bash
+python3 skills/repo-wiki/scripts/scan_api_entries.py <仓库路径> --output /tmp/wiki_api_entries.json
+```
+
+脚本用正则扫描常见框架的 API 入口（Spring/FastAPI/Django/Express/Gin/.NET/Rails），输出 JSON：
+- `api_entries`：API 端点列表，每条含 file、line、method（GET/POST/...）、route、framework
+- `controllers`：控制器类声明列表
+- `summary`：端点数、控制器数、检测到的框架
+
+将 API 入口列表格式化为文本（每行一条 `METHOD route -> file:line`），填入结构提示词的 `{API_ENTRIES}` 占位符。
+
+兜底：如果脚本扫描结果为空（`summary.total_endpoints == 0`），说明项目不使用主流框架或非 API 类项目。此时执行者自行用 `rg` 搜索以下信号补充识别：
+- 命令行入口：`argparse`、`click`、`sys.argv`、`commander`、`cobra`
+- 消息队列消费者：`@RabbitListener`、`@KafkaListener`、`consumer`、`subscribe`
+- 定时任务：`@Scheduled`、`@cron`、`celery`、`scheduler`
+- 事件处理：`@EventHandler`、`@EventListener`、`emitter`
+- RPC 服务：`grpc`、`thrift`、`@Service`
+
+将补充识别到的入口同样格式化后填入 `{API_ENTRIES}`。如果项目确实没有外部入口（纯库项目），`{API_ENTRIES}` 填"无 API 入口"即可。
+
+### 3. 生成文档目录结构
+
+读取 `references/structure-prompt.md`，将其中提示词的占位符替换：
+- `{REPO_NAME}` -> 仓库名称
+- `{FILE_TREE}` -> scan_repo.py 输出的 file_tree
+- `{README}` -> scan_repo.py 输出的 readme
+
+根据用户需求选择模式：
+- **全面模式**（默认）：8-12 个页面，按章节组织（概览、架构、核心功能、数据管理、前端、后端、部署等）
+- **精简模式**：4-6 个页面，扁平结构
+
+按提示词生成 XML 格式的文档目录结构，按「写文件规则」用 shell heredoc 写入 `/tmp/wiki_structure.xml`，然后解析：
+
+```bash
+python3 skills/repo-wiki/scripts/parse_structure.py /tmp/wiki_structure.xml --output /tmp/wiki_structure.json
+```
+
+解析后得到 JSON，包含：
+- `title`：项目总标题
+- `description`：仓库描述
+- `pages`：页面列表，每个页面含 id、title、description、importance、filePaths、relatedPages
+- `sections`：章节列表（全面模式），含 id、title、pages（page_id 列表）、subsections
+- `rootSections`：顶层章节 id 列表
+
+### 4. 逐页生成内容
+
+读取 `references/page-content-prompt.md`，按 importance 分批生成：
+
+**第一批（串行）：importance 为 high 的页面**
+- 核心页面，通常 2-4 页，串行生成确保质量和一致性
+- 每页生成后按「写文件规则」用 shell heredoc 写入 `/tmp/wiki_pages/<page_id>.md`
+
+**第二批（可并行）：importance 为 medium 和 low 的页面**
+- 派发子 agent 并行生成，每个子 agent 负责一页
+- 各子 agent 独立读取提示词模板和源文件，生成 Markdown 后按「写文件规则」用 shell heredoc 写入 `/tmp/wiki_pages/<page_id>.md`
+- 页面间通过 `relatedPages` 做链接，无内容依赖，并行安全
+
+如果项目较小（4-6 页），全部串行即可，无需并行。
+
+每页生成流程：
+1. 从 structure.json 中取页面信息（title、description、filePaths）
+2. 将提示词中的占位符替换：
+   - `{PAGE_TITLE}` -> 页面标题
+   - `{PAGE_DESCRIPTION}` -> 页面描述
+   - `{FILE_PATHS}` -> 源文件列表（`- 文件路径` 格式）
+   - `{FILE_PATHS_LINKED}` -> 可点击链接列表（`- [文件路径](../../文件路径)`）
+3. 读取相关源文件内容，按提示词生成 Markdown 内容
+4. 按「写文件规则」用 shell heredoc 写入 `/tmp/wiki_pages/<page_id>.md`
+
+每页内容要求：
+- 总结后以 `<details>` 块列出相关源文件（至少 5 个，放在页面底部）
+- H1 标题（`# 页面标题`）
+- 页内目录（导出脚本自动生成，列出本页 H2/H3 标题的锚点链接）
+- 简介（1-2 段）
+- 详细章节（H2/H3）
+- Mermaid 图表（flowchart TD、sequenceDiagram、classDiagram 等，纵向布局）
+- Markdown 表格汇总信息
+- 源文件引用（`来源：[filename:行号]()` 格式，至少引用 5 个不同文件）
+- 总结段落
+
+全部使用中文。
+
+### 5. 导出到 docs/wiki/
+
+```bash
+python3 skills/repo-wiki/scripts/export_wiki.py /tmp/wiki_structure.json /tmp/wiki_pages/ --output docs/wiki
+```
+
+脚本会：
+- 将概览页面合并项目标题、描述、目录导航和概览正文为一个文件
+- 为其余每个页面生成 `<中文标题>.md` 文件
+- 全面模式下按章节组织目录
+
+### 6. 验证产物
+
+检查 `docs/wiki/` 目录：
+- 概览页面 `.md` 存在且包含目录导航和所有页面链接
+- 每个页面的 `.md` 文件存在
+- 文件名均为中文
+- 内容包含 Mermaid 图表、源码引用等关键元素
+
+### 7. 清理临时文件
+
+```bash
+rm -rf /tmp/wiki_scan.json /tmp/wiki_api_entries.json /tmp/wiki_structure.xml /tmp/wiki_structure.json /tmp/wiki_pages/
+```
+
+验证产物无误后清理所有临时文件，保持工作目录干净。
+
+## 模式说明
+
+| 模式 | 页面数 | 目录结构 | 适用场景 |
+|---|---|---|---|
+| 全面模式 | 8-12 | 按章节组织（sections + subsections） | 需要完整文档覆盖的中大型项目 |
+| 精简模式 | 4-6 | 扁平结构（仅 pages） | 快速概览或小型项目 |
+
+默认使用全面模式。用户明确要求"精简"或项目较小时切换到精简模式。
+
+## 脚本一览
+
+| 脚本 | 作用 |
+|---|---|
+| `scripts/scan_repo.py` | 扫描仓库目录，输出文件树 + README |
+| `scripts/scan_api_entries.py` | 扫描 API 入口（Controller/Router/Handler），输出端点列表 |
+| `scripts/parse_structure.py` | 解析 XML 格式的 文档目录结构，输出 JSON |
+| `scripts/export_wiki.py` | 将结构 JSON + 页面内容导出为 docs/wiki/ 下的 Markdown 文件 |
+
+所有脚本仅使用 Python 标准库，无第三方依赖。
