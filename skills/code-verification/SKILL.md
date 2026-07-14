@@ -104,7 +104,7 @@ description: "对已生成的代码进行交付前质量验证：技术规范合
 
 1. **优先读 `docs/traceability.json`**：以 `requirements` / `objects` / `rules` / `sops` 的 code→代码位置映射做**确定性匹配**，不再靠方法名+注释模糊匹配（改名不失配、漏标注不误判）。
 2. 如果没有 `traceability.json`，使用 `app-contract.yaml` 的 `objects[].behaviors[].surfaces`、`rules[].location`、`sops[].entry/calls` 作为确定性追溯输入。
-3. 以 `docs/requirements-baseline.json` 为需求锚点：确认每个 Must Have 需求都有对应代码实现，且判定其是否为「已批准需求」。
+3. 以 `docs/requirements-baseline.json` 为需求锚点：确认每个 Must Have 需求都有对应代码实现，且判定其是否为「已批准需求」。**对照范围**：默认只对照 `status` 非 `delivered` 的需求（当前场景）；带 `delivered` 标记的历史需求已在其场景交付时验证过，仅在用户要求全量回归时纳入对照。
 4. 以 `docs/requirements-baseline.json` 的 `acceptance_criteria[]` 为验收条件权威；若存在 `docs/contracts/acceptance-tests.yaml`，逐条 `given/when/then` 执行或判定其是否可被代码满足。
 5. `docs/brd.md` §4 作为补充（仅在上述制品缺失时降级使用）。
 

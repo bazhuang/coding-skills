@@ -11,7 +11,7 @@
 
 首选格式为 `docs/sdd-state.yaml`：
 
-- 顶层记录 `schema_version`、`updated_at`、`baseline_version`、`artifact_policy`。
+- 顶层记录 `schema_version`、`updated_at`、`baseline_version`、`artifact_policy`；如有历史场景归档，另有 `archives:` 列表（由 sdd-archive skill 追加，每条含 `scenario`/`path`/`archived_at`/`baseline_version`/`trigger`，只增不删）。`docs/archive/index.md` 是 `archives:` 的人读镜像，不一致时以账本为准。
 - `stages.<阶段键>` 记录 `status`、`gate`、`substage`、`artifacts`、`fingerprints`、`generated_against`、`coverage`、`waiver`。
 - `fingerprints` 只记录权威规格和实现证据，不记录人读派生视图，避免派生文档改写造成无意义漂移。
 
@@ -55,6 +55,13 @@ code_generation: pending
 - **由 or-workflow-guide 统一管理**：各个 skill 只负责执行自己的流程，不知道账本的存在。or-workflow-guide 在每个 skill 执行完毕或中断时，负责写入和更新 `sdd-state.yaml`，必要时同步更新 `workflow-progress.md` 人读摘要
 - **阶段完成后同步更新**：在标记阶段完成的同时，同一轮操作中写入账本
 - **压缩后信任账本**：不信任自己的记忆，以账本记录为准
+
+### 归档协议
+
+- `sdd-archive` 只负责生成归档计划、归档文件事务结果和校验结果；不得直接写入 `sdd-state.yaml` 或 `docs/archive/index.md`。
+- `or-workflow-guide` 是 `archives[]`、`active_scenario` 和 `archive/index.md` 的唯一写入者；归档记录按 `archive_id` upsert，不盲目追加。
+- 当前需求范围必须由 `active_scenario.requirement_ids` 显式给出。没有该字段的旧项目只能生成只读计划，不能标记 `delivered`。
+- `requirements-baseline.json` 的 `status`、`scenario`、`delivered_at` 属于生命周期元数据；规格漂移比较使用 `canonical-json-v1`，计算时排除这些字段。完整文件 SHA-256 仅用于归档完整性校验。
 
 ## 启动恢复决策树
 
