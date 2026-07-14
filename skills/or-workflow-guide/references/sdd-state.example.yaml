@@ -4,6 +4,12 @@ schema_version: 1
 updated_at: "2026-07-06T10:00:00+08:00"
 baseline_version: "v1.0"
 
+active_scenario:
+  id: gas-monthly-matching
+  name: 月度需供匹配
+  requirement_ids: [F-001, F-002, F-003, F-004]
+  started_at: "2026-07-01T09:00:00+08:00"
+
 # 历史场景归档记录（由 sdd-archive skill 追加，只增不删）
 archives:
   - scenario: gas-monthly-matching

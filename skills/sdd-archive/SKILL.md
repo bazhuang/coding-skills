@@ -5,6 +5,21 @@ description: "SDD 产物归档：当一个需求场景完成交付（code-verifi
 
 # SDD 产物归档
 
+## 当前执行协议（P0/P1）
+
+归档执行采用“计划/提交分离”的本地事务方案。`plan` 与 `verify` 是默认入口；P2 已开放 `apply`、`recover`、`finalize`，但在 P3 账本编排完成前，必须只在复制的 fixture 或用户明确授权的项目上执行：
+
+```bash
+python3 skills/sdd-archive/scripts/archive.py plan --root . --trigger manual
+python3 skills/sdd-archive/scripts/archive.py verify --root .
+python3 skills/sdd-archive/scripts/archive.py apply --root . --plan .sdd/archive-plan.yaml
+python3 skills/sdd-archive/scripts/archive.py register --root . --transaction <transaction-id>
+python3 skills/sdd-archive/scripts/archive.py recover --root .
+python3 skills/sdd-archive/scripts/archive.py finalize --root .
+```
+
+`plan` 必须先成功，且必须包含显式 `active_scenario.requirement_ids`；旧项目缺少场景元数据时只能输出阻断提示。`apply` 会校验 `plan_hash`，将文件复制到事务暂存区，生成 manifest，原子提交归档目录，并对正式交付场景更新指定 baseline 条目的生命周期字段；失败时恢复 baseline 和移动源文件。`register` 按 `archive_id` 幂等更新 `sdd-state.yaml.archives[]`，正式交付时清理 `active_scenario`，并从账本全量重建 `archive/index.md`。账本登记完成并通过 `verify` 后才可 `finalize`。
+
 SDD 流水线每轮会在 `docs/` 下产生十余份产物。多个需求场景迭代后，`docs/` 根目录会堆积过期的 impl-plan、验证报告和历史版本，与活跃权威规格混在一起。本 skill 把**已完成场景**的产物收敛到按场景组织的归档目录，让 `docs/` 根目录始终只有「当前活跃制品」。
 
 产物按生命周期分两类，处理方式不同：

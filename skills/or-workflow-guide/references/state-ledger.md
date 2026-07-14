@@ -56,6 +56,13 @@ code_generation: pending
 - **阶段完成后同步更新**：在标记阶段完成的同时，同一轮操作中写入账本
 - **压缩后信任账本**：不信任自己的记忆，以账本记录为准
 
+### 归档协议
+
+- `sdd-archive` 只负责生成归档计划、归档文件事务结果和校验结果；不得直接写入 `sdd-state.yaml` 或 `docs/archive/index.md`。
+- `or-workflow-guide` 是 `archives[]`、`active_scenario` 和 `archive/index.md` 的唯一写入者；归档记录按 `archive_id` upsert，不盲目追加。
+- 当前需求范围必须由 `active_scenario.requirement_ids` 显式给出。没有该字段的旧项目只能生成只读计划，不能标记 `delivered`。
+- `requirements-baseline.json` 的 `status`、`scenario`、`delivered_at` 属于生命周期元数据；规格漂移比较使用 `canonical-json-v1`，计算时排除这些字段。完整文件 SHA-256 仅用于归档完整性校验。
+
 ## 启动恢复决策树
 
 优先读取 `docs/sdd-state.yaml`；不存在时读取 `docs/workflow-progress.md` 兼容格式，按顺序判定第一个待处理阶段：
