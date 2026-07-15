@@ -1,0 +1,20 @@
+{
+  "$comment": "兼容格式示例。新项目优先使用 docs/sdd-state.yaml（见 sdd-state.example.yaml）记录阶段状态、指纹与 generated_against。本文件仅保留给旧项目或外部运行时。指纹只记录权威规格，不记录 brd.md、app-design.md、acceptance-tests.yaml 等派生视图。",
+  "baseline_version": "v1.0",
+  "fingerprints": {
+    "ontology_schema.json": "a1b2c3d4e5f6a7b8",
+    "requirements-baseline.json": "1122334455667788",
+    "contracts/app-contract.yaml": "ccddeeff00112233",
+    "contracts/db-schema.sql": "445566778899aabb"
+  },
+  "generated_against": {
+    "app-design": {
+      "ontology_schema.json": "a1b2c3d4e5f6a7b8",
+      "requirements-baseline.json": "1122334455667788"
+    },
+    "code-generation": {
+      "contracts/app-contract.yaml": "ccddeeff00112233",
+      "contracts/db-schema.sql": "445566778899aabb"
+    }
+  }
+}

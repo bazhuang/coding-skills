@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://coding-skills/code-verification/traceability.schema.json",
+  "title": "Implementation Traceability",
+  "description": "code-generation 产出的实现证据清单，记录规格 code 到实际代码位置的确定性映射。它是实现后证据，不是设计期权威契约。",
+  "type": "object",
+  "required": ["schema_version", "confidence", "objects", "rules", "sops", "requirements"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["complete", "degraded"],
+      "description": "complete 表示完整 SDD 输入下生成；degraded 表示上游 waived 或契约缺失时降级推断。"
+    },
+    "generated_against": {
+      "type": "object",
+      "description": "生成 traceability 时所依据的权威规格指纹。",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "objects": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/behaviorMap"
+      }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/codeLocation"
+      }
+    },
+    "sops": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/codeLocation"
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/codeLocation"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "definitions": {
+    "behaviorType": {
+      "type": "string",
+      "enum": ["CREATE", "UPDATE", "QUERY", "DELETE", "DERIVE"]
+    },
+    "behaviorMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(CREATE|UPDATE|QUERY|DELETE|DERIVE)$": {
+          "$ref": "#/definitions/layerLocations"
+        }
+      }
+    },
+    "layerLocations": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "controller": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "api": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "biz": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "service": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "repository": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "mapper": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "component": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "ipc": {
+          "$ref": "#/definitions/codeLocation"
+        },
+        "main": {
+          "$ref": "#/definitions/codeLocation"
+        }
+      }
+    },
+    "codeLocation": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      ]
+    }
+  }
+}

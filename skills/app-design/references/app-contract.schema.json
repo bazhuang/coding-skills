@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://coding-skills/app-design/app-contract.schema.json",
+  "title": "App Design Contract (legacy, DEPRECATED)",
+  "description": "【已弃用】legacy 后端契约格式（无 version 字段）。新契约一律使用 app-contract-v2.schema.json（后端目标 targetKind=backend-java/backend-python）。本 schema 仅用于校验存量项目的旧契约。",
+  "type": "object",
+  "required": ["project", "objects", "rules", "sops"],
+  "additionalProperties": false,
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["backend", "basePackage", "modules"],
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "type": "object",
+          "required": ["language", "framework", "guideline"],
+          "additionalProperties": false,
+          "properties": {
+            "language": { "type": "string", "enum": ["java", "python"], "description": "设计阶段确认的后端开发语言" },
+            "framework": { "type": "string", "minLength": 1, "description": "所选语言对应的后端框架，如 Spring Boot 3.4.5 或 FastAPI" },
+            "guideline": { "type": "string", "enum": ["backend-java-tech-guidelines.md", "backend-python-tech-guidelines.md"], "description": "所选语言对应的技术规范文件" }
+          }
+        },
+        "basePackage": { "type": "string", "minLength": 1, "description": "Java 根包或 Python 根包路径，如 com.enn.gas 或 app" },
+        "modules": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["web", "service", "dal", "client", "starter", "test", "api", "biz", "repository", "schemas", "models", "core", "db", "tests"] },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/object" },
+      "minItems": 1
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/rule" }
+    },
+    "sops": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/sop" }
+    }
+  },
+  "definitions": {
+    "behaviorType": {
+      "type": "string",
+      "enum": ["CREATE", "UPDATE", "QUERY", "DELETE", "DERIVE"]
+    },
+    "object": {
+      "type": "object",
+      "required": ["code", "name", "table", "behaviors"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "本体对象 code，须与 ontology_schema.json 一致" },
+        "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*$", "description": "代码类型名，使用 PascalCase" },
+        "table": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "表名 snake_case，与 db-schema.sql 一致" },
+        "behaviors": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/behavior" },
+          "minItems": 1
+        },
+        "requirements": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^F-\\d{3,}$" },
+          "description": "可选：关联的需求点 ID（来自 requirements-baseline.json）"
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "required": ["type", "controller", "biz", "service"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/definitions/behaviorType" },
+        "controller": { "type": "string", "pattern": "^/api/[a-z0-9-]+(/[a-z0-9-]+)*$", "description": "URL，小写连字符" },
+        "biz": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "description": "Biz 方法名；Java 用 camelCase，Python 用 snake_case" },
+        "service": { "type": "string", "description": "Service 方法名或 source_select_then_target_insert（DERIVE 专用）" }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["code", "source", "type", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$", "description": "规则 code，须与 ontology_schema.json 一致" },
+        "source": { "type": "string", "enum": ["ontology", "design"] },
+        "type": { "type": "string", "enum": ["CALCULATION", "CONSTRAINT", "CROSS_ENTITY"] },
+        "location": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*\\.[A-Za-z][A-Za-z0-9_]*\\(\\)$", "description": "层级类/模块.方法()，如 GasContractService.calculateProfit() 或 gas_contract_service.calculate_profit()" }
+      }
+    },
+    "sop": {
+      "type": "object",
+      "required": ["code", "bizMethod", "calls"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$", "description": "SOP code，须与 ontology_schema.json 一致" },
+        "bizMethod": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*\\.[A-Za-z][A-Za-z0-9_]*$", "description": "Biz 类/模块.方法" },
+        "calls": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*\\.[A-Za-z][A-Za-z0-9_]*$" },
+          "minItems": 1,
+          "description": "按步骤顺序调用的 Service 方法"
+        }
+      }
+    }
+  }
+}

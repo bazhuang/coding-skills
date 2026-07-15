@@ -1,0 +1,12 @@
+/.idea/
+__pycache__/
+.claude/settings.local.json
+/files
+/memory
+/runtime
+manifest.json
+node_modules/
+designs/
+
+# macOS
+.DS_Store

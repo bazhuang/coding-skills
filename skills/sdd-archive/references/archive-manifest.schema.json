@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "archive_id", "transaction_id", "scenario", "archived_at", "trigger", "snapshot_state", "files"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "archive_id": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "transaction_id": {"type": "string", "minLength": 1},
+    "scenario": {
+      "type": "object",
+      "required": ["id", "requirement_ids"],
+      "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "requirement_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
+      "additionalProperties": true
+    },
+    "archived_at": {"type": "string"},
+    "trigger": {"enum": ["verification-complete", "new-scenario", "manual", "iteration"]},
+    "snapshot_state": {"enum": ["preparing", "complete"]},
+    "files": {"type": "array", "items": {"$ref": "#/$defs/file"}},
+    "fingerprint_policy": {"type": "object"},
+    "active_mutations": {"type": "array"}
+  },
+  "$defs": {"file": {"type": "object", "required": ["source", "archived", "operation", "size", "sha256"], "properties": {"source": {"type": "string"}, "archived": {"type": "string"}, "operation": {"enum": ["copy", "move"]}, "size": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}},
+  "additionalProperties": true
+}
