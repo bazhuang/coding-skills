@@ -1,0 +1,154 @@
+schema_version: 1
+description: >
+  Runtime-neutral role contract for the SDD workflow. Runtime adapters
+  such as Codex/OpenAI, Claude Code, ZCode, or a custom harness may map
+  these roles to concrete models, agents, or subagents.
+
+principles:
+  - Skills are model-neutral. Model routing belongs to the runtime adapter.
+  - Cross-agent handoff uses files under docs/, not chat transcript parsing.
+  - Reviewers do not edit upstream artifacts directly; they write review reports.
+  - Downstream stages may request upstream changes only through router-controlled rollback.
+  - A reviewer should preferably use a different model slot or model family than the primary role for the same stage.
+
+model_slots:
+  router:
+    purpose: "Fast deterministic routing, state ledger updates, rollback decisions."
+  requirements_primary:
+    purpose: "Business understanding, ontology modeling, BRD and baseline generation."
+  requirements_review:
+    purpose: "Challenge ambiguity, missing objects, weak acceptance criteria, and over-generalized rules."
+  design_primary:
+    purpose: "Application design, persistence decisions, app contract, DDL, and rule/SOP mapping."
+  design_review:
+    purpose: "Check coverage, boundary decisions, persistence consistency, and contract completeness."
+  code_primary:
+    purpose: "Implementation planning, skeleton generation, code filling, and traceability generation."
+  code_review:
+    purpose: "Check implementation quality, contract conformance, scope control, and security risks."
+  verification_primary:
+    purpose: "Run deterministic checks, classify defects, and produce verification evidence."
+  verification_review:
+    purpose: "Independently review verification coverage, skipped checks, and unresolved risk."
+
+artifacts:
+  state_ledger: "docs/sdd-state.yaml"
+  reviews_dir: "docs/reviews"
+  review_schema:
+    required_fields:
+      - stage
+      - reviewer_role
+      - status
+      - findings
+    status_values:
+      - passed
+      - warning
+      - blocked
+    finding_fields:
+      - severity
+      - type
+      - target
+      - message
+      - suggested_return_stage
+    severity_values:
+      - critical
+      - important
+      - minor
+    suggested_return_stage_values:
+      - ontology_modeling
+      - app_design
+      - code_generation
+      - code_verification
+      - none
+
+stages:
+  ontology_modeling:
+    skill: "ontology-modeling"
+    primary_role: "requirements_primary"
+    review_role: "requirements_review"
+    primary_inputs:
+      - "User request or business materials"
+      - "docs/ontology_schema.json when resuming"
+      - "docs/brd.md when resuming"
+    primary_outputs:
+      - "docs/ontology_schema.json"
+      - "docs/brd.md"
+      - "docs/requirements-baseline.json when gate is requested"
+      - "docs/contracts/acceptance-tests.yaml when automatic acceptance export is needed"
+    review_inputs:
+      - "docs/ontology_schema.json"
+      - "docs/brd.md"
+      - "docs/requirements-baseline.json when present"
+    review_output: "docs/reviews/ontology_modeling.review.yaml"
+    reviewer_must_not:
+      - "Edit ontology_schema.json, brd.md, or requirements-baseline.json directly."
+      - "Introduce implementation design or database decisions."
+
+  app_design:
+    skill: "app-design"
+    primary_role: "design_primary"
+    review_role: "design_review"
+    primary_inputs:
+      - "docs/ontology_schema.json"
+      - "docs/brd.md"
+      - "docs/requirements-baseline.json"
+    primary_outputs:
+      - "docs/app-design.md"
+      - "docs/contracts/app-contract.yaml"
+      - "docs/contracts/db-schema.sql when persistence changes require DDL"
+      - "docs/db-schema.md when DDL exists"
+    review_inputs:
+      - "docs/app-design.md"
+      - "docs/contracts/app-contract.yaml"
+      - "docs/contracts/db-schema.sql when present"
+      - "docs/ontology_schema.json"
+      - "docs/requirements-baseline.json"
+    review_output: "docs/reviews/app_design.review.yaml"
+    reviewer_must_not:
+      - "Edit design documents or contracts directly."
+      - "Generate implementation code."
+
+  code_generation:
+    skill: "code-generation"
+    primary_role: "code_primary"
+    review_role: "code_review"
+    primary_inputs:
+      - "docs/contracts/app-contract.yaml"
+      - "docs/contracts/db-schema.sql for backend targets"
+      - "docs/app-design.md"
+      - "docs/impl-plan.md after approval"
+    primary_outputs:
+      - "docs/impl-plan.md"
+      - "Generated or modified source files"
+      - "docs/traceability.json"
+    review_inputs:
+      - "git diff"
+      - "docs/contracts/app-contract.yaml"
+      - "docs/traceability.json"
+      - "docs/impl-plan.md"
+    review_output: "docs/reviews/code_generation.review.yaml"
+    reviewer_must_not:
+      - "Edit generated code directly."
+      - "Change method signatures, contracts, or traceability mappings."
+
+  code_verification:
+    skill: "code-verification"
+    primary_role: "verification_primary"
+    review_role: "verification_review"
+    primary_inputs:
+      - "Generated or modified source files"
+      - "docs/traceability.json"
+      - "docs/requirements-baseline.json"
+      - "docs/contracts/app-contract.yaml"
+      - "docs/contracts/acceptance-tests.yaml when present"
+    primary_outputs:
+      - "Verification report"
+      - "Defect classifications with spec-gap, impl-gap, or scope labels"
+    review_inputs:
+      - "Verification report"
+      - "Command outputs or skipped-check explanations"
+      - "docs/reviews/code_generation.review.yaml when present"
+    review_output: "docs/reviews/code_verification.review.yaml"
+    reviewer_must_not:
+      - "Mark skipped runtime checks as passed."
+      - "Rewrite upstream defects as implementation details without evidence."

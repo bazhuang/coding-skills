@@ -1,0 +1,109 @@
+# SDD 状态账本示例。运行时真制品建议写入 docs/sdd-state.yaml。
+# docs/workflow-progress.md 可作为人读摘要保留，但机器恢复应优先读取本文件。
+schema_version: 1
+updated_at: "2026-07-06T10:00:00+08:00"
+baseline_version: "v1.0"
+
+active_scenario:
+  id: gas-monthly-matching
+  name: 月度需供匹配
+  requirement_ids: [F-001, F-002, F-003, F-004]
+  started_at: "2026-07-01T09:00:00+08:00"
+
+# 历史场景归档记录（由 sdd-archive skill 追加，只增不删）
+archives:
+  - scenario: gas-monthly-matching
+    path: archive/2026-06-30-gas-monthly-matching
+    archived_at: "2026-06-30T18:00:00+08:00"
+    baseline_version: "v0.9"
+    trigger: verification-complete
+
+artifact_policy:
+  authoritative_specs:
+    - ontology_schema.json
+    - requirements-baseline.json
+    - contracts/app-contract.yaml
+    - contracts/db-schema.sql
+  derived_views:
+    - brd.md
+    - app-design.md
+    - db-schema.md
+    - contracts/acceptance-tests.yaml
+  process_state:
+    - sdd-state.yaml
+    - workflow-progress.md
+  implementation_evidence:
+    - impl-plan.md
+    - traceability.json
+    - verification-report.md
+
+stages:
+  ontology_modeling:
+    status: complete
+    gate: passed
+    artifacts:
+      authoritative_specs:
+        - ontology_schema.json
+        - requirements-baseline.json
+      derived_views:
+        - brd.md
+        - contracts/acceptance-tests.yaml
+    fingerprints:
+      ontology_schema.json: "a1b2c3d4e5f6a7b8"
+      requirements-baseline.json: "1122334455667788"
+    coverage:
+      must_requirements: "8/8"
+    waiver: null
+
+  app_design:
+    status: complete
+    gate: passed
+    generated_against:
+      ontology_schema.json: "a1b2c3d4e5f6a7b8"
+      requirements-baseline.json: "1122334455667788"
+    artifacts:
+      authoritative_specs:
+        - contracts/app-contract.yaml
+        - contracts/db-schema.sql
+      derived_views:
+        - app-design.md
+        - db-schema.md
+    fingerprints:
+      contracts/app-contract.yaml: "ccddeeff00112233"
+      contracts/db-schema.sql: "445566778899aabb"
+    coverage:
+      objects: "8/8"
+      behaviors: "40/40"
+      rules: "5/5"
+      sops: "3/3"
+    waiver: null
+
+  code_generation:
+    status: in_progress
+    gate: failed
+    substage: impl-plan-approved
+    generated_against:
+      contracts/app-contract.yaml: "ccddeeff00112233"
+      contracts/db-schema.sql: "445566778899aabb"
+    artifacts:
+      implementation_evidence:
+        - impl-plan.md
+    fingerprints: {}
+    waiver: null
+
+  code_verification:
+    status: pending
+    gate: blocked
+    generated_against: {}
+    artifacts: {}
+    fingerprints: {}
+    waiver: null
+
+# waiver 仅在 status=waived 时填写：
+# waiver:
+#   reason: "用户已有遗留库表与接口，仅做增量适配"
+#   missing:
+#     - ontology_schema.json
+#     - requirements-baseline.json
+#   risk: "高: 契约覆盖率/代码追溯无保障"
+#   remediation: "后续补建模或手写契约后回到 complete"
