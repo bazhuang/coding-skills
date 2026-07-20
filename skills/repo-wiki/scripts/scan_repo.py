@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Scan a local repository and output file tree + README content as JSON.
 
-Ported from deepwiki-open's /local_repo/structure endpoint.
 No auth, no model config -- just filesystem scanning.
 
 Usage:

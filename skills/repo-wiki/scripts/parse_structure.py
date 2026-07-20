@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Parse a wiki structure XML string into a JSON file.
 
-Ported from deepwiki-open's page.tsx XML parsing logic.
 Takes the raw LLM output (which may have markdown fences or extra text),
 extracts <wiki_structure>...</wiki_structure>, and parses it into a
 structured JSON with pages and sections.
@@ -144,7 +143,6 @@ def parse_structure_fallback(xml_text: str) -> dict:
 def _create_fallback_sections(result: dict) -> dict:
     """Create sections based on page title keywords when XML has none.
 
-    Ported from deepwiki-open's intelligent section grouping logic.
     Falls back to importance-based grouping if keyword matching yields nothing.
     """
     pages = result.get("pages", [])

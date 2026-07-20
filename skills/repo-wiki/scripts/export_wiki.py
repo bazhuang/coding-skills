@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Export wiki structure + generated page contents to docs/wiki/ directory.
 
-Ported from deepwiki-open's generate_markdown_export function.
 Reads a structure JSON and a directory of per-page markdown files,
 writes each page as a separate .md file. The overview page becomes
 the overview page file with the table of contents merged in.
