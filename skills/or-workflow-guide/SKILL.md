@@ -143,4 +143,5 @@ Router: 本体建模 → 用户确认 → 应用设计 → 用户确认 → 代�
   - ontology-modeling → app-design：docs/ontology_schema.json、docs/brd.md、docs/requirements-baseline.json
   - app-design → code-generation：docs/contracts/app-contract.yaml、docs/contracts/db-schema.sql、docs/app-design.md（人读视图）
   - code-generation → code-verification：代码 + docs/traceability.json、docs/requirements-baseline.json；若存在 docs/contracts/acceptance-tests.yaml，则作为自动验收视图
+- **已有 wiki 优先参考**：若 `docs/wiki/` 已存在，各阶段在需要了解仓库结构、架构概览、API 入口等信息时优先参考 wiki 内容，避免重复扫描全量源码以减少 token 消耗
 - **运行时假设**：本 skill 及下游均以 `docs/` 为制品根目录、`docs/sdd-state.yaml` 为跨运行时状态唯一真相源。`finish_ontology.py` 与 `agents/openai.yaml` 涉及外部 agent 运行时，假设与路径约定见 `references/runtime-assumptions.md`（**代码级改动属高风险，未经外部运行时评估勿动**）
