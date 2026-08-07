@@ -145,3 +145,100 @@
     </page>
   </pages>
 </wiki_structure>
+
+<!--
+  ============================================================================
+  深度模式示例（多模块项目，80-150 页，3 层目录）。
+  这不是第二个 wiki_structure 实例，只是结构写法的说明性片段——
+  真实生成时仍返回单个 <wiki_structure>。重点看 section 的三层嵌套：
+    顶层 section（模块详解）
+      > subsection（业务域 / 模块组）
+        > subsection（单个模块）
+          > 挂在该 section 下的 page
+  导出脚本会按 section 嵌套深度生成最多 3 层子目录。
+  ============================================================================
+-->
+<!--
+<wiki_structure>
+  <title>[项目名称]</title>
+  <description>[多模块项目简要描述]</description>
+
+  <sections>
+    <!-- 顶层章节：项目概述 -->
+    <section id="section-overview">
+      <title>项目概述</title>
+      <pages>
+        <page_ref>page-overview</page_ref>
+        <page_ref>page-quick-start</page_ref>
+      </pages>
+    </section>
+
+    <!-- 顶层章节：架构设计 -->
+    <section id="section-architecture">
+      <title>架构设计</title>
+      <pages>
+        <page_ref>page-arch-overview</page_ref>
+      </pages>
+    </section>
+
+    <!-- 顶层章节：模块详解 —— 深度模式主体，三层嵌套 -->
+    <section id="section-modules">
+      <title>模块详解</title>
+      <pages>
+        <!-- 顶层章节自身的页面（可选，如模块总览） -->
+        <page_ref>page-modules-overview</page_ref>
+      </pages>
+      <subsections>
+        <!-- 第二层：业务域 / 模块组 -->
+        <section_ref>section-domain-a</section_ref>
+        <section_ref>section-domain-b</section_ref>
+      </subsections>
+    </section>
+
+    <!-- 第二层：某业务域（聚合模块） -->
+    <section id="section-domain-a">
+      <title>业务域 A</title>
+      <pages></pages>
+      <subsections>
+        <!-- 第三层：单个叶子模块 -->
+        <section_ref>section-module-a1</section_ref>
+        <section_ref>section-module-a2</section_ref>
+      </subsections>
+    </section>
+
+    <!-- 第三层：单个叶子模块，页面挂在这里 -->
+    <section id="section-module-a1">
+      <title>模块 A1</title>
+      <pages>
+        <page_ref>page-module-a1-overview</page_ref>
+        <page_ref>page-module-a1-design</page_ref>
+      </pages>
+    </section>
+
+    <section id="section-module-a2">
+      <title>模块 A2</title>
+      <pages>
+        <page_ref>page-module-a2-overview</page_ref>
+      </pages>
+    </section>
+  </sections>
+
+  <pages>
+    <!-- 模块详解页：relevant_files 来自该模块在模块树中声明的 scope 目录 -->
+    <page id="page-module-a1-overview">
+      <title>模块 A1 概述</title>
+      <description>模块 A1 的业务定位、核心能力、对外接口</description>
+      <importance>high</importance>
+      <relevant_files>
+        <file_path>module-a1/src/index.ts</file_path>
+        <file_path>module-a1/src/controller.ts</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-module-a1-design</related>
+      </related_pages>
+      <parent_section>section-module-a1</parent_section>
+    </page>
+    <!-- ... 其余页面省略 ... -->
+  </pages>
+</wiki_structure>
+-->

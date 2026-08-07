@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from xml.etree import ElementTree as ET
@@ -237,6 +238,10 @@ def main() -> None:
         result = _create_fallback_sections(result)
 
     if args.output:
+        # Ensure parent directory exists (e.g. docs/tmp/ may not have been
+        # created by the caller); avoids FileNotFoundError on Windows/Unix.
+        out_dir = os.path.dirname(os.path.abspath(args.output))
+        os.makedirs(out_dir, exist_ok=True)
         with open(args.output, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         print(f"Written to {args.output}", file=sys.stderr)
