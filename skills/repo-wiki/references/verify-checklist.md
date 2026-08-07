@@ -27,6 +27,9 @@
 | **代码块围栏完整** | 每个 ``` 必须有对应的闭合 ```，不能有未闭合的代码块 | LLM 生成时漏写闭合围栏，导致渲染失败 |
 | **禁止裸语言标识符** | 禁止出现单独的 `mermaid`、`java`、`python` 等语言标识符（没有三反引号包裹） | LLM 只写了语言名而忘记加围栏，导致代码块无法渲染 |
 | **Mermaid 方向限制** | Mermaid 图表只能使用 `graph TD` 或 `flowchart TD`，禁止 `LR`、`TB`、`BT` | LLM 使用了禁止的图表方向，导致图表显示异常 |
+| **源码引用路径存在** | 页面中 `来源：[xxx](path)` 引用的路径在仓库中实际存在（需 `--repo` 参数） | 页面引用了不存在的文件路径，可能因源码移动或拼写错误 |
+| **无陈旧页面** | structure.json 中的每个 page 在磁盘上都有对应 .md 文件 | 结构中有页面但文件未生成 |
+| **事实冲突已解决** | 如果提供了 `--facts wiki_facts.json`，conflicts 列表必须为空 | 事实层检测到同一事实 ID 有不同值 |
 
 ## 软门禁项
 
@@ -36,12 +39,18 @@
 | 源文件引用 | 每页正则匹配 `来源：[xxx](../../xxx)` 行，统计引用的不同文件数 | ≥ 5 | 某些页面可能只涉及 2-3 个文件（如部署页面），不应强制要求 5 个 |
 | Markdown 表格 | 每页正则匹配 Markdown 表格语法 | ≥ 1 | 某些页面可能以图为主，不一定需要表格 |
 | 页面间链接有效 | 正则匹配 `[xxx](xxx.md)`，检查目标文件是否存在 | 全部有效 | 链接失效影响导航体验但不影响内容正确性 |
+| **孤儿页面** | docs/wiki/ 下存在不在 structure.json 中的 .md 文件 | 0 个 | 可能是上次运行残留或手动添加的页面，需人工确认 |
+| 模块覆盖率（深度模式） | 当提供 `--modules` 时，统计有至少一个文档页的叶子模块占比 | ≥ 60% | 阈值相对模块数动态计算，不针对特定项目量级。少数极小/工具模块可合法地共用一页 |
 
 ## 脚本调用方式
 
 ```bash
-python3 skills/repo-wiki/scripts/verify_wiki.py docs/tmp/wiki_structure.json --wiki-dir docs/wiki
+python3 skills/repo-wiki/scripts/verify_wiki.py docs/tmp/wiki_structure.json --wiki-dir docs/wiki [--modules docs/tmp/wiki_modules.json] [--facts .repo-wiki/wiki_facts.json] [--repo <repo_path>]
 ```
+
+`--modules` 参数（深度模式提供）：启用模块覆盖率软门禁。非深度模式省略。
+`--facts` 参数（P0-3 事实层）：启用事实冲突硬门禁。
+`--repo` 参数：启用源码引用路径存在性检查。
 
 ## 输出
 
