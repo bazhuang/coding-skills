@@ -3,11 +3,19 @@
 # 对话压缩后信任状态文件不信任记忆。
 # 完整规范见 references/state-ledger.md。
 
+# === 运行生命周期字段（P0-7） ===
+run_id: "run-20260807-153000"          # 唯一运行标识（时间戳或 UUID）
+run_status: "running"                  # running | failed | completed
+started_at: "2026-08-07T15:30:00+08:00"
+completed_at: null                     # 运行完成后填入时间戳
+repository_fingerprint: "a1b2c3d4"     # 仓库指纹（repo_path + git_commit 的 hash），用于判断状态兼容性
+schema_version: 2                      # 状态文件 schema 版本
+
 repo_path: "/path/to/repo"
-mode: "full"                          # full（全面模式 8-12页） | lite（精简模式 4-6页）
+mode: "full"                          # deep（深度模式 80-150页，多模块） | full（全面模式 8-12页） | lite（精简模式 4-6页）
 incremental: false                    # true（增量更新） | false（全量生成）
 git_hash: "a1b2c3d4"                  # scan_repo.py 输出的当前仓库 commit hash（无 git 则空）
-started_at: "2026-07-14T10:00:00+08:00"
+facts_hash: "e5f6a7b8"                # build_facts.py 输出的事实层 hash
 
 # 阶段标识符（稳定英文键，下游脚本按字面值匹配，不得改写为中文）
 # status 闭集：pending | in_progress | complete | failed
@@ -28,6 +36,13 @@ steps:
     status: complete
     output: "docs/tmp/wiki_api_entries.json"
     timestamp: "2026-07-14T10:00:30+08:00"
+
+  scan_modules:                         # 步骤 2.5：扫描模块结构（检测多模块项目）
+    status: complete
+    output: "docs/tmp/wiki_modules.json"  # scan_modules.py 输出
+    multi_module: false                 # true | false
+    mode_confirmed: false               # 深度模式是否经用户确认（仅 multi_module=true 有意义）
+    timestamp: "2026-07-14T10:00:40+08:00"
 
   generate_structure:
     status: complete

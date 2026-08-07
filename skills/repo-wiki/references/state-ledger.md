@@ -23,11 +23,17 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
+| `run_id` | string | 唯一运行标识（时间戳或 UUID），用于区分不同运行 |
+| `run_status` | string | `running` / `failed` / `completed`。完成后应归档或删除状态文件 |
 | `repo_path` | string | 目标仓库的绝对路径 |
-| `mode` | string | `full`（全面模式 8-12页）或 `lite`（精简模式 4-6页） |
+| `mode` | string | `deep`（深度模式 80-150页，多模块项目）/ `full`（全面模式 8-12页）/ `lite`（精简模式 4-6页） |
 | `incremental` | boolean | `true`（增量更新）或 `false`（全量生成）。增量模式下只重新生成源文件发生变化的页面 |
 | `git_hash` | string | 当前仓库的 commit hash（无 git 仓库则为空字符串） |
+| `facts_hash` | string | build_facts.py 输出的事实层 hash（用于判断事实是否变化） |
+| `repository_fingerprint` | string | 仓库指纹（repo_path + git_commit 的 hash），用于判断状态文件是否兼容当前仓库 |
+| `schema_version` | int | 状态文件 schema 版本（当前 2）。版本变化时需迁移或重新开始 |
 | `started_at` | string | 流程开始时间，ISO 8601 格式 |
+| `completed_at` | string | 流程完成时间，仅当 run_status=completed 时存在 |
 | `current_step` | string | 当前正在执行的步骤标识符 |
 
 ### steps 字段
@@ -39,6 +45,7 @@
 | `cleanup` | 清理临时文件 | 步骤 0 |
 | `scan_repo` | 扫描仓库文件树 | 步骤 1 |
 | `scan_api` | 扫描 API 入口 | 步骤 2 |
+| `scan_modules` | 扫描模块结构 | 步骤 2.5 |
 | `generate_structure` | 生成文档目录结构 | 步骤 3 |
 | `generate_pages` | 逐页生成内容 | 步骤 4 |
 | `export` | 导出到 docs/wiki/ | 步骤 5 |
@@ -64,6 +71,9 @@
 |---|---|---|
 | `scan_repo` | `output` | scan_repo.py 输出的 JSON 路径 |
 | `scan_api` | `output` | scan_api_entries.py 输出的 JSON 路径 |
+| `scan_modules` | `output` | scan_modules.py 输出的 JSON 路径（多模块项目） |
+| | `multi_module` | 是否检测到多模块项目：`true` / `false` |
+| | `mode_confirmed` | 深度模式是否经用户确认：`true` / `false`（仅 multi_module=true 时有意义） |
 | `generate_structure` | `output` | parse_structure.py 解析后的 JSON 路径 |
 | | `raw_xml` | LLM 生成的原始 XML 路径 |
 | `generate_pages` | `total_pages` | 总页面数 |
@@ -115,13 +125,20 @@
 重新启动时，执行者先读取 `docs/.wiki-state.yaml`：
 
 1. 文件不存在 → 全新流程，从步骤 0 开始
-2. 文件存在 → 读取 `current_step` 和对应步骤的 `status`：
+2. 文件存在 → 先检查运行生命周期字段：
+   - `run_status == "completed"` → **不作为断点恢复**。完成态状态文件应在发布成功后归档或删除。如果用户看到完成态文件，提示用户"上次运行已完成，将开始全新流程"，然后初始化新状态。
+   - `run_status == "running"` 或 `"failed"` → 检查 `repository_fingerprint` 是否与当前仓库兼容：
+     - **兼容**（repo_path 相同且 git_commit 匹配或为增量模式）→ 按下方步骤恢复
+     - **不兼容**（repo_path 不同或 schema_version 变化）→ 不恢复，初始化新状态并提示用户"仓库已变化，无法从上次断点恢复"
+3. 恢复时读取 `current_step` 和对应步骤的 `status`：
    - `status=complete` → 跳到下一个未完成的步骤
    - `status=in_progress` → 该步骤可能执行了一半，根据步骤类型决定：
      - `generate_pages`：检查 `pages` 列表中每个页面的状态：
        - `status=complete` 或 `status=skipped` → 跳过该页面
        - `status=in_progress` 或 `status=pending` → 重新生成该页面
        - `status=failed` → 重新生成该页面（可参考 error 字段了解失败原因）
+       - **深度模式（mode=deep）注意**：页面按模块组分批生成，恢复时按未完成的模块组续跑，已完成模块组的页面保持 skipped/complete 不动。
+     - `scan_modules`：重新执行该步骤（脚本幂等，输出可安全覆盖）。
      - 其他步骤：重新执行该步骤（幂等操作，重新执行无副作用）
    - `status=failed` → 重新执行该步骤
    - `status=pending` → 直接执行该步骤
