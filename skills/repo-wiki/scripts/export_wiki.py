@@ -77,8 +77,8 @@ def build_page_dir(page: dict, sections: list) -> str:
     - there are no sections (lite mode)
     - the page has no parentSection
 
-    Returns "section_title/[subsection_title/]" for full mode pages
-    nested under sections. Maximum depth is 2 levels.
+    Returns "section/subsection/[subsubsection/]" for pages nested under
+    sections. Supports up to 3 levels (full mode: 2, deep mode: 3).
     """
     if not sections:
         return ""
@@ -101,9 +101,13 @@ def build_page_dir(page: dict, sections: list) -> str:
         current_id = parent["id"] if parent else None
 
     chain.reverse()
-    # Limit to 2 levels max
-    chain = chain[:2]
-    return os.path.join(*chain) if chain else ""
+    # Support up to 3 levels (deep mode: section > subsection > subsubsection)
+    chain = chain[:3]
+    if not chain:
+        return ""
+    # Use forward slashes so the value is safe both for Markdown links /
+    # meta.yaml and for open() (Python accepts "/" on Windows too).
+    return "/".join(chain)
 
 
 def generate_anchor(heading: str) -> str:
@@ -243,9 +247,9 @@ def _write_section_pages(section: dict, section_map: dict, pages: list, page_id_
     out.append("")
 
 
-def export_wiki(structure: dict, pages_dir: str, output_dir: str, scan_data: dict | None = None, incremental: bool = False, overview_only: bool = False) -> list[str]:
+def export_wiki(structure: dict, pages_dir: str, output_dir: str, scan_data: dict | None = None, incremental: bool = False, overview_only: bool = False, modules_data: dict | None = None) -> list[str]:
     """Write all wiki pages to output_dir. Overview page gets TOC merged in, uses title-based filename.
-    
+
     Args:
         structure: Wiki structure dict (from parse_structure.py)
         pages_dir: Directory containing generated page markdown files
@@ -253,6 +257,9 @@ def export_wiki(structure: dict, pages_dir: str, output_dir: str, scan_data: dic
         scan_data: Optional scan data dict (from scan_repo.py) for meta.yaml generation
         incremental: If True, only regenerate pages whose source files have changed
         overview_only: If True, only generate overview page and meta.yaml (skip other pages)
+        modules_data: Optional module tree (from scan_modules.py) enabling module-level
+            incremental updates: when a module's aggregate hash is unchanged, all of its
+            pages are skipped at once instead of being checked one by one.
     
     Returns:
         List of written file paths
@@ -302,7 +309,9 @@ def export_wiki(structure: dict, pages_dir: str, output_dir: str, scan_data: dic
             page_id_to_file[page["id"]] = filename
         else:
             page_dir = build_page_dir(page, sections)
-            page_id_to_file[page["id"]] = os.path.join(page_dir, filename) if page_dir else filename
+            # page_dir already uses forward slashes; keep them so the value is
+            # safe for Markdown links / meta.yaml (Python open() accepts "/" too).
+            page_id_to_file[page["id"]] = f"{page_dir}/{filename}" if page_dir else filename
 
     # Build TOC lines (referencing non-overview page filenames)
     toc_lines = build_toc(structure, page_id_to_file, overview_page["id"] if overview_page else None)
@@ -317,6 +326,21 @@ def export_wiki(structure: dict, pages_dir: str, output_dir: str, scan_data: dic
         for old_page in old_meta["pages"]:
             old_page_hashes[old_page["id"]] = old_page.get("source_hash", "")
 
+    # Module-level fast path: precompute the set of pages that belong to
+    # modules whose aggregate hash is unchanged. These can be skipped in a
+    # single check, avoiding a per-file hash lookup for every page.
+    module_unchanged_pages: set[str] = set()
+    if incremental and old_meta and modules_data and scan_data:
+        file_hashes = scan_data.get("file_hashes", {})
+        old_modules = {m["id"]: m for m in old_meta.get("modules", [])}
+        for m in modules_data.get("modules", []):
+            old_m = old_modules.get(m["id"])
+            if not old_m:
+                continue
+            cur_hash = compute_module_hash(m.get("scope", []), file_hashes)
+            if cur_hash and cur_hash == old_m.get("module_hash", ""):
+                module_unchanged_pages.update(old_m.get("pages", []))
+
     # Write each page
     for page in pages_sorted:
         page_id = page["id"]
@@ -328,9 +352,17 @@ def export_wiki(structure: dict, pages_dir: str, output_dir: str, scan_data: dic
 
         # Incremental mode: check if page needs regeneration
         if incremental and old_meta:
+            # Module-level fast path: skip pages under unchanged modules.
+            if page_id in module_unchanged_pages:
+                output_file = os.path.join(output_dir, filename)
+                if os.path.isfile(output_file):
+                    skipped_pages.append(page.get("title", page_id))
+                    continue
+
+            # Page-level fallback: compare the page's own source hash.
             current_hash = compute_source_hash(page.get("filePaths", []), scan_data.get("file_hashes", {}) if scan_data else {})
             old_hash = old_page_hashes.get(page_id, "")
-            
+
             if current_hash == old_hash and current_hash != "":
                 # Source files unchanged, skip regeneration
                 output_file = os.path.join(output_dir, filename)
@@ -439,7 +471,8 @@ def read_meta_yaml(output_dir: str) -> dict | None:
     """Read existing meta.yaml for incremental update comparison.
 
     Returns None if meta.yaml doesn't exist or is invalid.
-    Parses YAML manually to avoid PyYAML dependency.
+    Parses YAML manually to avoid PyYAML dependency. Supports both the
+    pages section and the optional modules section.
     """
     meta_path = os.path.join(output_dir, "meta.yaml")
     if not os.path.isfile(meta_path):
@@ -449,42 +482,95 @@ def read_meta_yaml(output_dir: str) -> dict | None:
         with open(meta_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Parse simple YAML structure manually
-        meta = {"pages": []}
+        meta = {"pages": [], "modules": []}
+        section: str | None = None        # "pages" | "modules" | None
         current_page = None
+        current_module = None
+        current_list_key: str | None = None  # which sub-list we're inside
+
+        def _val(s: str) -> str:
+            return s.split(":", 1)[1].strip().strip('"')
 
         for line in content.split("\n"):
             line = line.rstrip()
             if not line or line.startswith("#"):
                 continue
 
-            # Top-level fields
-            if line.startswith("repo_path:"):
-                meta["repo_path"] = line.split(":", 1)[1].strip().strip('"')
-            elif line.startswith("git_hash:"):
-                meta["git_hash"] = line.split(":", 1)[1].strip().strip('"')
-            elif line.startswith("generated_at:"):
-                meta["generated_at"] = line.split(":", 1)[1].strip().strip('"')
-            elif line.startswith("  - id:"):
-                # Start of a new page
-                if current_page:
-                    meta["pages"].append(current_page)
-                current_page = {"id": line.split(":", 1)[1].strip().strip('"'), "source_files": []}
-            elif current_page and line.startswith("    title:"):
-                current_page["title"] = line.split(":", 1)[1].strip().strip('"')
-            elif current_page and line.startswith("    file:"):
-                current_page["file"] = line.split(":", 1)[1].strip().strip('"')
-            elif current_page and line.startswith("    importance:"):
-                current_page["importance"] = line.split(":", 1)[1].strip().strip('"')
-            elif current_page and line.startswith("      - "):
-                # Source file entry
-                current_page["source_files"].append(line.strip().lstrip("- ").strip('"'))
-            elif current_page and line.startswith("    source_hash:"):
-                current_page["source_hash"] = line.split(":", 1)[1].strip().strip('"')
+            stripped = line.lstrip()
 
-        # Don't forget the last page
+            # Top-level keys
+            if line[:1] not in (" ", "\t"):
+                current_list_key = None
+                if stripped.startswith("repo_path:"):
+                    meta["repo_path"] = _val(stripped)
+                elif stripped.startswith("git_hash:"):
+                    meta["git_hash"] = _val(stripped)
+                elif stripped.startswith("generated_at:"):
+                    meta["generated_at"] = _val(stripped)
+                elif stripped.startswith("pages:"):
+                    if current_page:
+                        meta["pages"].append(current_page)
+                    if current_module:
+                        meta["modules"].append(current_module)
+                    current_page = None
+                    current_module = None
+                    section = "pages"
+                elif stripped.startswith("modules:"):
+                    if current_page:
+                        meta["pages"].append(current_page)
+                    if current_module:
+                        meta["modules"].append(current_module)
+                    current_page = None
+                    current_module = None
+                    section = "modules"
+                continue
+
+            # A new list item starts a new page or module record.
+            if stripped.startswith("- id:"):
+                current_list_key = None
+                if section == "pages":
+                    if current_page:
+                        meta["pages"].append(current_page)
+                    current_page = {"id": _val(stripped), "source_files": []}
+                elif section == "modules":
+                    if current_module:
+                        meta["modules"].append(current_module)
+                    current_module = {"id": _val(stripped), "scope": [], "pages": []}
+                continue
+
+            if section == "pages" and current_page:
+                if stripped.startswith("title:"):
+                    current_page["title"] = _val(stripped)
+                elif stripped.startswith("file:"):
+                    current_page["file"] = _val(stripped)
+                elif stripped.startswith("importance:"):
+                    current_page["importance"] = _val(stripped)
+                elif stripped.startswith("source_hash:"):
+                    current_page["source_hash"] = _val(stripped)
+                elif stripped.startswith("source_files:"):
+                    current_list_key = "source_files"
+                elif stripped.startswith("- "):
+                    if current_list_key == "source_files":
+                        current_page["source_files"].append(stripped.lstrip("- ").strip('"'))
+            elif section == "modules" and current_module:
+                if stripped.startswith("title:"):
+                    current_module["title"] = _val(stripped)
+                    current_list_key = None
+                elif stripped.startswith("module_hash:"):
+                    current_module["module_hash"] = _val(stripped)
+                    current_list_key = None
+                elif stripped.startswith("scope:"):
+                    current_list_key = "scope"
+                elif stripped.startswith("pages:"):
+                    current_list_key = "pages"
+                elif stripped.startswith("- ") and current_list_key:
+                    current_module[current_list_key].append(stripped.lstrip("- ").strip('"'))
+
+        # Flush the last record(s)
         if current_page:
             meta["pages"].append(current_page)
+        if current_module:
+            meta["modules"].append(current_module)
 
         return meta
     except Exception as e:
@@ -506,7 +592,122 @@ def compute_source_hash(source_files: list, file_hashes: dict) -> str:
     return ""
 
 
-def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict | None, output_dir: str) -> None:
+def _normalize_scope_prefix(scope: str) -> str:
+    """Normalise a module scope value to a directory prefix with trailing /.
+
+    scan_modules emits scopes like "module-a/" or "./". We compare file
+    paths against these prefixes, so both "./" and "" mean "repo root".
+    """
+    if not scope or scope == "./":
+        return ""
+    s = scope.replace("\\", "/").strip()
+    if not s.endswith("/"):
+        s += "/"
+    return s
+
+
+def assign_pages_to_modules(pages: list, modules: list) -> dict[str, list[str]]:
+    """Map each page to the module whose scope contains its source files.
+
+    Returns {module_id: [page_id, ...]} for modules that own at least one
+    page. Pages whose files match no module scope are not included (they
+    fall back to page-level incremental handling). A page is assigned to
+    the most specific (deepest) matching module to avoid a file being
+    claimed by both a parent aggregate and its leaf child.
+    """
+    if not modules:
+        return {}
+    # Build (prefix, depth, module_id) for every module, aggregates and leaves.
+    # Sort by depth descending so the deepest (most specific) match wins.
+    candidates = []
+    for m in modules:
+        for scope in m.get("scope", []) or []:
+            pref = _normalize_scope_prefix(scope)
+            depth = pref.count("/")  # deeper dir = more specific
+            candidates.append((pref, depth, m["id"]))
+    candidates.sort(key=lambda c: -c[1])
+
+    result: dict[str, list[str]] = {}
+    for page in pages:
+        assigned_module = None
+        for pref, _depth, mod_id in candidates:
+            if not pref:
+                continue
+            if any(fp.startswith(pref) for fp in page.get("filePaths", []) or []):
+                assigned_module = mod_id
+                break
+        if assigned_module:
+            result.setdefault(assigned_module, []).append(page["id"])
+    return result
+
+
+def compute_module_hash(module_scopes: list, file_hashes: dict) -> str:
+    """Aggregate hash over all files under a module's scope prefixes.
+
+    Unlike compute_source_hash (exact file list), this hashes every file in
+    the repo whose path starts with one of the module's scope prefixes.
+    This is the "module-level" granularity for incremental updates: if no
+    file under the module changed, all of its pages can be skipped at once.
+    """
+    if not module_scopes or not file_hashes:
+        return ""
+    prefixes = [_normalize_scope_prefix(s) for s in module_scopes]
+    prefixes = [p for p in prefixes if p]
+    if not prefixes:
+        return ""
+    combined = ""
+    for fpath, fhash in file_hashes.items():
+        if any(fpath.startswith(p) for p in prefixes):
+            combined += fhash
+    if not combined:
+        return ""
+    import hashlib
+    return hashlib.sha256(combined.encode()).hexdigest()[:16]
+
+
+def compute_content_hash(file_path: str) -> str:
+    """SHA-256 of a page .md file content, first 16 hex chars."""
+    import hashlib
+    try:
+        with open(file_path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()[:16]
+    except Exception:
+        return ""
+
+
+def compute_structure_hash(structure: dict) -> str:
+    """Deterministic hash of the structure JSON (page ids + titles + filePaths)."""
+    import hashlib
+    parts = []
+    for p in sorted(structure.get("pages", []), key=lambda x: x.get("id", "")):
+        parts.append(p.get("id", ""))
+        parts.append(p.get("title", ""))
+        parts.append(",".join(sorted(p.get("filePaths") or [])))
+    for s in sorted(structure.get("sections", []), key=lambda x: x.get("id", "")):
+        parts.append(s.get("id", ""))
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+
+
+def read_used_sources(output_dir: str, page_id: str, page_file: str) -> list:
+    """Read a page's used_sources sidecar if it exists.
+
+    Sidecar path: same directory as the page .md, filename `{page_id}.used_sources.json`.
+    Returns a list of {path, symbol, lines} dicts, or empty list if no sidecar.
+    """
+    sidecar = os.path.join(os.path.dirname(os.path.join(output_dir, page_file)),
+                           f"{page_id}.used_sources.json")
+    if not os.path.isfile(sidecar):
+        return []
+    try:
+        import json as _json
+        with open(sidecar, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+        return data.get("used_sources", [])
+    except Exception:
+        return []
+
+
+def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict | None, output_dir: str, modules_data: dict | None = None, facts_hash: str = "", skill_version: str = "", prompt_hash: str = "") -> None:
     """Generate meta.yaml in docs/wiki/ for incremental update support.
 
     meta.yaml records:
@@ -552,19 +753,60 @@ def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict |
             "importance": page.get("importance", "medium"),
             "source_files": source_files,
             "source_hash": source_hash,
+            # v2 fields
+            "content_hash": compute_content_hash(os.path.join(output_dir, file_path)),
+            "actual_used_sources": read_used_sources(output_dir, page_id, file_path),
+            "manual_edit_hash": "",
         })
 
-    # Write meta.yaml (YAML format, not JSON)
+    # Module-level metadata: enables module-granularity incremental updates
+    # (skip an entire module's pages at once when none of its files changed).
+    # Only written when modules data is available (deep mode / multi-module).
+    meta["modules"] = []
+    if modules_data and modules_data.get("modules"):
+        page_to_module = {}
+        mod_to_pages: dict[str, list[str]] = assign_pages_to_modules(pages, modules_data["modules"])
+        for mod_id, page_ids in mod_to_pages.items():
+            for pid in page_ids:
+                page_to_module[pid] = mod_id
+        for m in modules_data["modules"]:
+            mod_hash = compute_module_hash(m.get("scope", []), file_hashes)
+            meta["modules"].append({
+                "id": m["id"],
+                "title": m.get("title", ""),
+                "scope": m.get("scope", []),
+                "module_hash": mod_hash,
+                "pages": mod_to_pages.get(m["id"], []),
+            })
+
+    # Write meta.yaml (YAML format, v2)
     meta_path = os.path.join(output_dir, "meta.yaml")
+    struct_hash = compute_structure_hash(structure)
     with open(meta_path, "w", encoding="utf-8") as f:
-        f.write("# wiki 产物元数据，用于增量更新\n")
+        f.write("# wiki 产物元数据 (schema v2)，用于增量更新\n")
         f.write(f"# 生成时间: {meta['generated_at']}\n")
         f.write(f"# 仓库: {meta['repo_path']}\n")
         f.write(f"# Git Hash: {meta['git_hash']}\n")
         f.write("\n")
+        # Backward-compatible top-level fields (old readers look here)
+        f.write(f"schema_version: 2\n")
         f.write(f"repo_path: \"{meta['repo_path']}\"\n")
         f.write(f"git_hash: \"{meta['git_hash']}\"\n")
         f.write(f"generated_at: \"{meta['generated_at']}\"\n")
+        f.write("\n")
+        # v2 repository section
+        f.write("repository:\n")
+        f.write(f"  path: \"{meta['repo_path']}\"\n")
+        f.write(f"  branch: \"{(scan_data or {}).get('branch', '')}\"\n")
+        f.write(f"  git_commit: \"{meta['git_hash']}\"\n")
+        f.write(f"  dirty: {(scan_data or {}).get('dirty', False)}\n")
+        f.write("\n")
+        # v2 generator section
+        f.write("generator:\n")
+        f.write(f"  skill_version: \"{skill_version}\"\n")
+        f.write(f"  prompt_hash: \"{prompt_hash}\"\n")
+        f.write(f"  facts_hash: \"{facts_hash}\"\n")
+        f.write(f"  structure_hash: \"{struct_hash}\"\n")
         f.write("\n")
         f.write("pages:\n")
         for p in meta["pages"]:
@@ -576,6 +818,31 @@ def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict |
             for sf in p["source_files"]:
                 f.write(f"      - \"{sf}\"\n")
             f.write(f"    source_hash: \"{p['source_hash']}\"\n")
+            f.write(f"    content_hash: \"{p.get('content_hash', '')}\"\n")
+            f.write(f"    manual_edit_hash: \"{p.get('manual_edit_hash', '')}\"\n")
+            used = p.get("actual_used_sources") or []
+            if used:
+                f.write(f"    actual_used_sources:\n")
+                for us in used:
+                    f.write(f"      - path: \"{us.get('path', '')}\"\n")
+                    if us.get("symbol"):
+                        f.write(f"        symbol: \"{us['symbol']}\"\n")
+                    if us.get("lines"):
+                        f.write(f"        lines: {us['lines']}\n")
+            else:
+                f.write(f"    actual_used_sources: []\n")
+        if meta["modules"]:
+            f.write("\nmodules:\n")
+            for m in meta["modules"]:
+                f.write(f"  - id: \"{m['id']}\"\n")
+                f.write(f"    title: \"{m['title']}\"\n")
+                f.write(f"    scope:\n")
+                for sc in m["scope"]:
+                    f.write(f"      - \"{sc}\"\n")
+                f.write(f"    module_hash: \"{m['module_hash']}\"\n")
+                f.write(f"    pages:\n")
+                for pid in m["pages"]:
+                    f.write(f"      - \"{pid}\"\n")
 
     print(f"Generated meta.yaml at {meta_path}", file=sys.stderr)
 
@@ -586,8 +853,12 @@ def main() -> None:
     parser.add_argument("pages_dir", nargs="?", default=None, help="Directory containing <page_id>.md content files (optional, not used in --overview-only mode)")
     parser.add_argument("--output", "-o", default="docs/wiki", help="Output directory (default: docs/wiki)")
     parser.add_argument("--scan", "-s", default=None, help="Path to scan.json from scan_repo.py (for meta.yaml generation)")
+    parser.add_argument("--modules", "-m", default=None, help="Path to modules.json from scan_modules.py (enables module-level incremental updates)")
     parser.add_argument("--incremental", "-i", action="store_true", help="Only regenerate pages whose source files have changed")
     parser.add_argument("--overview-only", action="store_true", help="Only generate overview page and meta.yaml (skip other pages)")
+    parser.add_argument("--facts", default=None, help="Path to wiki_facts.json from build_facts.py (enables facts_hash in meta v2)")
+    parser.add_argument("--skill-version", default="", help="Skill version string for meta v2 generator section")
+    parser.add_argument("--prompt-hash", default="", help="Prompt template hash for meta v2 generator section")
     args = parser.parse_args()
 
     with open(args.structure, "r", encoding="utf-8") as f:
@@ -598,6 +869,15 @@ def main() -> None:
     if args.scan and os.path.isfile(args.scan):
         with open(args.scan, "r", encoding="utf-8") as f:
             scan_data = json.load(f)
+
+    # Load module tree if provided (deep mode / multi-module projects)
+    modules_data = None
+    if args.modules and os.path.isfile(args.modules):
+        try:
+            with open(args.modules, "r", encoding="utf-8") as f:
+                modules_data = json.load(f)
+        except Exception as e:
+            print(f"Warning: failed to load modules file {args.modules}: {e}", file=sys.stderr)
 
     # Build page_id_to_file mapping (same logic as in export_wiki)
     pages = structure.get("pages", [])
@@ -611,15 +891,29 @@ def main() -> None:
             page_id_to_file[page["id"]] = filename
         else:
             page_dir = build_page_dir(page, sections)
-            page_id_to_file[page["id"]] = os.path.join(page_dir, filename) if page_dir else filename
+            # page_dir already uses forward slashes; keep them so the value is
+            # safe for Markdown links / meta.yaml (Python open() accepts "/" too).
+            page_id_to_file[page["id"]] = f"{page_dir}/{filename}" if page_dir else filename
 
-    written = export_wiki(structure, args.pages_dir or "", args.output, scan_data, args.incremental, args.overview_only)
+    # Load facts data if provided (for meta v2 facts_hash)
+    facts_hash = ""
+    if args.facts and os.path.isfile(args.facts):
+        try:
+            with open(args.facts, "r", encoding="utf-8") as f:
+                facts_data = json.load(f)
+            facts_hash = facts_data.get("facts_hash", "")
+        except Exception as e:
+            print(f"Warning: failed to load facts file {args.facts}: {e}", file=sys.stderr)
+
+    written = export_wiki(structure, args.pages_dir or "", args.output, scan_data, args.incremental, args.overview_only, modules_data)
     print(f"Written {len(written)} files to {args.output}:", file=sys.stderr)
     for fname in written:
         print(f"  - {fname}", file=sys.stderr)
 
-    # Generate meta.yaml for incremental update
-    generate_meta_yaml(structure, page_id_to_file, scan_data, args.output)
+    # Generate meta.yaml for incremental update (v2 format)
+    generate_meta_yaml(structure, page_id_to_file, scan_data, args.output, modules_data,
+                       facts_hash=facts_hash, skill_version=args.skill_version,
+                       prompt_hash=args.prompt_hash)
 
 
 if __name__ == "__main__":

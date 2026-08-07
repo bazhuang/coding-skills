@@ -20,6 +20,7 @@ roles:
       - "filePaths 列表中的源文件内容（从仓库读取）"
     must_write:
       - "docs/wiki/<章节子目录>/<中文标题>.md（且仅此文件）"
+      - "docs/wiki/<章节子目录>/<page_id>.used_sources.json（实际引用的源文件和事实 ID sidecar，P0-4）"
     must_not:
       - "修改 docs/tmp/wiki_structure.json"
       - "修改 docs/tmp/wiki_structure.xml"
@@ -37,6 +38,17 @@ roles:
       - 源文件引用（来源：[filename:行号](../../filename)，至少引用 5 个不同文件）
       - 总结段落
       - <details> 相关源文件块（放在页面最底部）
+
+      同时输出 used_sources.json sidecar（与 .md 同目录，文件名 <page_id>.used_sources.json）：
+      {
+        "page_id": "page-1",
+        "facts": ["fact.module.web.is_deployable", "fact.assertion.single_deployable"],
+        "used_sources": [
+          {"path": "modules/web/src/.../Controller.java", "symbol": "Controller#method", "lines": [42, 87]}
+        ]
+      }
+      facts: 本页引用的 wiki_facts.json 中的事实 ID 列表
+      used_sources: 实际引用的源文件（含稳定符号和行号），export_wiki.py 据此计算真实依赖
     concurrency: "可并行——页面间无内容依赖，通过 relatedPages 做链接，并行安全"
 
   # 未来可扩展角色：

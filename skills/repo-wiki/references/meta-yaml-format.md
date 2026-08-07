@@ -1,6 +1,7 @@
 # meta.yaml 格式规范
 
 > repo-wiki 在 `docs/wiki/meta.yaml` 中持久化产物元数据，支持增量更新。
+> **当前版本：schema v2**（向后兼容 v1 读取器）。
 
 ## 文件位置
 
@@ -8,21 +9,30 @@
 
 ## 用途
 
-1. **增量更新** — 下次运行时，比较当前仓库的 git_hash/file_hashes 和 meta.yaml 里记录的 hash，只重新生成源文件发生变化的页面
-2. **产物追踪** — 记录每个页面的生成时间、关联的源文件列表、源文件内容 hash
-3. **新鲜度检测** — 判断文档是否过期
+1. **增量更新** — 下次运行时，比较当前仓库的 git_hash/file_hashes/facts_hash 和 meta.yaml 里记录的 hash，只重新生成发生变化的页面
+2. **产物追踪** — 记录每个页面的生成时间、关联的源文件列表、源文件内容 hash、实际引用的源文件
+3. **手工编辑检测** — 通过 content_hash 和 manual_edit_hash 判断页面是否被手工修改
 
-## 格式
+## 格式（schema v2）
 
 ```yaml
-# wiki 产物元数据，用于增量更新
-# 生成时间: 2026-07-14T15:21:03.073347
-# 仓库: /path/to/repo
-# Git Hash: abc123def456
-
+# wiki 产物元数据 (schema v2)，用于增量更新
+schema_version: 2
 repo_path: "/path/to/repo"
 git_hash: "abc123def456"
-generated_at: "2026-07-14T15:21:03.073347"
+generated_at: "2026-08-07T15:21:03"
+
+repository:
+  path: "/path/to/repo"
+  branch: "main"
+  git_commit: "abc123def456"
+  dirty: false
+
+generator:
+  skill_version: "1.0.0"
+  prompt_hash: "a1b2c3d4"
+  facts_hash: "e5f6a7b8"      # 来自 build_facts.py 的 wiki_facts.json
+  structure_hash: "c9d0e1f2"  # 来自 structure.json 的确定性 hash
 
 pages:
   - id: "page-overview"
@@ -33,70 +43,70 @@ pages:
       - "README.md"
       - "package.json"
     source_hash: "af316ecb91a8ee7a"
+    content_hash: "b4c5d6e7f8a9b0c1"       # 页面 .md 文件内容 hash
+    manual_edit_hash: ""                    # 手工编辑 hash（下次运行时填充）
+    actual_used_sources: []                 # 来自 used_sources sidecar 的实际引用
   - id: "page-arch"
     title: "整体架构"
     file: "系统架构/整体架构.md"
     importance: "high"
     source_files:
       - "src/core/orchestrator.ts"
-      - "src/core/skill-loader.ts"
     source_hash: "e7bf382f6e5915b3"
+    content_hash: "d5e6f7a8b9c0d1e2"
+    manual_edit_hash: ""
+    actual_used_sources:
+      - path: "src/core/orchestrator.ts"
+        symbol: "Orchestrator#run"
+        lines: [42, 87]
+
+modules:
+  - id: "web"
+    title: "Web Module"
+    scope: ["web/"]
+    module_hash: "f8a9b0c1d2e3f4a5"
+    pages: ["page-arch"]
 ```
 
-## 字段说明
+## v2 新增字段
 
-### 顶层字段
+### 顶层
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `repo_path` | string | 源仓库的绝对路径 |
-| `git_hash` | string | 生成时的 git commit hash（非 git 仓库为空字符串） |
-| `generated_at` | string | 生成时间，ISO 8601 格式 |
-| `pages` | list | 页面元数据列表 |
+| 字段 | 说明 |
+|---|---|
+| `schema_version` | 元数据 schema 版本（当前 2） |
+| `repository` | 仓库信息（path/branch/git_commit/dirty） |
+| `generator` | 生成器信息（skill_version/prompt_hash/facts_hash/structure_hash） |
 
-### pages 列表项
+### pages 列表项新增
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | string | 页面 ID（如 `page-overview`） |
-| `title` | string | 页面标题 |
-| `file` | string | 输出文件路径（相对于 docs/wiki/） |
-| `importance` | string | 重要程度：`high` / `medium` / `low` |
-| `source_files` | list | 该页面关联的源文件列表（来自 structure.json 的 filePaths） |
-| `source_hash` | string | 源文件内容组合 hash（SHA-256 前 16 位） |
+| 字段 | 说明 |
+|---|---|
+| `content_hash` | 页面 .md 文件内容 hash（SHA-256 前 16 位） |
+| `manual_edit_hash` | 上次手工编辑的 hash（用于检测手工修改） |
+| `actual_used_sources` | 页面实际引用的源文件列表（来自 used_sources sidecar），每条含 path/symbol/lines |
 
-## 增量更新流程
+## v1 向后兼容
 
-### 1. 读取 meta.yaml
+v2 保留了 v1 的顶层字段（`repo_path`、`git_hash`、`generated_at`），旧版本读取器仍可正常读取基本信息。新增的 `schema_version`、`repository`、`generator` 和 pages 内的 v2 字段对旧读取器透明（忽略未知字段）。
 
-下次运行时，先检查 `docs/wiki/meta.yaml` 是否存在：
-- 不存在 → 全量生成（首次运行）
-- 存在 → 进入增量判断
+## 增量更新流程（v2）
 
-### 2. 比较 git_hash
+### 1. 判断哪些页面需要重生成
 
-读取 meta.yaml 中的 `git_hash`，和当前仓库的 git hash 比较：
-- 相同 → 代码未变化，所有页面都不需要重新生成
-- 不同 → 进入文件级判断
+对每个页面，依次检查：
+1. `source_hash` 是否变化（源文件内容变了）
+2. `content_hash` 是否变化但 `source_hash` 未变（用户手工编辑了页面——保留手工内容，除非显式要求重生成）
+3. `generator.facts_hash` 是否变化（事实层变了——受影响页面需重生成）
+4. `generator.structure_hash` 是否变化（结构变了——全量重生成）
+5. `generator.prompt_hash` 是否变化（提示词变了——全部页面重生成）
 
-### 3. 比较 source_hash
+### 2. 检测手工编辑
 
-对每个页面，计算当前源文件的组合 hash，和 meta.yaml 中记录的 `source_hash` 比较：
-- 相同 → 该页面的源文件未变化，保留现有内容（包括用户手工编辑的部分）
-- 不同 → 该页面需要重新生成
-
-### 4. 执行增量生成
-
-- 只重新生成 source_hash 发生变化的页面
-- 未变化的页面保留原文件
-- 更新 meta.yaml（新的 git_hash、generated_at、source_hash）
-
-## 手工编辑保护
-
-增量更新时，未变化的页面保留原内容。这意味着：
-- 用户手工编辑的内容不会被覆盖
-- 只有源文件发生变化的页面才会被重新生成
-- 重新生成的页面会丢失手工编辑（这是预期行为——源文件变了，文档需要更新）
+如果 `source_hash` 未变但 `content_hash` 与磁盘上实际文件内容 hash 不同，说明用户手工编辑了页面。此时：
+- 将当前 `content_hash` 存入 `manual_edit_hash`
+- 默认保留手工内容，不覆盖
+- 除非用户显式要求全量重生成
 
 ## 与 wiki-state.yaml 的区别
 
