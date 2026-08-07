@@ -1,0 +1,33 @@
+{
+  "excluded_dirs": [
+    ".git", ".svn", ".hg", "__pycache__", "node_modules", ".venv",
+    "venv", ".idea", ".vscode", "dist", "build", ".next", "target",
+    ".eggs", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache"
+  ],
+  "wiki_output_dirs": [
+    ".qoder/repowiki", "docs/wiki", "zcode-wiki", "docs-bak", ".repo-wiki"
+  ],
+  "excluded_file_suffixes": [
+    ".pyc", ".pyo", ".class", ".o", ".so", ".dylib", ".dll", ".exe"
+  ],
+  "excluded_file_names": [
+    ".DS_Store", "Thumbs.db", ".gitignore", ".gitkeep"
+  ],
+  "sensitive_file_patterns": [
+    ".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "*.crt",
+    "*.keystore", "*.jks", "id_rsa", "id_rsa.pub", "id_ed25519",
+    "id_ed25519.pub", "credentials", "credentials.json",
+    "secrets", "secrets.json", "*.secret"
+  ],
+  "deterministic_readme_names": [
+    "README.md", "readme.md", "README.MD", "Readme.md", "README",
+    "README.txt", "readme.txt"
+  ],
+  "deterministic_rule_files": [
+    "AGENTS.md", "CLAUDE.md", ".ai/rules", ".cursor/rules", "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md", "package.json", "pom.xml", "build.gradle",
+    "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
+    "Cargo.toml", "go.mod", "go.work", "pyproject.toml", "requirements.txt",
+    "docker-compose.yml", "docker-compose.yaml", "Dockerfile"
+  ]
+}
