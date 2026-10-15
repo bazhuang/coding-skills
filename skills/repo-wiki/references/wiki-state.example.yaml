@@ -44,6 +44,17 @@ steps:
     mode_confirmed: false               # 深度模式是否经用户确认（仅 multi_module=true 有意义）
     timestamp: "2026-07-14T10:00:40+08:00"
 
+  extract_graph:                        # 步骤 2.7：仅 Java/Spring 可选执行
+    status: complete
+    output: ".repo-wiki/graph_facts.json"
+    available: false
+    reason: "not_java_spring"           # null | not_java_spring | user_disabled | cbm_unavailable | no_facts
+
+  build_facts:                          # 步骤 2.8：构建统一事实层
+    status: complete
+    output: ".repo-wiki/wiki_facts.json"
+    timestamp: "2026-07-14T10:00:50+08:00"
+
   generate_structure:
     status: complete
     output: "docs/tmp/wiki_structure.json"   # parse_structure.py 解析后的 JSON

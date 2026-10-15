@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build a unified, evidence-backed facts layer from scan outputs.
 
-Merges scan_repo.json + scan_api_entries.json + scan_modules.json into a
+Merges scan_repo.json + scan_api_entries.json + scan_modules.json and an
+optional CBM graph_facts.json into a
 single wiki_facts.json where every claim carries a stable ID, a type
 (observed / repository_rule / inferred), evidence pointers, and a
 confidence score. Structure generation and page generation consume THIS
@@ -20,6 +21,7 @@ Usage:
         --scan docs/tmp/wiki_scan.json
         --api docs/tmp/wiki_api_entries.json
         --modules docs/tmp/wiki_modules.json
+        [--graph .repo-wiki/graph_facts.json]
         [--output .repo-wiki/wiki_facts.json]
         [--repo <repo_path>]   (defaults to scan repo_path)
 
@@ -319,10 +321,86 @@ def compute_facts_hash(facts: list[dict]) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Optional CBM graph facts
+# --------------------------------------------------------------------------- #
+def _valid_graph_fact(fact: dict) -> bool:
+    """Graph facts are accepted only when every evidence item has file:line."""
+    if not isinstance(fact, dict) or fact.get("source") != "graph":
+        return False
+    if not all(fact.get(key) is not None for key in ("id", "type", "category", "value")):
+        return False
+    evidence = fact.get("evidence")
+    if not isinstance(evidence, list) or not evidence:
+        return False
+    for item in evidence:
+        if not isinstance(item, dict):
+            return False
+        source = item.get("source")
+        if not isinstance(source, str) or not source.strip():
+            return False
+        normalized_source = source.replace("\\", "/")
+        if (
+            os.path.isabs(source)
+            or normalized_source.startswith("/")
+            or re.match(r"^[A-Za-z]:/", normalized_source)
+            or ".." in normalized_source.split("/")
+        ):
+            return False
+        line = item.get("line")
+        if not isinstance(line, int) or line <= 0:
+            return False
+    return True
+
+
+def _merge_graph_facts(facts: list[dict], graph_data: dict | None) -> tuple[int, dict | None]:
+    """Merge valid graph facts and return accepted count + optional metadata."""
+    if (
+        not isinstance(graph_data, dict)
+        or graph_data.get("available") is not True
+        or graph_data.get("degraded")
+    ):
+        return 0, None
+
+    by_id = {fact["id"]: fact for fact in facts}
+    accepted = 0
+    for graph_fact in graph_data.get("facts") or []:
+        if not _valid_graph_fact(graph_fact):
+            continue
+        accepted += 1
+        existing = by_id.get(graph_fact["id"])
+        if existing is None:
+            facts.append(graph_fact)
+            by_id[graph_fact["id"]] = graph_fact
+            continue
+        if json.dumps(existing.get("value"), sort_keys=True, ensure_ascii=False) == json.dumps(
+            graph_fact.get("value"), sort_keys=True, ensure_ascii=False
+        ):
+            existing_evidence = existing.setdefault("evidence", [])
+            for item in graph_fact.get("evidence") or []:
+                if item not in existing_evidence:
+                    existing_evidence.append(item)
+            existing["corroborated_by"] = "graph"
+        else:
+            facts.append(graph_fact)
+
+    if accepted == 0:
+        return 0, None
+    marker = graph_data.get("marker")
+    if not isinstance(marker, dict):
+        marker = {}
+    metadata = {
+        "cbm_commit": marker.get("commit", ""),
+        "cbm_version": graph_data.get("cbm_version", marker.get("cbm_version", "")),
+    }
+    return accepted, metadata
+
+
+# --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
 def build_facts(scan_data: dict | None, api_data: dict | None,
-                modules_data: dict | None, repo_path: str | None = None) -> dict:
+                modules_data: dict | None, repo_path: str | None = None,
+                graph_data: dict | None = None) -> dict:
     """Build the unified facts layer from scan outputs."""
     if repo_path is None:
         repo_path = (scan_data or {}).get("repo_path", "")
@@ -346,13 +424,16 @@ def build_facts(scan_data: dict | None, api_data: dict | None,
     # 4. Assertions (inferred high-level facts)
     facts.extend(_build_assertions(modules_data, api_data, scan_data))
 
-    # 5. Detect conflicts
+    # 5. Optional CBM graph facts
+    graph_count, graph_metadata = _merge_graph_facts(facts, graph_data)
+
+    # 6. Detect conflicts
     conflicts = _detect_conflicts(facts)
     if conflicts:
         for c in conflicts:
             print(f"Warning: conflicting facts for {c['fact_id']}", file=sys.stderr)
 
-    # 6. Build top-level structure
+    # 7. Build top-level structure
     result = {
         "schema_version": 1,
         "repository": {
@@ -376,6 +457,9 @@ def build_facts(scan_data: dict | None, api_data: dict | None,
             "conflicts": len(conflicts),
         },
     }
+    if graph_metadata:
+        result["graph"] = graph_metadata
+        result["summary"]["graph_facts"] = graph_count
     return result
 
 
@@ -404,6 +488,8 @@ def main() -> None:
     parser.add_argument("--scan", required=True, help="Path to scan_repo.json")
     parser.add_argument("--api", default=None, help="Path to scan_api_entries.json")
     parser.add_argument("--modules", default=None, help="Path to scan_modules.json")
+    parser.add_argument("--graph", default=None,
+                        help="Optional graph_facts.json from extract_graph_facts.py")
     parser.add_argument("--output", "-o", default=".repo-wiki/wiki_facts.json",
                         help="Output path (default: .repo-wiki/wiki_facts.json)")
     parser.add_argument("--repo", default=None,
@@ -417,9 +503,10 @@ def main() -> None:
 
     api_data = _load_json(args.api)
     modules_data = _load_json(args.modules)
+    graph_data = _load_json(args.graph)
     repo_path = args.repo or scan_data.get("repo_path", "")
 
-    result = build_facts(scan_data, api_data, modules_data, repo_path)
+    result = build_facts(scan_data, api_data, modules_data, repo_path, graph_data)
 
     out_dir = os.path.dirname(os.path.abspath(args.output))
     os.makedirs(out_dir, exist_ok=True)

@@ -146,5 +146,83 @@ class TestBuildFactsBasics(unittest.TestCase):
         self.assertEqual(result["summary"]["conflicts"], 0)
 
 
+class TestOptionalGraphFacts(unittest.TestCase):
+    def setUp(self):
+        self.scan = {
+            "repo_path": "/test",
+            "scan_mode": "git",
+            "git_commit": "abc123",
+            "file_tree": "src/Service.java",
+        }
+
+    @staticmethod
+    def _graph_fact(fact_id="fact.graph.hotspot.service", value=None):
+        return {
+            "id": fact_id,
+            "type": "observed",
+            "category": "graph_hotspot",
+            "value": value if value is not None else {"qualified_name": "pkg.Service.work"},
+            "evidence": [{
+                "source": "src/Service.java",
+                "signal": "cbm get_code_snippet",
+                "line": 8,
+            }],
+            "confidence": 0.9,
+            "source": "graph",
+        }
+
+    def test_valid_graph_fact_is_merged_with_provenance(self):
+        graph = {
+            "available": True,
+            "degraded": False,
+            "cbm_version": "0.10.0",
+            "marker": {"commit": "abc123"},
+            "facts": [self._graph_fact()],
+        }
+        result = bf.build_facts(self.scan, None, None, "/test", graph)
+        self.assertIn("fact.graph.hotspot.service", [f["id"] for f in result["facts"]])
+        self.assertEqual(result["graph"], {
+            "cbm_commit": "abc123", "cbm_version": "0.10.0",
+        })
+        self.assertEqual(result["summary"]["graph_facts"], 1)
+
+    def test_unavailable_graph_keeps_baseline_identical(self):
+        baseline = bf.build_facts(self.scan, None, None, "/test")
+        unavailable = bf.build_facts(
+            self.scan, None, None, "/test",
+            {"available": False, "reason": "not_installed", "facts": []},
+        )
+        self.assertEqual(unavailable, baseline)
+
+    def test_graph_fact_without_line_is_ignored(self):
+        invalid = self._graph_fact()
+        del invalid["evidence"][0]["line"]
+        result = bf.build_facts(self.scan, None, None, "/test", {
+            "available": True, "degraded": False, "facts": [invalid],
+        })
+        self.assertNotIn("graph", result)
+        self.assertNotIn(invalid["id"], [f["id"] for f in result["facts"]])
+
+    def test_graph_fact_with_non_relative_source_is_ignored(self):
+        for source in ("C:/outside/Service.java", "../Service.java"):
+            with self.subTest(source=source):
+                invalid = self._graph_fact()
+                invalid["evidence"][0]["source"] = source
+                result = bf.build_facts(self.scan, None, None, "/test", {
+                    "available": True, "degraded": False, "facts": [invalid],
+                })
+                self.assertNotIn("graph", result)
+                self.assertNotIn(invalid["id"], [f["id"] for f in result["facts"]])
+
+    def test_conflicting_graph_value_uses_existing_conflict_detector(self):
+        baseline = bf.build_facts(self.scan, None, None, "/test")
+        existing = baseline["facts"][0]
+        graph_fact = self._graph_fact(existing["id"], {"different": True})
+        result = bf.build_facts(self.scan, None, None, "/test", {
+            "available": True, "degraded": False, "facts": [graph_fact],
+        })
+        self.assertIn(existing["id"], [c["fact_id"] for c in result["conflicts"]])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -707,7 +707,11 @@ def read_used_sources(output_dir: str, page_id: str, page_file: str) -> list:
         return []
 
 
-def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict | None, output_dir: str, modules_data: dict | None = None, facts_hash: str = "", skill_version: str = "", prompt_hash: str = "") -> None:
+def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict | None,
+                       output_dir: str, modules_data: dict | None = None,
+                       facts_hash: str = "", skill_version: str = "",
+                       prompt_hash: str = "", cbm_commit: str = "",
+                       cbm_version: str = "") -> None:
     """Generate meta.yaml in docs/wiki/ for incremental update support.
 
     meta.yaml records:
@@ -807,6 +811,10 @@ def generate_meta_yaml(structure: dict, page_id_to_file: dict, scan_data: dict |
         f.write(f"  prompt_hash: \"{prompt_hash}\"\n")
         f.write(f"  facts_hash: \"{facts_hash}\"\n")
         f.write(f"  structure_hash: \"{struct_hash}\"\n")
+        if cbm_commit:
+            f.write(f"  cbm_commit: \"{cbm_commit}\"\n")
+        if cbm_version:
+            f.write(f"  cbm_version: \"{cbm_version}\"\n")
         f.write("\n")
         f.write("pages:\n")
         for p in meta["pages"]:
@@ -895,13 +903,19 @@ def main() -> None:
             # safe for Markdown links / meta.yaml (Python open() accepts "/" too).
             page_id_to_file[page["id"]] = f"{page_dir}/{filename}" if page_dir else filename
 
-    # Load facts data if provided (for meta v2 facts_hash)
+    # Load facts data if provided (for meta v2 facts_hash and optional CBM provenance)
     facts_hash = ""
+    cbm_commit = ""
+    cbm_version = ""
     if args.facts and os.path.isfile(args.facts):
         try:
             with open(args.facts, "r", encoding="utf-8") as f:
                 facts_data = json.load(f)
             facts_hash = facts_data.get("facts_hash", "")
+            graph_meta = facts_data.get("graph")
+            if isinstance(graph_meta, dict):
+                cbm_commit = graph_meta.get("cbm_commit", "")
+                cbm_version = graph_meta.get("cbm_version", "")
         except Exception as e:
             print(f"Warning: failed to load facts file {args.facts}: {e}", file=sys.stderr)
 
@@ -913,7 +927,8 @@ def main() -> None:
     # Generate meta.yaml for incremental update (v2 format)
     generate_meta_yaml(structure, page_id_to_file, scan_data, args.output, modules_data,
                        facts_hash=facts_hash, skill_version=args.skill_version,
-                       prompt_hash=args.prompt_hash)
+                       prompt_hash=args.prompt_hash, cbm_commit=cbm_commit,
+                       cbm_version=cbm_version)
 
 
 if __name__ == "__main__":

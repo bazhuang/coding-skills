@@ -19,6 +19,10 @@
     "multi_module": true
   },
   "scan_mode": "git",
+  "graph": {
+    "cbm_commit": "abc123",
+    "cbm_version": "0.10.0"
+  },
   "facts": [ ... ],
   "facts_hash": "82215fd2c89e370e",
   "conflicts": [ ... ],
@@ -41,8 +45,10 @@
 | `type` | string | `observed` / `repository_rule` / `inferred` / `planned` / `recommendation` |
 | `category` | string | 事实分类，如 `module_dependency` / `endpoint_inbound_http` / `architecture` |
 | `value` | any | 事实值（字符串、布尔、数组、对象均可） |
-| `evidence` | array | 证据列表，每条含 `source`（文件/扫描器/事实ID）、`signal`（匹配信号）、可选 `line` |
+| `evidence` | array | 证据列表，每条含 `source`（文件/扫描器/事实ID）、`signal`（匹配信号）、可选 `line`；`source=graph` 的事实必须为每条证据提供仓库相对源码路径和正整数行号 |
 | `confidence` | float | 置信度 0.0-1.0。`observed` 和 `repository_rule` 通常为 1.0；`inferred` 根据信号数量调整 |
+
+图谱事实额外使用 `source: "graph"` 标识来源。只有 CBM 提取成功、未降级且事实通过证据校验时才会进入 `facts`；此时顶层才出现 `graph.cbm_commit` / `graph.cbm_version`。CBM 不可用或未产生有效事实时，输出与未启用 CBM 的基线保持一致。
 
 ## 事实类型
 
@@ -91,5 +97,5 @@ fact.assertion.scan_mode
 ## 消费方式
 
 - **结构生成（步骤 3）**：读取 `wiki_facts.json`，使用 `facts` 数组中的 observed/inferred 事实作为结构规划依据，不直接在原始扫描结果之间自由推断
-- **页面生成（步骤 4）**：每页引用相关事实 ID 到 `used_sources.json` sidecar 的 `facts` 字段
+- **页面生成（步骤 4）**：主执行者按页面 `filePaths` 与 evidence.source 的交集筛选事实子集，并追加到页面提示词；页面 agent 不直接查询 CBM
 - **验证（步骤 6）**：检查关键断言（如 `single_deployable`）是否通过，冲突事实是否已处理

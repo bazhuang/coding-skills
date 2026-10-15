@@ -45,6 +45,7 @@ description: "当用户要求为代码仓库生成项目文档、项目百科、
 | 派发子 agent 前加载角色契约（必读/必写/不许做） | `references/agent-contracts.yaml` |
 | 验证产物的检查项和软硬门禁判定标准 | `references/verify-checklist.md` |
 | 产物元数据 meta.yaml 的格式、增量更新流程、手工编辑保护 | `references/meta-yaml-format.md` |
+| 执行可选 CBM 提取或合并统一事实层 | `references/cbm-cli-contract.md`、`references/facts-schema.md` |
 
 只读取当前任务需要的 reference，不要一次性加载所有细节。
 
@@ -138,7 +139,7 @@ python3 skills/repo-wiki/scripts/scan_modules.py <仓库路径> --output docs/tm
 
 **深度模式判定与确认（关键）**：读取 `wiki_modules.json`：
 
-- `multi_module == false` → 项目不是多模块，继续步骤 3，按全面模式或精简模式生成（不填 `{MODULES}` 占位符）。
+- `multi_module == false` → 项目不是多模块，不填 `{MODULES}` 占位符；继续步骤 2.7、2.8，再按全面模式或精简模式生成。
 - `multi_module == true` → 向用户报告并**等待显式确认**：
 
   > 检测到 N 个模块（构建系统：X，其中叶子模块 M 个）。这是一个多模块项目，建议使用**深度模式**：预计生成约 80-150 页，目录分 3 层（章节 → 模块组 → 模块页），全量生成约需 30-60 分钟。是否进入深度模式？
@@ -146,20 +147,34 @@ python3 skills/repo-wiki/scripts/scan_modules.py <仓库路径> --output docs/tm
   > - 确认深度模式 → 生成最细粒度的模块级文档
   > - 否 → 使用全面模式（15-25 页，更快）
 
-  - 用户**确认深度模式** → 将 `wiki_modules.json` 的 `modules` 渲染为文本（用 `--format text` 或自行格式化为 `id | title | type | scope | children`），填入 structure-prompt 的 `{MODULES}` 占位符；状态文件记 `mode=deep`；进入步骤 3 的深度模式分支。
+  - 用户**确认深度模式** → 将 `wiki_modules.json` 的 `modules` 渲染为文本（用 `--format text` 或自行格式化为 `id | title | type | scope | children`），填入 structure-prompt 的 `{MODULES}` 占位符；状态文件记 `mode=deep`；完成步骤 2.7、2.8 后进入步骤 3 的深度模式分支。
   - 用户**拒绝** → 回退全面模式，`{MODULES}` 填空，`mode=full`。
 
 **不要自动进入深度模式**——必须用户明确同意。深度模式成本高（页数多、耗时长），误触发会浪费大量资源。
 
 脚本识别的模块边界是初筛结果，**执行者可在结构生成阶段修正**：若发现某些模块划分不合理（过大、过碎、跨域），可在生成 XML 时调整章节/页面的组织方式。模块树是骨架建议，不是硬约束。
 
+### 2.7 可选提取代码图谱事实（仅 Java/Spring）
+
+仅当 `wiki_scan.json.file_tree` 包含 `.java` 文件，且 `wiki_api_entries.json` 的 `summary.by_framework` 包含 `spring` 或 `controllers` 非空时执行。其他语言/框架完全跳过，不启动 CBM，也不改变原有事实层。
+
+如果用户明确要求关闭 CBM，跳过本步骤并记录 `reason=user_disabled`。否则执行：
+
+```bash
+python3 skills/repo-wiki/scripts/extract_graph_facts.py --repo <仓库路径> --scan docs/tmp/wiki_scan.json --api docs/tmp/wiki_api_entries.json --output .repo-wiki/graph_facts.json
+```
+
+脚本通过 `codebase-memory-mcp` CLI 建索引并提取带源码位置的调用链和热点事实。CBM 未安装、版本不满足、守护进程不可用、索引失败或没有可用事实时，脚本以 exit 0 降级，并输出 `available=false` 或空 `facts`；这不是 wiki 生成失败，后续继续原流程。
+
+只有 `graph_facts.json` 同时满足 `available=true`、`degraded=false` 且 `facts` 非空时，才在步骤 2.8 传入 `--graph`。更新状态文件：`extract_graph.status=complete`，记录 `output`、`available`、`reason`；未进入本步骤时同样标记 complete，并写明跳过原因。
+
 ### 2.8 构建统一事实层
 
 ```bash
-python3 skills/repo-wiki/scripts/build_facts.py --scan docs/tmp/wiki_scan.json --api docs/tmp/wiki_api_entries.json --modules docs/tmp/wiki_modules.json --output .repo-wiki/wiki_facts.json
+python3 skills/repo-wiki/scripts/build_facts.py --scan docs/tmp/wiki_scan.json --api docs/tmp/wiki_api_entries.json --modules docs/tmp/wiki_modules.json --output .repo-wiki/wiki_facts.json [--graph .repo-wiki/graph_facts.json]
 ```
 
-脚本合并仓库扫描、接口扫描、模块扫描和仓库规则文件（AGENTS.md 等），输出 `.repo-wiki/wiki_facts.json`。每条事实带稳定 ID、类型（observed/repository_rule/inferred）、证据和置信度。结构生成和页面生成消费此文件而非原始扫描结果，确保关键架构结论只定义一次且可追溯。
+脚本合并仓库扫描、接口扫描、模块扫描和仓库规则文件（AGENTS.md 等），并可选合并步骤 2.7 的图谱事实，输出 `.repo-wiki/wiki_facts.json`。每条事实带稳定 ID、类型（observed/repository_rule/inferred）、证据和置信度。结构生成和页面生成消费此文件而非原始扫描结果，确保关键架构结论只定义一次且可追溯。
 
 输出 JSON 含：
 - `schema_version`：1
@@ -169,6 +184,7 @@ python3 skills/repo-wiki/scripts/build_facts.py --scan docs/tmp/wiki_scan.json -
 - `facts_hash`：事实层确定性 hash（写入 meta.yaml v2 的 generator.facts_hash）
 - `conflicts`：冲突事实列表（同 ID 不同 value）
 - `summary`：按类型/分类统计
+- `graph`：仅实际合并图谱事实时存在，记录 `cbm_commit` 和 `cbm_version`
 
 **关键原则**：结构生成（步骤 3）和页面生成（步骤 4）以事实层为依据，不直接在原始扫描结果之间自由推断。页面生成中新增的推断应回写为 `inferred` 类型，不能伪装为 observed。完整 schema 见 `references/facts-schema.md`。
 
@@ -182,6 +198,7 @@ python3 skills/repo-wiki/scripts/build_facts.py --scan docs/tmp/wiki_scan.json -
 - `{README}` -> scan_repo.py 输出的 readme
 - `{API_ENTRIES}` -> scan_api_entries.py 格式化后的 API 入口列表
 - `{MODULES}` -> （仅深度模式）scan_modules.py 渲染的模块树文本；非深度模式填空
+- `{FACTS_SUMMARY}` -> `wiki_facts.json` 的 summary、conflicts 和事实摘要；图谱事实只保留 id/category/value/evidence，不直接拼接 CBM 原始响应
 
 根据用户需求选择模式：
 - **深度模式**：80-150 个页面，3 层目录（章节 → 模块组 → 模块页）。仅当步骤 2.5 检测到多模块且用户确认后使用。模块详解章节是主体，覆盖大多数叶子模块；其他章节按项目特征从候选清单裁剪。
@@ -219,7 +236,7 @@ python3 skills/repo-wiki/scripts/parse_structure.py docs/tmp/wiki_structure.xml 
    - **hash 不同** → 源文件已变化，需要重新生成该页面
 5. 只重新生成 hash 变化的页面
 
-**派发子 agent 前**：先读取 `references/agent-contracts.yaml`，按其中 `page_generator` 角色的契约约束子 agent 的必读/必写/不许做。
+**派发子 agent 前**：先读取 `references/agent-contracts.yaml`，按其中 `page_generator` 角色的契约约束子 agent 的必读/必写/不许做。主执行者再从 `wiki_facts.json` 选择证据 `source` 与本页 `filePaths` 相交的事实（最多 30 条），以 `<page_facts>...</page_facts>` 追加到页面提示词；无匹配事实时省略。子 agent 不直接调用 CBM。
 
 更新状态文件：`generate_pages.status=in_progress`，初始化 `pages` 列表，为每个页面创建状态记录（包含 id、title、source_hash、output_file）。
 
@@ -247,9 +264,10 @@ python3 skills/repo-wiki/scripts/parse_structure.py docs/tmp/wiki_structure.xml 
    - `{PAGE_DESCRIPTION}` -> 页面描述
    - `{FILE_PATHS}` -> 源文件列表（`- 文件路径` 格式）
    - `{FILE_PATHS_LINKED}` -> 可点击链接列表（`- [文件路径](../../文件路径)`）
-3. 读取相关源文件内容，按提示词生成 Markdown 内容
-4. 按「写文件规则」用 Write 工具直接写入 `docs/wiki/<章节子目录>/<中文标题>.md`
-5. 更新状态文件中该页面的状态
+3. 从 `wiki_facts.json` 提取本页事实子集并追加 `<page_facts>`；observed 事实必须遵守，inferred 事实可在源码证据充分时修正
+4. 读取相关源文件内容，按提示词生成 Markdown 内容
+5. 按「写文件规则」用 Write 工具直接写入 `docs/wiki/<章节子目录>/<中文标题>.md`
+6. 更新状态文件中该页面的状态
 
 每页内容要求：
 - 总结后以 `<details>` 块列出相关源文件（至少 5 个，放在页面底部）
@@ -273,14 +291,14 @@ python3 skills/repo-wiki/scripts/parse_structure.py docs/tmp/wiki_structure.xml 
 所有页面生成完成后，生成概览页面和元数据：
 
 ```bash
-python3 skills/repo-wiki/scripts/export_wiki.py docs/tmp/wiki_structure.json --output docs/wiki --scan docs/tmp/wiki_scan.json --overview-only [--modules docs/tmp/wiki_modules.json]
+python3 skills/repo-wiki/scripts/export_wiki.py docs/tmp/wiki_structure.json --output docs/wiki --scan docs/tmp/wiki_scan.json --facts .repo-wiki/wiki_facts.json --overview-only [--modules docs/tmp/wiki_modules.json]
 ```
 
 `--modules` 参数（深度模式提供）：传入步骤 2.5 的模块树，使 meta.yaml 记录模块级 scope 与聚合 hash，支撑模块级增量更新。非深度模式省略此参数。
 
 脚本会：
 - 生成概览页面（合并项目标题、描述、目录导航和概览正文）
-- 生成 `docs/wiki/meta.yaml`（产物元数据，用于增量更新，参照 `references/meta-yaml-format.md`）。深度模式下 meta.yaml 额外含 `modules` 段（模块 scope、module_hash、归属 pages）
+- 生成 `docs/wiki/meta.yaml`（产物元数据，用于增量更新，参照 `references/meta-yaml-format.md`）。实际合并图谱事实时，`generator` 额外记录 `cbm_commit` 和 `cbm_version`；深度模式下额外含 `modules` 段（模块 scope、module_hash、归属 pages）
 
 **注意**：步骤 4 已经生成的普通页面不会被覆盖，只有概览页面和 meta.yaml 是这一步新生成的。
 
@@ -336,6 +354,8 @@ rm -rf docs/tmp
 | `scripts/scan_repo.py` | Git 感知扫描（`git ls-files` 优先），排除 Wiki 输出/缓存/敏感文件，支持符号链接策略和循环检测，输出文件树 + README + repo_path/branch/git_commit/dirty + file_hashes + excluded_paths |
 | `scripts/scan_api_entries.py` | 按语言分派扫描 API 入口，剥离注释防误报，分类入口类型（inbound_http/outbound_http_client/message_consumer/message_producer/scheduled_job/event_listener），Spring 自动合并类级+方法级路径 |
 | `scripts/scan_modules.py` | 按构建系统声明识别模块边界，计算 depends_on / runtime_role / is_deployable / is_placeholder / entry_points / source-test 计数，输出增强模块树 |
+| `scripts/extract_graph_facts.py` | 可选调用 codebase-memory-mcp，为 Java/Spring 项目提取带源码位置的调用链和热点事实；不可用时安全降级 |
+| `scripts/build_facts.py` | 合并扫描结果、仓库规则和可用的图谱事实，生成统一事实层 |
 | `scripts/parse_structure.py` | 解析 XML 格式的 文档目录结构，输出 JSON |
 | `scripts/export_wiki.py` | 将结构 JSON + 页面内容导出为 docs/wiki/ 下的 Markdown 文件，生成 meta.yaml 元数据（支持模块级增量） |
 | `scripts/verify_wiki.py` | 验证产物：硬门禁（概览页存在、每页文件存在、H1 标题、文件名合法）+ 软门禁（Mermaid 图表数、源文件引用数、表格数、链接有效性、深度模式模块覆盖率） |

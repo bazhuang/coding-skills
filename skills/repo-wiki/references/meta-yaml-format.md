@@ -33,6 +33,8 @@ generator:
   prompt_hash: "a1b2c3d4"
   facts_hash: "e5f6a7b8"      # 来自 build_facts.py 的 wiki_facts.json
   structure_hash: "c9d0e1f2"  # 来自 structure.json 的确定性 hash
+  cbm_commit: "abc123"         # 可选：实际合并图谱事实时写入
+  cbm_version: "0.10.0"        # 可选：实际合并图谱事实时写入
 
 pages:
   - id: "page-overview"
@@ -76,7 +78,9 @@ modules:
 |---|---|
 | `schema_version` | 元数据 schema 版本（当前 2） |
 | `repository` | 仓库信息（path/branch/git_commit/dirty） |
-| `generator` | 生成器信息（skill_version/prompt_hash/facts_hash/structure_hash） |
+| `generator` | 生成器信息（skill_version/prompt_hash/facts_hash/structure_hash，以及可选 cbm_commit/cbm_version） |
+
+`cbm_commit` 和 `cbm_version` 仅在 `wiki_facts.json` 实际合并了有效图谱事实时出现；CBM 不可用、被关闭或没有有效事实时不得写空字段。
 
 ### pages 列表项新增
 
@@ -125,7 +129,8 @@ v2 保留了 v1 的顶层字段（`repo_path`、`git_hash`、`generated_at`）�
 python3 skills/repo-wiki/scripts/export_wiki.py \
   docs/tmp/wiki_structure.json \
   --output docs/wiki \
-  --scan docs/tmp/wiki_scan.json    # 提供 scan.json 以获取 git_hash 和 file_hashes
+  --scan docs/tmp/wiki_scan.json \
+  --facts .repo-wiki/wiki_facts.json
 ```
 
-`--scan` 参数是可选的。如果不提供，meta.yaml 中的 git_hash 和 source_hash 为空字符串，无法进行增量更新。
+`--scan` 参数是可选的。如果不提供，meta.yaml 中的 git_hash 和 source_hash 为空字符串，无法进行增量更新。`--facts` 提供 facts_hash；当该文件包含已合并图谱事实的 `graph` 元数据时，同时写入可选 CBM 字段。

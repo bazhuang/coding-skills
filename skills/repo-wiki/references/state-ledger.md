@@ -46,6 +46,8 @@
 | `scan_repo` | 扫描仓库文件树 | 步骤 1 |
 | `scan_api` | 扫描 API 入口 | 步骤 2 |
 | `scan_modules` | 扫描模块结构 | 步骤 2.5 |
+| `extract_graph` | 可选提取代码图谱事实 | 步骤 2.7 |
+| `build_facts` | 构建统一事实层 | 步骤 2.8 |
 | `generate_structure` | 生成文档目录结构 | 步骤 3 |
 | `generate_pages` | 逐页生成内容 | 步骤 4 |
 | `export` | 导出到 docs/wiki/ | 步骤 5 |
@@ -74,6 +76,10 @@
 | `scan_modules` | `output` | scan_modules.py 输出的 JSON 路径（多模块项目） |
 | | `multi_module` | 是否检测到多模块项目：`true` / `false` |
 | | `mode_confirmed` | 深度模式是否经用户确认：`true` / `false`（仅 multi_module=true 时有意义） |
+| `extract_graph` | `output` | 可选 graph_facts.json 路径 |
+| | `available` | CBM 提取输出的 available 状态；是否传入 build_facts 还需同时检查 degraded 和 facts |
+| | `reason` | 不可用或跳过原因；成功时为空 |
+| `build_facts` | `output` | build_facts.py 输出的 wiki_facts.json 路径 |
 | `generate_structure` | `output` | parse_structure.py 解析后的 JSON 路径 |
 | | `raw_xml` | LLM 生成的原始 XML 路径 |
 | `generate_pages` | `total_pages` | 总页面数 |
